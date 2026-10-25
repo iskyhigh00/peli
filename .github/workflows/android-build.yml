@@ -44,6 +44,14 @@ jobs:
             echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> "$GITHUB_ENV"
           fi
 
+      # Sin llave fija cada build se firma distinto y Android no instala la actualización encima.
+      - name: exigir firma estable
+        run: |
+          if [ -z "${KEYSTORE_FILE:-}" ]; then
+            echo "::error::Falta el secreto KEYSTORE_B64 (con KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD): sin llave fija las actualizaciones no se pueden instalar."
+            exit 1
+          fi
+
       - name: assemble
         run: gradle assembleRelease --stacktrace
 
