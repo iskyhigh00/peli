@@ -23,6 +23,9 @@ object Changelog {
             "Firma fija: las actualizaciones se instalan encima sin desinstalar.",
             "Descubrir: los botones Sí / No quedan siempre visibles, sin scroll.",
         ),
+        "1.0.5" to listOf(
+            "Las carátulas se ven completas, sin recortes.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

@@ -65,15 +65,17 @@ import com.peli.app.data.OWNER_ME
 import com.peli.app.data.TmdbApi
 import com.peli.app.ui.theme.PeliTheme
 
-/** Carátula: shimmer de fondo mientras carga y crossfade de 500ms; icono si no hay imagen. */
+/** Carátula: shimmer mientras carga y crossfade de 500ms; icono si no hay imagen. `Fit` muestra la imagen completa. */
 @Composable
 fun PosterImage(
     path: String?,
     contentDescription: String?,
     modifier: Modifier = Modifier,
     shape: Shape = MaterialTheme.shapes.large,
+    contentScale: ContentScale = ContentScale.Crop,
 ) {
     var failed by remember(path) { mutableStateOf(false) }
+    var loaded by remember(path) { mutableStateOf(false) }
     Box(
         modifier.clip(shape).background(MaterialTheme.colorScheme.surfaceVariant),
         contentAlignment = Alignment.Center,
@@ -86,14 +88,15 @@ fun PosterImage(
                 modifier = Modifier.size(32.dp),
             )
         } else {
-            ShimmerBox(Modifier.fillMaxSize(), RectangleShape)
+            if (!loaded) ShimmerBox(Modifier.fillMaxSize(), RectangleShape)
             AsyncImage(
                 model = ImageRequest.Builder(LocalContext.current)
                     .data(TmdbApi.POSTER_BASE + path)
                     .crossfade(500)
                     .build(),
                 contentDescription = contentDescription,
-                contentScale = ContentScale.Crop,
+                contentScale = contentScale,
+                onSuccess = { loaded = true },
                 onError = { failed = true },
                 modifier = Modifier.fillMaxSize(),
             )

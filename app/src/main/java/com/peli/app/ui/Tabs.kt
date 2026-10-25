@@ -49,6 +49,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.peli.app.data.Entry
@@ -183,7 +184,11 @@ fun DiscoverTab(vm: MainViewModel) {
                 label = "discoverCard",
             ) { e ->
                 GlassCard(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp)) {
-                    PosterImage(e.posterPath, "Carátula de ${e.title}", Modifier.fillMaxWidth().weight(1f))
+                    PosterImage(
+                        e.posterPath, "Carátula de ${e.title}",
+                        Modifier.fillMaxWidth().weight(1f),
+                        contentScale = ContentScale.Fit,
+                    )
                     Spacer(Modifier.height(12.dp))
                     Text(
                         e.title,
