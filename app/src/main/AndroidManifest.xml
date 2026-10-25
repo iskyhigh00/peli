@@ -7,6 +7,7 @@
     <application
         android:name=".PeliApp"
         android:allowBackup="true"
+        android:enableOnBackInvokedCallback="true"
         android:label="Peli"
         android:supportsRtl="true"
         android:theme="@style/Theme.Peli">
@@ -21,7 +22,8 @@
         </provider>
         <activity
             android:name=".MainActivity"
-            android:exported="true">
+            android:exported="true"
+            android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

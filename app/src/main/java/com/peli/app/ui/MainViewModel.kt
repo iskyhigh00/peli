@@ -2,12 +2,12 @@ package com.peli.app.ui
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.peli.app.APP_VERSION
 import com.peli.app.BuildConfig
 import com.peli.app.PeliApp
 import com.peli.app.data.Entry
-import com.peli.app.data.OWNER_ME
 import com.peli.app.data.Remote
 import com.peli.app.data.RoomCodes
 import com.peli.app.data.Sharing
@@ -18,10 +18,20 @@ import com.peli.app.data.toggleSeen
 import com.peli.app.data.toggleWatch
 import com.peli.app.update.Changelog
 import com.peli.app.update.Updater
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -29,7 +39,14 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
-class MainViewModel(app: Application) : AndroidViewModel(app) {
+/** Ofrece deshacer la última respuesta de "Descubrir". */
+data class UndoOffer(val message: String, val card: Entry, val previous: Entry?)
+
+/**
+ * Estado de la app. Lo que el usuario elige (búsqueda, filtros, orden) vive en [SavedStateHandle]:
+ * sobrevive a cambios de pestaña, navegación, rotación y recuperación tras cerrar el proceso.
+ */
+class MainViewModel(app: Application, private val saved: SavedStateHandle) : AndroidViewModel(app) {
     private val peli = app as PeliApp
     private val repo = peli.repository
     private val pairing = peli.pairing
@@ -37,15 +54,52 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val mine = repo.mine.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     val partner = repo.partner.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     val matches = combine(repo.mine, repo.partner) { m, p -> computeMatches(m, p) }
+        .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    val results = MutableStateFlow<List<Entry>>(emptyList())
-    val loading = MutableStateFlow(false)
-    val error = MutableStateFlow<String?>(null)
-    val message = MutableStateFlow<String?>(null)
+    // ---- Selecciones del usuario (persisten) ---------------------------------
 
-    /** Cola de sugerencias para "Descubrir". */
+    val searchQuery: StateFlow<String> = saved.getStateFlow(KEY_QUERY, "")
+    val searchFilter: StateFlow<SearchFilter> = saved.getStateFlow(KEY_SEARCH_FILTER, SearchFilter.All.name)
+        .map { SearchFilter.valueOf(it) }.stateIn(viewModelScope, SharingStarted.Eagerly, SearchFilter.All)
+    val mineFilter: StateFlow<MineFilter> = saved.getStateFlow(KEY_MINE_FILTER, MineFilter.All.name)
+        .map { MineFilter.valueOf(it) }.stateIn(viewModelScope, SharingStarted.Eagerly, MineFilter.All)
+    val mineSort: StateFlow<MineSort> = saved.getStateFlow(KEY_MINE_SORT, MineSort.Recent.name)
+        .map { MineSort.valueOf(it) }.stateIn(viewModelScope, SharingStarted.Eagerly, MineSort.Recent)
+
+    fun setSearchQuery(q: String) { saved[KEY_QUERY] = q }
+    fun setSearchFilter(f: SearchFilter) { saved[KEY_SEARCH_FILTER] = f.name }
+    fun setMineFilter(f: MineFilter) { saved[KEY_MINE_FILTER] = f.name }
+    fun setMineSort(s: MineSort) { saved[KEY_MINE_SORT] = s.name }
+
+    // ---- Buscar --------------------------------------------------------------
+
+    val results = MutableStateFlow<List<Entry>>(emptyList())
+    val searchLoading = MutableStateFlow(false)
+    val searchError = MutableStateFlow<String?>(null)
+
+    /** true mientras se actualiza con el gesto de deslizar hacia abajo. */
+    val refreshing = MutableStateFlow(false)
+
+    private val searchNow = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    private var firstSearch = true
+    private var pullPending = false
+
+    /** Último lote del feed personalizado: se reutiliza al volver a la lista vacía y cambia al deslizar. */
+    private var feed: List<Entry> = emptyList()
+
+    // ---- Descubrir -----------------------------------------------------------
+
+    /** Cola de sugerencias. */
     val queue = MutableStateFlow<List<Entry>>(emptyList())
+    val queueLoading = MutableStateFlow(false)
+    val queueError = MutableStateFlow<String?>(null)
+    val undo = MutableStateFlow<UndoOffer?>(null)
+    private var refillJob: Job? = null
+
+    // ---- Avisos y actualizaciones --------------------------------------------
+
+    val message = MutableStateFlow<String?>(null)
 
     /** Versión nueva disponible (null = al día o sin consultar). */
     val newVersion = MutableStateFlow<String?>(null)
@@ -56,7 +110,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** Novedades a mostrar tras actualizar (versión -> cambios). */
     val whatsNew = MutableStateFlow<List<Pair<String, List<String>>>>(emptyList())
 
-    // ---- Sala con la pareja -------------------------------------------------
+    // ---- Sala con la pareja --------------------------------------------------
 
     /** ¿Hay servidor configurado? Si no, solo funciona el intercambio manual de códigos. */
     val cloudAvailable = Remote.configured
@@ -76,12 +130,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch(Dispatchers.IO) { Updater.cleanupDownloads(getApplication()) }
         whatsNew.value = Changelog.takeUnseen(getApplication())
         checkForUpdate(manual = false)
-        if (BuildConfig.TMDB_API_KEY.isBlank()) {
-            error.value = "Falta TMDB_API_KEY en local.properties"
-        } else {
-            search("")
-            refillQueue()
+        refillQueue()
+
+        // Búsqueda: espera a que dejes de escribir; si llega otra consulta, la anterior se cancela
+        // (así nunca se muestra una respuesta vieja). "Buscar" del teclado o deslizar la lanza al instante.
+        viewModelScope.launch {
+            merge(searchQuery.map { false }, searchNow.map { true }).collectLatest { immediate ->
+                if (!immediate && !firstSearch) delay(SEARCH_DEBOUNCE_MS)
+                firstSearch = false
+                runSearch(searchQuery.value)
+            }
         }
+
         // Tinder: cada vez que aparece una película que a los dos nos interesa, se avisa una sola vez.
         viewModelScope.launch {
             matches.collect { list ->
@@ -95,53 +155,65 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private fun <T> guarded(block: suspend () -> T) = viewModelScope.launch {
-        loading.value = true
-        error.value = null
-        try { block() } catch (e: Exception) { error.value = "Error de red: ${e.message}" }
-        loading.value = false
-    }
+    // ---- Buscar: lógica ------------------------------------------------------
 
-    /** true mientras se actualiza con el gesto de deslizar hacia abajo. */
-    val refreshing = MutableStateFlow(false)
-    private var lastQuery: String? = null
+    private suspend fun runSearch(q: String) {
+        val pull = pullPending
+        if (BuildConfig.TMDB_API_KEY.isBlank()) {
+            searchError.value = "Falta TMDB_API_KEY en local.properties"
+            endPull()
+            return
+        }
+        searchLoading.value = true
+        searchError.value = null
+        try {
+            results.value = if (q.isBlank()) loadFeed(refresh = pull) else repo.search(q.trim())
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            if (pull && results.value.isNotEmpty()) {
+                message.value = "No se pudo actualizar: ${e.message}"
+            } else {
+                results.value = emptyList()
+                searchError.value = "Error de red: ${e.message}"
+            }
+        } finally {
+            searchLoading.value = false
+            endPull()
+        }
+    }
 
     /**
-     * Con texto busca; vacío muestra las populares. Si ya está cargada esa misma búsqueda no se repite
-     * (así la lista no cambia al volver de ver una película).
+     * Sin búsqueda, la lista principal es como "Sorpréndeme": sugerencias según tus gustos.
+     * Se mantiene estable mientras navegas y, al deslizar, trae un lote distinto sin repetir lo anterior.
      */
-    fun search(query: String) {
-        if (query == lastQuery && results.value.isNotEmpty()) return
-        lastQuery = query
-        guarded {
-            results.value = if (query.isBlank()) repo.popular(1) else repo.search(query.trim())
-        }
+    private suspend fun loadFeed(refresh: Boolean): List<Entry> {
+        if (!refresh && feed.isNotEmpty()) return feed
+        val avoid = if (refresh) feed.map { it.movieId }.toSet() else emptySet()
+        // Se lee de la base (no del StateFlow, que al arrancar aún puede estar vacío) para personalizar de verdad.
+        val next = repo.recommend(repo.mine.first(), avoid = avoid, noise = FEED_NOISE).take(FEED_SIZE)
+        feed = next
+        return next
     }
 
-    /** Deslizar hacia abajo en la lista principal: vuelve a pedir el listado completo. */
-    fun refreshSearch(query: String) {
-        viewModelScope.launch {
-            refreshing.value = true
-            try {
-                results.value = if (query.isBlank()) repo.popular(1) else repo.search(query.trim())
-                lastQuery = query
-                error.value = null
-            } catch (e: Exception) {
-                error.value = "Error de red: ${e.message}"
-            } finally {
-                refreshing.value = false
-            }
-        }
-    }
-
-    /** Deslizar hacia abajo en "Juntos": sincroniza con la sala ahora mismo. */
-    fun refreshSync() {
-        viewModelScope.launch {
-            refreshing.value = true
-            sync()
+    private fun endPull() {
+        if (pullPending) {
+            pullPending = false
             refreshing.value = false
         }
     }
+
+    /** "Buscar" del teclado: consulta ya, sin esperar. */
+    fun submitSearch() { searchNow.tryEmit(Unit) }
+
+    /** Deslizar hacia abajo en la lista principal: vuelve a pedir el listado completo. */
+    fun refreshSearch() {
+        pullPending = true
+        refreshing.value = true
+        searchNow.tryEmit(Unit)
+    }
+
+    // ---- Marcar películas ----------------------------------------------------
 
     fun toggleWant(e: Entry) = update(e) { it.toggleWatch() }
     fun toggleLiked(e: Entry) = update(e) { it.toggleLiked() }
@@ -154,44 +226,103 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Guarda localmente y sube el cambio a la sala (si falla, el próximo sync lo reintenta). */
     private suspend fun applyAndPush(e: Entry, change: (Entry) -> Entry) {
-        val next = repo.update(e, change)
-        val r = room.value ?: return
-        runCatching { repo.push(r, pairing.userId, next) }
+        push(repo.update(e, change))
     }
+
+    private suspend fun push(next: Entry) {
+        val r = room.value ?: return
+        try {
+            repo.push(r, pairing.userId, next)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            // el siguiente sync vuelve a subir lo marcado
+        }
+    }
+
+    /** La película con ese id desde cualquier lista conocida (para reabrir el detalle tras rotar). */
+    fun lookup(id: Int): Entry? =
+        mine.value.firstOrNull { it.movieId == id }
+            ?: results.value.firstOrNull { it.movieId == id }
+            ?: queue.value.firstOrNull { it.movieId == id }
+            ?: partner.value.firstOrNull { it.movieId == id }
+
+    // ---- Descubrir -----------------------------------------------------------
 
     /** Respuesta en "Descubrir": con ella la app aprende tus gustos y pasa a la siguiente. */
     enum class Answer { Want, SeenLiked, NotInterested, Skip }
 
     fun answer(e: Entry, answer: Answer) {
+        // Toques rápidos: solo cuenta la tarjeta que realmente está arriba.
+        if (queue.value.firstOrNull()?.movieId != e.movieId) return
+        queue.update { it.filter { x -> x.movieId != e.movieId } }
         viewModelScope.launch {
-            when (answer) {
-                Answer.Want -> applyAndPush(e) { it.copy(watchlist = true, seen = false, liked = false, disliked = false) }
-                Answer.SeenLiked -> applyAndPush(e) { it.copy(liked = true, seen = true, watchlist = false, disliked = false) }
-                Answer.NotInterested -> applyAndPush(e) { it.copy(disliked = true, liked = false, watchlist = false) }
-                Answer.Skip -> Unit
+            if (answer != Answer.Skip) {
+                val previous = repo.snapshot(e.movieId)
+                when (answer) {
+                    Answer.Want -> applyAndPush(e) { it.copy(watchlist = true, seen = false, liked = false, disliked = false) }
+                    Answer.SeenLiked -> applyAndPush(e) { it.copy(liked = true, seen = true, watchlist = false, disliked = false) }
+                    Answer.NotInterested -> applyAndPush(e) { it.copy(disliked = true, liked = false, watchlist = false) }
+                    Answer.Skip -> Unit
+                }
+                undo.value = UndoOffer(
+                    message = when (answer) {
+                        Answer.Want -> "Guardada en «Quiero verla»"
+                        Answer.SeenLiked -> "Guardada como «La vi y me gustó»"
+                        else -> "Descartada"
+                    },
+                    card = e,
+                    previous = previous,
+                )
             }
-            queue.update { it.filter { x -> x.movieId != e.movieId } }
             if (queue.value.size < 4) refillQueue()
         }
     }
+
+    /** Deshace la última respuesta: restaura la marca anterior y devuelve la tarjeta al frente. */
+    fun undoAnswer() {
+        val offer = undo.value ?: return
+        undo.value = null
+        viewModelScope.launch {
+            push(repo.restore(offer.card, offer.previous))
+            queue.update { listOf(offer.card) + it.filter { x -> x.movieId != offer.card.movieId } }
+        }
+    }
+
+    fun clearUndo() { undo.value = null }
 
     /** Películas que a tu pareja le interesan y yo aún no marqué: van primero en "Descubrir". */
     private fun partnerPicks(): List<Entry> {
         val known = mine.value.map { it.movieId }.toSet()
         return partner.value
             .filter { it.watchlist && !it.seen && !it.disliked && it.movieId !in known }
-            .map { it.copy(owner = OWNER_ME, watchlist = false) }
+            .map { it.copy(owner = com.peli.app.data.OWNER_ME, watchlist = false) }
     }
 
-    /** Sugerencias: primero las de tu pareja, luego las ordenadas por el recomendador. */
+    /** Sugerencias: primero las de tu pareja, luego las ordenadas por el recomendador. Una carga a la vez. */
     fun refillQueue() {
-        guarded {
-            val marked = mine.value
-            val known = marked.map { it.movieId }.toSet()
-            val ranked = repo.recommend(marked)
-            queue.value = (partnerPicks() + queue.value + ranked)
-                .filter { it.movieId !in known }
-                .distinctBy { it.movieId }
+        if (BuildConfig.TMDB_API_KEY.isBlank()) {
+            queueError.value = "Falta TMDB_API_KEY en local.properties"
+            return
+        }
+        if (refillJob?.isActive == true) return
+        refillJob = viewModelScope.launch {
+            queueLoading.value = true
+            queueError.value = null
+            try {
+                val marked = repo.mine.first()
+                val ranked = repo.recommend(marked)
+                val known = repo.mine.first().map { it.movieId }.toSet()
+                queue.value = (partnerPicks() + queue.value + ranked)
+                    .filter { it.movieId !in known }
+                    .distinctBy { it.movieId }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                queueError.value = "Error de red: ${e.message}"
+            } finally {
+                queueLoading.value = false
+            }
         }
     }
 
@@ -237,9 +368,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 // Lo que tu pareja guardó pasa al frente de tus sugerencias.
                 val picks = partnerPicks()
                 if (picks.isNotEmpty()) queue.update { (picks + it).distinctBy { x -> x.movieId } }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 syncError.value = e.message ?: e.javaClass.simpleName
             }
+        }
+    }
+
+    /** Deslizar hacia abajo en "Juntos": sincroniza con la sala ahora mismo. */
+    fun refreshSync() {
+        viewModelScope.launch {
+            refreshing.value = true
+            try { sync() } finally { refreshing.value = false }
         }
     }
 
@@ -267,6 +408,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun installUpdate() {
+        if (progress.value != -2) return   // ya se está descargando
         val v = newVersion.value ?: return
         viewModelScope.launch {
             progress.value = -1
@@ -274,6 +416,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 withContext(Dispatchers.IO) {
                     Updater.downloadAndInstall(getApplication(), v) { p -> progress.value = p }
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 message.value = "No se pudo actualizar: ${e.message}"
             } finally {
@@ -298,5 +442,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun clearPartner() = viewModelScope.launch { repo.clearPartner() }
+    fun clearPartner() { viewModelScope.launch { repo.clearPartner() } }
+
+    private companion object {
+        const val KEY_QUERY = "search_query"
+        const val KEY_SEARCH_FILTER = "search_filter"
+        const val KEY_MINE_FILTER = "mine_filter"
+        const val KEY_MINE_SORT = "mine_sort"
+        const val SEARCH_DEBOUNCE_MS = 350L
+        const val FEED_SIZE = 40
+        const val FEED_NOISE = 0.3
+    }
 }

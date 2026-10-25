@@ -1,6 +1,8 @@
 package com.peli.app.ui.components
 
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -32,6 +34,8 @@ fun PeliTextField(
     singleLine: Boolean = true,
     minLines: Int = 1,
     onClear: (() -> Unit)? = null,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    keyboardActions: KeyboardActions = KeyboardActions.Default,
 ) {
     val scheme = MaterialTheme.colorScheme
     OutlinedTextField(
@@ -41,6 +45,8 @@ fun PeliTextField(
         label = { Text(label) },
         singleLine = singleLine,
         minLines = minLines,
+        keyboardOptions = keyboardOptions,
+        keyboardActions = keyboardActions,
         shape = MaterialTheme.shapes.medium,
         textStyle = MaterialTheme.typography.bodyLarge,
         leadingIcon = leadingIcon?.let { icon -> { Icon(icon, contentDescription = null) } },

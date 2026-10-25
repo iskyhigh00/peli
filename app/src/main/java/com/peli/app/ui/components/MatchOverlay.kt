@@ -1,5 +1,6 @@
 package com.peli.app.ui.components
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
@@ -52,6 +53,8 @@ fun MatchOverlay(
     onKeep: () -> Unit,
     onSeeList: () -> Unit,
 ) {
+    // Atrás cierra el match (antes de que Atrás actúe sobre lo que hay debajo).
+    BackHandler(onBack = onKeep)
     val scheme = MaterialTheme.colorScheme
     val haptics = LocalHapticFeedback.current
     var shown by remember { mutableStateOf(false) }

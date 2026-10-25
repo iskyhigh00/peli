@@ -40,6 +40,7 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -145,20 +146,21 @@ fun ToggleIconButton(
     }
 }
 
-/** Assist chip informativo (por ejemplo, "Les gusta a las dos"). */
+/** Etiqueta informativa (p. ej. "Les interesa a las dos"). No es interactiva: no se anuncia como botón. */
 @Composable
 fun StatusChip(text: String, modifier: Modifier = Modifier, accent: Color = MaterialTheme.colorScheme.secondary) {
-    AssistChip(
-        onClick = {},
-        label = { Text(text, style = MaterialTheme.typography.labelMedium) },
-        shape = MaterialTheme.shapes.small,
-        colors = AssistChipDefaults.assistChipColors(
-            containerColor = accent.copy(alpha = 0.2f),
-            labelColor = MaterialTheme.colorScheme.onSurface,
-        ),
-        border = null,
+    Surface(
         modifier = modifier,
-    )
+        shape = MaterialTheme.shapes.small,
+        color = accent.copy(alpha = 0.2f),
+        contentColor = MaterialTheme.colorScheme.onSurface,
+    ) {
+        Text(
+            text,
+            style = MaterialTheme.typography.labelMedium,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+        )
+    }
 }
 
 /** "Próximo estreno" para películas con fecha futura. */

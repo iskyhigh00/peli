@@ -10,24 +10,31 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Group
@@ -35,15 +42,19 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.ThumbDown
 import androidx.compose.material.icons.filled.ThumbUp
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -53,13 +64,21 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.peli.app.data.Entry
+import com.peli.app.data.Match
+import com.peli.app.data.OWNER_ME
 import com.peli.app.data.RoomCodes
 import com.peli.app.ui.components.ActionButton
 import com.peli.app.ui.components.CompactSpacing
@@ -83,13 +102,8 @@ import com.peli.app.ui.components.UpcomingChip
 import com.peli.app.ui.components.entrance
 import com.peli.app.ui.components.screenContentPadding
 import com.peli.app.ui.theme.SheetShape
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
-
-private enum class SearchFilter(val label: String) {
-    All("Todas"), Want("Quiero ver"), Liked("Me gustaron"), Seen("Vistas"), Disliked("No me gustan"), Unmarked("Sin marcar")
-}
-private enum class MineFilter(val label: String) { All("Todas"), Want("Quiero ver"), Liked("Me gustaron"), Seen("Vistas"), Disliked("No me gustan") }
 
 @Composable
 private fun <T : Enum<T>> ChipRow(values: List<T>, selected: T, label: (T) -> String, onSelect: (T) -> Unit) {
@@ -101,40 +115,53 @@ private fun <T : Enum<T>> ChipRow(values: List<T>, selected: T, label: (T) -> St
     }
 }
 
+/** Oculta el teclado y quita el foco del campo de texto. */
+@Composable
+private fun rememberDismissKeyboard(): () -> Unit {
+    val focus = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
+    return remember(focus, keyboard) {
+        {
+            keyboard?.hide()
+            focus.clearFocus()
+        }
+    }
+}
+
+// ---- Buscar ----------------------------------------------------------------
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Unit) {
-    var query by rememberSaveable { mutableStateOf("") }
-    var filter by rememberSaveable { mutableStateOf(SearchFilter.All) }
+    // El texto vive en el ViewModel (sobrevive a cambiar de pestaña); aquí solo se refleja el campo.
+    var text by remember { mutableStateOf(vm.searchQuery.value) }
+    val filter by vm.searchFilter.collectAsState()
     val results by vm.results.collectAsState()
     val mine by vm.mine.collectAsState()
-    val error by vm.error.collectAsState()
-    val loading by vm.loading.collectAsState()
-    val byId = mine.associateBy { it.movieId }
+    val error by vm.searchError.collectAsState()
+    val loading by vm.searchLoading.collectAsState()
     val refreshing by vm.refreshing.collectAsState()
-    val pullState = rememberPullToRefreshState()
-
-    // Espera 350ms tras la última tecla antes de consultar.
-    LaunchedEffect(query) {
-        delay(350)
-        vm.search(query)
-    }
-
-    val shown = results.filter {
-        val m = byId[it.movieId]
-        when (filter) {
-            SearchFilter.All -> true
-            SearchFilter.Want -> m?.watchlist == true
-            SearchFilter.Liked -> m?.liked == true
-            SearchFilter.Seen -> m?.seen == true
-            SearchFilter.Disliked -> m?.disliked == true
-            SearchFilter.Unmarked -> m == null
+    val byId = remember(mine) { mine.associateBy { it.movieId } }
+    val feedMode = text.isBlank()
+    val shown = remember(results, mine, byId, filter, feedMode) {
+        if (feedMode && filter != SearchFilter.All && filter != SearchFilter.Unmarked) {
+            // El feed solo trae películas sin marcar: para estos filtros se muestran tus marcas.
+            mine.filter { filter.accepts(it) }.orderedBy(MineSort.Recent)
+        } else {
+            results.filter { filter.accepts(byId[it.movieId]) }
         }
+    }
+    val pullState = rememberPullToRefreshState()
+    val dismissKeyboard = rememberDismissKeyboard()
+
+    // Al empezar a desplazar la lista se oculta el teclado.
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.isScrollInProgress }.filter { it }.collect { dismissKeyboard() }
     }
 
     PullToRefreshBox(
         isRefreshing = refreshing,
-        onRefresh = { vm.refreshSearch(query) },
+        onRefresh = vm::refreshSearch,
         state = pullState,
         indicator = {
             PullToRefreshDefaults.Indicator(
@@ -155,30 +182,47 @@ fun SearchTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Un
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(ItemSpacing)) {
                     PeliTextField(
-                        query, { query = it }, "Buscar película",
-                        leadingIcon = Icons.Default.Search, onClear = { query = "" },
+                        value = text,
+                        onValueChange = { text = it; vm.setSearchQuery(it) },
+                        label = "Buscar película",
+                        leadingIcon = Icons.Default.Search,
+                        onClear = { text = ""; vm.setSearchQuery("") },
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(onSearch = { vm.submitSearch(); dismissKeyboard() }),
                     )
-                    ChipRow(SearchFilter.entries, filter, { it.label }) { filter = it }
+                    ChipRow(SearchFilter.entries, filter, { it.label }) { vm.setSearchFilter(it) }
+                }
+            }
+            if (feedMode && (filter == SearchFilter.All || filter == SearchFilter.Unmarked) && shown.isNotEmpty()) {
+                item {
+                    Column {
+                        Text("Sugerencias para ti", style = MaterialTheme.typography.titleLarge)
+                        Text(
+                            "Desliza hacia abajo para ver otras",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
             when {
                 loading && results.isEmpty() -> items(4) { MovieCardSkeleton() }
-                error != null && results.isEmpty() -> item { ErrorState(error!!, onRetry = { vm.search(query) }) }
+                error != null && results.isEmpty() -> item { ErrorState(error!!, onRetry = vm::submitSearch) }
                 shown.isEmpty() -> item {
                     EmptyState(
                         title = "Sin resultados",
-                        message = if (query.isBlank()) "Aún no hay películas con este filtro." else "No encontramos \"$query\". Prueba con otro título.",
+                        message = if (text.isBlank()) "Aún no hay películas con este filtro." else "No encontramos \"$text\". Prueba con otro título.",
                         icon = Icons.Default.Search,
                     )
                 }
-                else -> items(shown, key = { it.movieId }) { e ->
+                else -> itemsIndexed(shown, key = { _, e -> e.movieId }) { index, e ->
                     val m = byId[e.movieId]
                     MovieCard(
-                        e, m, onOpen = { onOpen(e) },
+                        e, m, onOpen = { dismissKeyboard(); onOpen(e) },
                         onWant = { vm.toggleWant(m ?: e) },
                         onLiked = { vm.toggleLiked(m ?: e) },
                         onDislike = { vm.toggleDislike(m ?: e) },
-                        modifier = Modifier.animateItem().entrance(shown.indexOf(e), e.movieId),
+                        modifier = Modifier.animateItem().entrance(index, e.movieId),
                     )
                 }
             }
@@ -186,88 +230,71 @@ fun SearchTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Un
     }
 }
 
+// ---- Descubrir -------------------------------------------------------------
+
 @Composable
 fun DiscoverTab(vm: MainViewModel) {
     val queue by vm.queue.collectAsState()
-    val loading by vm.loading.collectAsState()
-    val error by vm.error.collectAsState()
+    val loading by vm.queueLoading.collectAsState()
+    val error by vm.queueError.collectAsState()
     val partner by vm.partner.collectAsState()
-    val partnerWants = partner.filter { it.watchlist }.map { it.movieId }.toSet()
+    val partnerWants = remember(partner) { partner.filter { it.watchlist }.map { it.movieId }.toSet() }
     var zoomed by remember { mutableStateOf<Entry?>(null) }
     val current = queue.firstOrNull()
     val navInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val scroll = rememberScrollState()
 
     if (current != null) {
-        // Tarjeta flexible + botones fijos justo encima de la barra: nunca hace falta hacer scroll.
-        Column(
-            Modifier
-                .fillMaxSize()
-                .padding(start = ScreenHorizontalPadding, end = ScreenHorizontalPadding, top = CompactSpacing)
-                .padding(bottom = 88.dp + navInset),
-            verticalArrangement = Arrangement.spacedBy(ItemSpacing),
-        ) {
-            AnimatedContent(
-                targetState = current,
-                contentKey = { it.movieId },
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-                transitionSpec = {
-                    (fadeIn(spring(Spring.DampingRatioMediumBouncy)) +
-                        slideInVertically(spring(Spring.DampingRatioMediumBouncy)) { it / 3 }) togetherWith
-                        fadeOut()
-                },
-                label = "discoverCard",
-            ) { e ->
-                GlassCard(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp)) {
-                    PosterImage(
-                        e.posterPath, "Carátula de ${e.title}",
-                        Modifier.fillMaxWidth().weight(1f),
-                        contentScale = ContentScale.Fit,
-                        onClick = { zoomed = e },
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            e.title,
-                            style = MaterialTheme.typography.titleLarge,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f),
-                        )
-                        TextButton(onClick = { vm.answer(e, MainViewModel.Answer.Skip) }) { Text("Omitir") }
-                    }
-                    Row(
-                        Modifier.padding(vertical = CompactSpacing),
-                        horizontalArrangement = Arrangement.spacedBy(CompactSpacing),
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            // En horizontal o con poca altura la tarjeta no cabe junto a los botones: pasa a ser desplazable.
+            val compact = maxHeight < 520.dp
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .then(if (compact) Modifier.verticalScroll(scroll) else Modifier)
+                    .padding(start = ScreenHorizontalPadding, end = ScreenHorizontalPadding, top = CompactSpacing)
+                    .padding(bottom = 88.dp + navInset),
+                verticalArrangement = Arrangement.spacedBy(ItemSpacing),
+            ) {
+                AnimatedContent(
+                    targetState = current,
+                    contentKey = { it.movieId },
+                    modifier = if (compact) Modifier.fillMaxWidth() else Modifier.weight(1f).fillMaxWidth(),
+                    transitionSpec = {
+                        (fadeIn(spring(Spring.DampingRatioMediumBouncy)) +
+                            slideInVertically(spring(Spring.DampingRatioMediumBouncy)) { it / 3 }) togetherWith
+                            fadeOut()
+                    },
+                    label = "discoverCard",
+                ) { e ->
+                    GlassCard(
+                        if (compact) Modifier.fillMaxWidth() else Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(16.dp),
                     ) {
-                        if (e.dateLabel.isNotBlank()) StatusChip(e.dateLabel)
-                        if (e.isUpcoming) UpcomingChip()
-                        if (e.movieId in partnerWants) {
-                            StatusChip("A tu pareja le interesa", accent = MaterialTheme.colorScheme.tertiary)
-                        }
+                        DiscoverCardBody(
+                            e = e,
+                            partnerWants = e.movieId in partnerWants,
+                            poster = if (compact) Modifier.fillMaxWidth().height(260.dp) else Modifier.fillMaxWidth().weight(1f),
+                            onZoom = { zoomed = e },
+                            onSkip = { vm.answer(e, MainViewModel.Answer.Skip) },
+                        )
                     }
-                    Text(
-                        e.overview,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 3,
-                        overflow = TextOverflow.Ellipsis,
+                }
+                // "Ya la vi y me gustó" enseña tus gustos a la app; "Quiero verla" va a la lista que se comparte.
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(CompactSpacing)) {
+                    ActionButton(
+                        "No me interesa", Icons.Default.ThumbDown,
+                        { vm.answer(current, MainViewModel.Answer.NotInterested) }, Modifier.weight(1f),
+                    )
+                    ActionButton(
+                        "La vi y me gustó", Icons.Default.ThumbUp,
+                        { vm.answer(current, MainViewModel.Answer.SeenLiked) }, Modifier.weight(1f),
+                    )
+                    ActionButton(
+                        "Quiero verla", Icons.Default.Bookmark,
+                        { vm.answer(current, MainViewModel.Answer.Want) }, Modifier.weight(1f), gradient = true,
                     )
                 }
-            }
-            // "Ya la vi y me gustó" enseña tus gustos a la app; "Quiero verla" va a la lista que se comparte.
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(CompactSpacing)) {
-                ActionButton(
-                    "No me interesa", Icons.Default.ThumbDown,
-                    { vm.answer(current, MainViewModel.Answer.NotInterested) }, Modifier.weight(1f),
-                )
-                ActionButton(
-                    "La vi y me gustó", Icons.Default.ThumbUp,
-                    { vm.answer(current, MainViewModel.Answer.SeenLiked) }, Modifier.weight(1f),
-                )
-                ActionButton(
-                    "Quiero verla", Icons.Default.Bookmark,
-                    { vm.answer(current, MainViewModel.Answer.Want) }, Modifier.weight(1f), gradient = true,
-                )
             }
         }
         zoomed?.let { PosterViewer(it.posterPath, it.title) { zoomed = null } }
@@ -275,7 +302,7 @@ fun DiscoverTab(vm: MainViewModel) {
         Column(
             Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scroll)
                 .padding(screenContentPadding()),
             verticalArrangement = Arrangement.spacedBy(SectionSpacing),
         ) {
@@ -295,19 +322,48 @@ fun DiscoverTab(vm: MainViewModel) {
 }
 
 @Composable
-fun MineTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Unit, onGoSearch: () -> Unit) {
-    var filter by rememberSaveable { mutableStateOf(MineFilter.All) }
-    val mine by vm.mine.collectAsState()
-    val byId = mine.associateBy { it.movieId }
-    val shown = mine.filter {
-        when (filter) {
-            MineFilter.All -> true
-            MineFilter.Want -> it.watchlist
-            MineFilter.Liked -> it.liked
-            MineFilter.Seen -> it.seen
-            MineFilter.Disliked -> it.disliked
-        }
+private fun ColumnScope.DiscoverCardBody(
+    e: Entry,
+    partnerWants: Boolean,
+    poster: Modifier,
+    onZoom: () -> Unit,
+    onSkip: () -> Unit,
+) {
+    PosterImage(e.posterPath, "Carátula de ${e.title}", poster, contentScale = ContentScale.Fit, onClick = onZoom)
+    Spacer(Modifier.height(12.dp))
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            e.title,
+            style = MaterialTheme.typography.titleLarge,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        TextButton(onClick = onSkip) { Text("Omitir") }
     }
+    Row(Modifier.padding(vertical = CompactSpacing), horizontalArrangement = Arrangement.spacedBy(CompactSpacing)) {
+        if (e.dateLabel.isNotBlank()) StatusChip(e.dateLabel)
+        if (e.isUpcoming) UpcomingChip()
+        if (partnerWants) StatusChip("A tu pareja le interesa", accent = MaterialTheme.colorScheme.tertiary)
+    }
+    Text(
+        e.overview,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 3,
+        overflow = TextOverflow.Ellipsis,
+    )
+}
+
+// ---- Mis pelis -------------------------------------------------------------
+
+@Composable
+fun MineTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Unit, onGoSearch: () -> Unit) {
+    val filter by vm.mineFilter.collectAsState()
+    val sort by vm.mineSort.collectAsState()
+    val mine by vm.mine.collectAsState()
+    val shown = remember(mine, filter, sort) { mine.filter { filter.accepts(it) }.orderedBy(sort) }
+    var menuOpen by remember { mutableStateOf(false) }
 
     LazyColumn(
         Modifier.fillMaxSize(),
@@ -315,32 +371,69 @@ fun MineTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Unit
         contentPadding = screenContentPadding(),
         verticalArrangement = Arrangement.spacedBy(ItemSpacing),
     ) {
-        item { ChipRow(MineFilter.entries, filter, { it.label }) { filter = it } }
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(CompactSpacing)) {
+                ChipRow(MineFilter.entries, filter, { it.label }) { vm.setMineFilter(it) }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "${shown.size} " + if (shown.size == 1) "película" else "películas",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f),
+                    )
+                    androidx.compose.foundation.layout.Box {
+                        TextButton(onClick = { menuOpen = true }) {
+                            Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = null)
+                            Spacer(Modifier.padding(horizontal = 4.dp))
+                            Text("Orden: ${sort.label}")
+                        }
+                        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                            MineSort.entries.forEach { s ->
+                                DropdownMenuItem(
+                                    text = { Text(s.label) },
+                                    onClick = { vm.setMineSort(s); menuOpen = false },
+                                    leadingIcon = if (s == sort) {
+                                        { Icon(Icons.Default.Check, contentDescription = "Seleccionado") }
+                                    } else null,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
         if (shown.isEmpty()) {
             item {
                 EmptyState(
-                    title = "Tu lista está vacía",
-                    message = "Marca las que quieres ver y las que ya viste y te gustaron: aparecerán aquí.",
-                    actionLabel = "Buscar películas",
+                    title = if (mine.isEmpty()) "Tu lista está vacía" else "Nada con este filtro",
+                    message = if (mine.isEmpty()) {
+                        "Marca las que quieres ver y las que ya viste y te gustaron: aparecerán aquí."
+                    } else {
+                        "Prueba con otro filtro para ver el resto de tu lista."
+                    },
+                    actionLabel = if (mine.isEmpty()) "Buscar películas" else null,
                     actionIcon = Icons.Default.Search,
-                    onAction = onGoSearch,
+                    onAction = if (mine.isEmpty()) onGoSearch else null,
                 )
             }
         } else {
-            items(shown, key = { it.movieId }) { e ->
+            itemsIndexed(shown, key = { _, e -> e.movieId }) { index, e ->
                 MovieCard(
-                    e, byId[e.movieId], onOpen = { onOpen(e) },
+                    e, e, onOpen = { onOpen(e) },
                     onWant = { vm.toggleWant(e) },
                     onLiked = { vm.toggleLiked(e) },
                     onDislike = { vm.toggleDislike(e) },
-                    modifier = Modifier.animateItem().entrance(shown.indexOf(e), e.movieId),
+                    modifier = Modifier.animateItem().entrance(index, e.movieId),
                 )
             }
         }
     }
 }
 
+// ---- Juntos ----------------------------------------------------------------
+
 private enum class TogetherSheet { None, Import, Join }
+private enum class Confirm { None, Leave, ClearPartner }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -350,15 +443,16 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
     val mine by vm.mine.collectAsState()
     val room by vm.room.collectAsState()
     val syncError by vm.syncError.collectAsState()
-    val byId = mine.associateBy { it.movieId }
+    val byId = remember(mine) { mine.associateBy { it.movieId } }
     var sheet by rememberSaveable { mutableStateOf(TogetherSheet.None) }
+    var confirm by rememberSaveable { mutableStateOf(Confirm.None) }
     val context = LocalContext.current
     val refreshing by vm.refreshing.collectAsState()
     val pullState = rememberPullToRefreshState()
 
-    val both = matches.filter { it.both }
-    val single = matches.filter { !it.both }
-    fun mineOrNew(m: com.peli.app.data.Match) = byId[m.entry.movieId] ?: m.entry.copy(owner = com.peli.app.data.OWNER_ME)
+    val both = remember(matches) { matches.filter { it.both } }
+    val single = remember(matches) { matches.filter { !it.both } }
+    fun mineOrNew(m: Match) = byId[m.entry.movieId] ?: m.entry.copy(owner = OWNER_ME)
 
     PullToRefreshBox(
         isRefreshing = refreshing,
@@ -393,7 +487,7 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
                             Spacer(Modifier.height(ItemSpacing))
                             Row(horizontalArrangement = Arrangement.spacedBy(CompactSpacing)) {
                                 GradientButton("Importar lista", { sheet = TogetherSheet.Import }, Modifier.weight(1f), icon = Icons.Default.Download)
-                                if (partner.isNotEmpty()) TonalButton("Borrar", vm::clearPartner)
+                                if (partner.isNotEmpty()) TonalButton("Borrar", { confirm = Confirm.ClearPartner })
                             }
                         }
                         room == null -> {
@@ -434,7 +528,7 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
                                     Modifier.weight(1f),
                                     icon = Icons.Default.Share,
                                 )
-                                TonalButton("Salir", vm::leaveRoom)
+                                TonalButton("Salir", { confirm = Confirm.Leave })
                             }
                         }
                     }
@@ -455,27 +549,27 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
                 else -> {
                     if (both.isNotEmpty()) {
                         item { Text("Matches (${both.size})", style = MaterialTheme.typography.titleLarge) }
-                        items(both, key = { it.entry.movieId }) { m ->
+                        itemsIndexed(both, key = { _, m -> m.entry.movieId }) { index, m ->
                             MovieCard(
                                 m.entry, byId[m.entry.movieId], onOpen = { onOpen(m.entry) },
                                 onWant = { vm.toggleWant(mineOrNew(m)) },
                                 onLiked = { vm.toggleLiked(mineOrNew(m)) },
                                 onDislike = { vm.toggleDislike(mineOrNew(m)) },
                                 badge = "Les interesa a las dos",
-                                modifier = Modifier.animateItem().entrance(both.indexOf(m), m.entry.movieId),
+                                modifier = Modifier.animateItem().entrance(index, m.entry.movieId),
                             )
                         }
                     }
                     if (single.isNotEmpty()) {
                         item { Text("A uno le interesa (${single.size})", style = MaterialTheme.typography.titleLarge) }
-                        items(single, key = { it.entry.movieId }) { m ->
+                        itemsIndexed(single, key = { _, m -> m.entry.movieId }) { index, m ->
                             MovieCard(
                                 m.entry, byId[m.entry.movieId], onOpen = { onOpen(m.entry) },
                                 onWant = { vm.toggleWant(mineOrNew(m)) },
                                 onLiked = { vm.toggleLiked(mineOrNew(m)) },
                                 onDislike = { vm.toggleDislike(mineOrNew(m)) },
                                 badge = if (m.iWant) "Te interesa a ti" else "Le interesa a tu pareja",
-                                modifier = Modifier.animateItem().entrance(single.indexOf(m), m.entry.movieId),
+                                modifier = Modifier.animateItem().entrance(index, m.entry.movieId),
                             )
                         }
                     }
@@ -491,6 +585,7 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
             field = "Código",
             action = "Importar",
             minLines = 3,
+            keyboardOptions = KeyboardOptions.Default,
             onDismiss = { sheet = TogetherSheet.None },
             onSubmit = vm::importCode,
         )
@@ -500,11 +595,55 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
             field = "Código de sala",
             action = "Unirme",
             minLines = 1,
+            keyboardOptions = KeyboardOptions(
+                capitalization = KeyboardCapitalization.Characters,
+                keyboardType = KeyboardType.Ascii,
+                imeAction = ImeAction.Done,
+            ),
             onDismiss = { sheet = TogetherSheet.None },
             onSubmit = vm::joinRoom,
         )
         TogetherSheet.None -> Unit
     }
+
+    when (confirm) {
+        Confirm.Leave -> ConfirmDialog(
+            title = "¿Salir de la sala?",
+            text = "Dejarás de sincronizar con tu pareja y ya no verán los matches. Tus películas se conservan en este teléfono.",
+            confirmLabel = "Salir",
+            onConfirm = { confirm = Confirm.None; vm.leaveRoom() },
+            onDismiss = { confirm = Confirm.None },
+        )
+        Confirm.ClearPartner -> ConfirmDialog(
+            title = "¿Borrar la lista de tu pareja?",
+            text = "Se quitará la lista importada y los matches con ella. Puedes volver a importarla cuando quieras.",
+            confirmLabel = "Borrar",
+            onConfirm = { confirm = Confirm.None; vm.clearPartner() },
+            onDismiss = { confirm = Confirm.None },
+        )
+        Confirm.None -> Unit
+    }
+}
+
+@Composable
+private fun ConfirmDialog(
+    title: String,
+    text: String,
+    confirmLabel: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val scheme = MaterialTheme.colorScheme
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = { Text(text) },
+        confirmButton = { TextButton(onClick = onConfirm) { Text(confirmLabel, color = scheme.error) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
+        containerColor = scheme.surface,
+        titleContentColor = scheme.onSurface,
+        textContentColor = scheme.onSurfaceVariant,
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -515,12 +654,18 @@ private fun CodeSheet(
     field: String,
     action: String,
     minLines: Int,
+    keyboardOptions: KeyboardOptions,
     onDismiss: () -> Unit,
     onSubmit: (String) -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
-    var code by remember { mutableStateOf("") }
+    var code by rememberSaveable { mutableStateOf("") }
+    fun submit() {
+        if (code.isBlank()) return
+        onSubmit(code)
+        scope.launch { sheetState.hide() }.invokeOnCompletion { onDismiss() }
+    }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
@@ -529,22 +674,19 @@ private fun CodeSheet(
         contentColor = MaterialTheme.colorScheme.onSurface,
     ) {
         Column(
-            Modifier.padding(horizontal = ScreenHorizontalPadding).padding(bottom = SectionSpacing),
+            // imePadding: el campo y el botón suben con el teclado y no quedan tapados.
+            Modifier.padding(horizontal = ScreenHorizontalPadding).padding(bottom = SectionSpacing).imePadding(),
             verticalArrangement = Arrangement.spacedBy(ItemSpacing),
         ) {
             Text(title, style = MaterialTheme.typography.headlineSmall)
             Text(help, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            PeliTextField(code, { code = it }, field, singleLine = minLines == 1, minLines = minLines, onClear = { code = "" })
-            GradientButton(
-                action,
-                {
-                    onSubmit(code)
-                    scope.launch { sheetState.hide() }.invokeOnCompletion { onDismiss() }
-                },
-                Modifier.fillMaxWidth(),
-                icon = Icons.Default.Download,
-                enabled = code.isNotBlank(),
+            PeliTextField(
+                code, { code = it }, field,
+                singleLine = minLines == 1, minLines = minLines, onClear = { code = "" },
+                keyboardOptions = keyboardOptions,
+                keyboardActions = KeyboardActions(onDone = { submit() }),
             )
+            GradientButton(action, { submit() }, Modifier.fillMaxWidth(), icon = Icons.Default.Download, enabled = code.isNotBlank())
         }
     }
 }

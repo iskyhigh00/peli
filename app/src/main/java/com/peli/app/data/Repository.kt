@@ -6,6 +6,10 @@ import kotlinx.coroutines.coroutineScope
 import kotlin.random.Random
 
 class Repository(private val db: AppDb, private val api: TmdbApi) {
+    private companion object {
+        const val MIN_FRESH = 12
+    }
+
     private val dao = db.entries()
 
     val mine = dao.observe(OWNER_ME)
@@ -20,6 +24,17 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
         val next = change(current).copy(updatedAt = System.currentTimeMillis())
         if (next.isEmpty) dao.delete(OWNER_ME, next.movieId) else dao.upsert(next)
         return next
+    }
+
+    /** Mi marca actual de una película (null si no la marqué). */
+    suspend fun snapshot(id: Int): Entry? = dao.get(OWNER_ME, id)
+
+    /** Vuelve a [previous] (o quita la marca si era null). Devuelve el estado resultante. */
+    suspend fun restore(base: Entry, previous: Entry?): Entry {
+        val cleared = base.copy(owner = OWNER_ME, watchlist = false, liked = false, seen = false, disliked = false)
+        val result = (previous ?: cleared).copy(updatedAt = System.currentTimeMillis())
+        if (result.isEmpty) dao.delete(OWNER_ME, result.movieId) else dao.upsert(result)
+        return result
     }
 
     /** Sube un cambio a la sala (también las marcas vaciadas, para que la pareja las vea quitadas). */
@@ -43,7 +58,11 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
      *    + mejor valoradas de mis géneros favoritos + algo popular (exploración).
      *  - sin historial aún: populares.
      */
-    suspend fun recommend(marked: List<Entry>): List<Entry> = coroutineScope {
+    suspend fun recommend(
+        marked: List<Entry>,
+        avoid: Set<Int> = emptySet(),
+        noise: Double = 0.08,
+    ): List<Entry> = coroutineScope {
         val known = marked.map { it.movieId }.toSet()
         val profile = Recommender.buildProfile(marked)
         val seeds = marked.filter { it.liked }.sortedByDescending { it.updatedAt }.take(5)
@@ -71,12 +90,15 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
         add(popular.await(), countHit = false)
 
         val seedCount = seeds.size
-        pool.values
+        val ranked = pool.values
             .filter { it.movieId !in known && it.posterPath != null && it.overview.isNotBlank() }
-            // Un poco de ruido para no ver siempre el mismo orden (exploración).
+            // Ruido para no ver siempre el mismo orden (exploración); más ruido = más sorpresa.
             .sortedByDescending {
-                Recommender.score(it, profile, hits[it.movieId] ?: 0, seedCount) + Random.nextDouble(0.0, 0.08)
+                Recommender.score(it, profile, hits[it.movieId] ?: 0, seedCount) + Random.nextDouble(0.0, noise)
             }
+        // Prefiere lo que aún no se mostró; si casi no queda, no se descarta nada.
+        val fresh = ranked.filter { it.movieId !in avoid }
+        if (fresh.size >= MIN_FRESH) fresh else ranked
     }
 
     suspend fun importPartner(entries: List<Entry>) = dao.replaceAll(OWNER_PARTNER, entries)

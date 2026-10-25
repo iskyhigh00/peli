@@ -44,6 +44,12 @@ object Changelog {
             "Desliza hacia abajo para actualizar la lista.",
             "Al volver de una película, la lista queda donde estaba.",
         ),
+        "1.1.1" to listOf(
+            "La lista principal ahora es un feed de sugerencias para ti: al deslizar trae otras distintas.",
+            "Buscar, filtros y pestañas conservan su estado; Atrás sube a la primera pestaña antes de salir.",
+            "Mis pelis se puede ordenar; confirmación al salir de la sala; deshacer en Descubrir.",
+            "Mejoras de teclado, rotación y búsquedas más rápidas y sin resultados viejos.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

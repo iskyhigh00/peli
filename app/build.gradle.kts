@@ -8,7 +8,7 @@ plugins {
 }
 
 /** Única fuente de la versión: x.y.z con un dígito por campo (0.0.0 a 9.9.9). Usar scripts/bump-version.sh. */
-val appVersion = "1.1.0"
+val appVersion = "1.1.1"
 require(Regex("[0-9]\\.[0-9]\\.[0-9]").matches(appVersion)) { "appVersion debe ser x.y.z de un dígito (máx 9.9.9)" }
 val (vMajor, vMinor, vPatch) = appVersion.split(".").map { it.toInt() }
 
@@ -90,4 +90,6 @@ dependencies {
     implementation("com.squareup.retrofit2:converter-gson:2.11.0")
     implementation("com.google.code.gson:gson:2.10.1")
     implementation("io.coil-kt:coil-compose:2.6.0")
+
+    testImplementation("junit:junit:4.13.2")
 }

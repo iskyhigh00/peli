@@ -37,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.peli.app.ui.theme.PeliTheme
@@ -103,7 +104,13 @@ fun AnimatedNavigationBar(
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Icon(item.icon, contentDescription = null, tint = tint, modifier = Modifier.size(22.dp))
-                        Text(item.label, style = MaterialTheme.typography.labelSmall, color = tint, maxLines = 1)
+                        Text(
+                            item.label,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = tint,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                     }
                 }
             }
