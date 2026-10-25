@@ -36,9 +36,6 @@ import com.peli.app.ui.theme.SheetShape
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
-/** Sin rango (null) acepta cualquier año; con rango, solo los que caen dentro. */
-fun YearRange?.accepts(year: String): Boolean = this == null || contains(year)
-
 /** Chip que abre el selector de años; marcado (con el rango en el texto) cuando hay un filtro activo. */
 @Composable
 fun YearChip(years: YearRange?, onClick: () -> Unit) {

@@ -49,3 +49,6 @@ data class YearRange(val from: Int, val to: Int) {
         )
     }
 }
+
+/** Sin rango (null) acepta cualquier año; con rango, solo los que caen dentro. */
+fun YearRange?.accepts(year: String): Boolean = this == null || contains(year)

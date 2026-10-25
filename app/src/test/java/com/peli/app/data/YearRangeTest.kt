@@ -1,6 +1,5 @@
 package com.peli.app.data
 
-import com.peli.app.ui.accepts
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
