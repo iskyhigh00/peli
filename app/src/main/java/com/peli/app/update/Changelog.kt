@@ -21,6 +21,7 @@ object Changelog {
         ),
         "1.0.4" to listOf(
             "Firma fija: las actualizaciones se instalan encima sin desinstalar.",
+            "Descubrir: los botones Sí / No quedan siempre visibles, sin scroll.",
         ),
     )
 

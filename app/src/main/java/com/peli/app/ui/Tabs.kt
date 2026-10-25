@@ -11,7 +11,11 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -156,64 +160,82 @@ fun DiscoverTab(vm: MainViewModel) {
     val loading by vm.loading.collectAsState()
     val error by vm.error.collectAsState()
     val current = queue.firstOrNull()
+    val navInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
-    Column(
-        Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(screenContentPadding()),
-        verticalArrangement = Arrangement.spacedBy(SectionSpacing),
-    ) {
-        when {
-            current != null -> {
-                AnimatedContent(
-                    targetState = current,
-                    contentKey = { it.movieId },
-                    transitionSpec = {
-                        (fadeIn(spring(Spring.DampingRatioMediumBouncy)) +
-                            slideInVertically(spring(Spring.DampingRatioMediumBouncy)) { it / 3 }) togetherWith
-                            fadeOut()
-                    },
-                    label = "discoverCard",
-                ) { e ->
-                    GlassCard {
-                        PosterImage(
-                            e.posterPath, "Carátula de ${e.title}",
-                            Modifier.fillMaxWidth().height(340.dp),
-                        )
-                        Spacer(Modifier.height(ItemSpacing))
-                        Text(e.title, style = MaterialTheme.typography.headlineSmall)
-                        Row(horizontalArrangement = Arrangement.spacedBy(CompactSpacing)) {
-                            if (e.dateLabel.isNotBlank()) StatusChip(e.dateLabel)
-                            if (e.isUpcoming) UpcomingChip()
-                        }
-                        Spacer(Modifier.height(CompactSpacing))
-                        Text(
-                            e.overview,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 5,
-                            overflow = TextOverflow.Ellipsis,
-                        )
+    if (current != null) {
+        // Tarjeta flexible + botones fijos justo encima de la barra: nunca hace falta hacer scroll.
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(start = ScreenHorizontalPadding, end = ScreenHorizontalPadding, top = CompactSpacing)
+                .padding(bottom = 88.dp + navInset),
+            verticalArrangement = Arrangement.spacedBy(ItemSpacing),
+        ) {
+            AnimatedContent(
+                targetState = current,
+                contentKey = { it.movieId },
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                transitionSpec = {
+                    (fadeIn(spring(Spring.DampingRatioMediumBouncy)) +
+                        slideInVertically(spring(Spring.DampingRatioMediumBouncy)) { it / 3 }) togetherWith
+                        fadeOut()
+                },
+                label = "discoverCard",
+            ) { e ->
+                GlassCard(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp)) {
+                    PosterImage(e.posterPath, "Carátula de ${e.title}", Modifier.fillMaxWidth().weight(1f))
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        e.title,
+                        style = MaterialTheme.typography.titleLarge,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Row(
+                        Modifier.padding(vertical = CompactSpacing),
+                        horizontalArrangement = Arrangement.spacedBy(CompactSpacing),
+                    ) {
+                        if (e.dateLabel.isNotBlank()) StatusChip(e.dateLabel)
+                        if (e.isUpcoming) UpcomingChip()
                     }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(ItemSpacing)) {
-                    TonalButton("No", { vm.answer(current, false) }, Modifier.weight(1f), icon = Icons.Default.ThumbDown)
-                    GradientButton("Sí", { vm.answer(current, true) }, Modifier.weight(1f), icon = Icons.Default.ThumbUp)
-                }
-                TextButton(onClick = { vm.answer(current, null) }, modifier = Modifier.align(Alignment.CenterHorizontally)) {
-                    Text("Omitir")
+                    Text(
+                        e.overview,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
             }
-            loading -> DiscoverSkeleton()
-            error != null -> ErrorState(error!!, onRetry = vm::refillQueue)
-            else -> EmptyState(
-                title = "No hay más sugerencias",
-                message = "Responde algunas para que la app aprenda tus gustos.",
-                icon = Icons.Default.Explore,
-                actionLabel = "Cargar más",
-                onAction = vm::refillQueue,
-            )
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(CompactSpacing),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TonalButton("No", { vm.answer(current, false) }, Modifier.weight(1f), icon = Icons.Default.ThumbDown)
+                TextButton(onClick = { vm.answer(current, null) }) { Text("Omitir") }
+                GradientButton("Sí", { vm.answer(current, true) }, Modifier.weight(1f), icon = Icons.Default.ThumbUp)
+            }
+        }
+    } else {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(screenContentPadding()),
+            verticalArrangement = Arrangement.spacedBy(SectionSpacing),
+        ) {
+            when {
+                loading -> DiscoverSkeleton()
+                error != null -> ErrorState(error!!, onRetry = vm::refillQueue)
+                else -> EmptyState(
+                    title = "No hay más sugerencias",
+                    message = "Responde algunas para que la app aprenda tus gustos.",
+                    icon = Icons.Default.Explore,
+                    actionLabel = "Cargar más",
+                    onAction = vm::refillQueue,
+                )
+            }
         }
     }
 }
