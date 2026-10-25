@@ -7,6 +7,11 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
+/** Única fuente de la versión: x.y.z con un dígito por campo (0.0.0 a 9.9.9). Usar scripts/bump-version.sh. */
+val appVersion = "1.0.1"
+require(Regex("[0-9]\\.[0-9]\\.[0-9]").matches(appVersion)) { "appVersion debe ser x.y.z de un dígito (máx 9.9.9)" }
+val (vMajor, vMinor, vPatch) = appVersion.split(".").map { it.toInt() }
+
 val localProps = Properties().apply {
     val f = rootProject.file("local.properties")
     if (f.exists()) f.inputStream().use { load(it) }
@@ -20,8 +25,8 @@ android {
         applicationId = "com.peli.app"
         minSdk = 24
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = vMajor * 100 + vMinor * 10 + vPatch
+        versionName = appVersion
         val tmdbKey = System.getenv("TMDB_API_KEY") ?: localProps.getProperty("TMDB_API_KEY", "")
         buildConfigField("String", "TMDB_API_KEY", "\"$tmdbKey\"")
         val updateToken = System.getenv("APK_READ_TOKEN") ?: ""

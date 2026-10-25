@@ -19,15 +19,18 @@ import java.net.URL
  *  - version.txt -> versionName de la última build (lo publica CI).
  *  - Peli.apk    -> el instalador.
  *
- * La descarga usa la API de GitHub con un token de SOLO LECTURA de ese repo, que CI inyecta
- * al compilar (BuildConfig.UPDATE_TOKEN; no está en el código fuente).
+ * Si CI inyecta un token de SOLO LECTURA (BuildConfig.UPDATE_TOKEN, no está en el código fuente)
+ * se usa ese repo privado; sin token se usa el último release público de este repo.
  *
  * Con la MISMA firma en todas las versiones, el APK nuevo se instala encima del anterior
  * conservando la base de datos; Android pide confirmar la instalación.
  */
 object Updater {
-    private const val REPO = "iskyhigh00/peli-apk"
-    private const val RELEASE_API = "https://api.github.com/repos/$REPO/releases/tags/peli-apk"
+    // Sin token (repo público): último release de este repo. Con token (repo privado): release fijo de peli-apk.
+    private val publicMode get() = BuildConfig.UPDATE_TOKEN.isEmpty()
+    private val REPO get() = if (publicMode) "iskyhigh00/peli" else "iskyhigh00/peli-apk"
+    private val RELEASE_API
+        get() = "https://api.github.com/repos/$REPO/releases/" + if (publicMode) "latest" else "tags/peli-apk"
     private const val APK_NAME = "Peli.apk"
     private const val VERSION_NAME = "version.txt"
 
@@ -35,8 +38,6 @@ object Updater {
     data class CheckResult(val version: String?, val error: String?)
 
     fun checkLatest(): CheckResult {
-        if (BuildConfig.UPDATE_TOKEN.isEmpty())
-            return CheckResult(null, "esta versión no trae token de actualización")
         return try {
             val id = assetMap()[VERSION_NAME]?.id
                 ?: return CheckResult(null, "el release no tiene $VERSION_NAME")
@@ -199,7 +200,7 @@ object Updater {
             readTimeout = 30000
             setRequestProperty("User-Agent", "Peli")
             setRequestProperty("Accept", accept)
-            if (withAuth) {
+            if (withAuth && BuildConfig.UPDATE_TOKEN.isNotEmpty()) {
                 setRequestProperty("Authorization", "Bearer ${BuildConfig.UPDATE_TOKEN}")
                 setRequestProperty("X-GitHub-Api-Version", "2022-11-28")
             }

@@ -26,8 +26,11 @@ Al abrir, la app consulta el último Release de un repo privado de APK y, si hay
 con «Actualizar» (descarga con progreso e instala encima, conservando los datos). Código en `update/Updater.kt`;
 el workflow `.github/workflows/android-build.yml` compila, firma y publica `Peli.apk` + `version.txt`.
 
-Para publicar una versión nueva suban **juntos** `versionCode`, `versionName` (app/build.gradle.kts) y
-`APP_VERSION` (AppVersion.kt) y agreguen sus novedades en `update/Changelog.kt`.
+Versión: `x.y.z` con un dígito por campo (máx 9.9.9), definida solo en `appVersion` (app/build.gradle.kts);
+`versionCode` se calcula (x*100+y*10+z). Para publicar: `scripts/bump-version.sh`, agregar las novedades en
+`update/Changelog.kt` y hacer push: CI crea el release `vX.Y.Z` con `Peli.apk` y `version.txt`.
+Mientras el repo sea público la app mira el último release de este repo; si CI recibe `APK_READ_TOKEN`
+usa el repo privado `peli-apk`.
 
 ### Configuración en GitHub (una sola vez)
 1. Crear el repo **privado** `iskyhigh00/peli-apk` (si usas otro nombre, cámbialo en `Updater.REPO`) y un Release con tag `peli-apk`.

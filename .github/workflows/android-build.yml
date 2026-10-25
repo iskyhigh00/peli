@@ -50,18 +50,23 @@ jobs:
       - name: files
         run: |
           cp app/build/outputs/apk/release/app-release.apk Peli.apk
-          grep -m1 'versionName' app/build.gradle.kts \
+          grep -m1 'val appVersion' app/build.gradle.kts \
             | sed -E 's/.*"([0-9.]+)".*/\1/' > version.txt
+          echo "VERSION=$(cat version.txt)" >> "$GITHUB_ENV"
 
-      # Release en ESTE repo: el APK se baja directo (sin .zip). Enlace fijo al más nuevo:
+      # Release en ESTE repo, uno por versión (v1.0.1…): APK directo y version.txt para la auto-actualización.
+      # Enlace fijo al más nuevo:
       # https://github.com/<dueño>/peli/releases/latest/download/Peli.apk
       - name: release en este repo
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: build-${{ github.run_number }}
-          name: Peli build ${{ github.run_number }}
+          tag_name: v${{ env.VERSION }}
+          name: Peli ${{ env.VERSION }}
           target_commitish: ${{ github.sha }}
-          files: Peli.apk
+          make_latest: true
+          files: |
+            Peli.apk
+            version.txt
 
       - name: publish
         if: ${{ env.APK_PUBLISH_TOKEN != '' && env.APK_REPO != '' }}

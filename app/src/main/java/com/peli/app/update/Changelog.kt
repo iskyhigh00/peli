@@ -8,7 +8,10 @@ object Changelog {
     val entries: Map<String, List<String>> = linkedMapOf(
         "1.0.0" to listOf(
             "Rediseño completo con Material 3 Expressive.",
+        ),
+        "1.0.1" to listOf(
             "La app se actualiza sola desde GitHub.",
+            "Versionado simple: un dígito por campo (hasta 9.9.9).",
         ),
     )
 
