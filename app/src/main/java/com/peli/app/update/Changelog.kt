@@ -19,6 +19,9 @@ object Changelog {
         "1.0.3" to listOf(
             "Botón \"No me gusta\" en cada película, con filtro para verlas.",
         ),
+        "1.0.4" to listOf(
+            "Firma fija: las actualizaciones se instalan encima sin desinstalar.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"
