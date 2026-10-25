@@ -50,6 +50,9 @@ object Changelog {
             "Mis pelis se puede ordenar; confirmación al salir de la sala; deshacer en Descubrir.",
             "Mejoras de teclado, rotación y búsquedas más rápidas y sin resultados viejos.",
         ),
+        "1.1.2" to listOf(
+            "Descubrir ya no muestra películas que marcaste en otra pantalla, ni las que omites.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

@@ -38,6 +38,12 @@ enum class MineFilter(val label: String) {
     }
 }
 
+/** Quita las películas que ya tienen alguna marca mía (quiero verla, vista, me gustó, no me gusta). */
+fun List<Entry>.withoutMarked(marked: Collection<Entry>): List<Entry> {
+    val ids = marked.filter { !it.isEmpty }.map { it.movieId }.toSet()
+    return filter { it.movieId !in ids }
+}
+
 /** Orden de "Mis pelis". Siempre desempata por título para que el orden sea estable. */
 enum class MineSort(val label: String) { Recent("Recientes"), Title("Título A–Z"), Year("Año"), Rating("Nota") }
 

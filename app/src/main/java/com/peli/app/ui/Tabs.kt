@@ -234,7 +234,7 @@ fun SearchTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Un
 
 @Composable
 fun DiscoverTab(vm: MainViewModel) {
-    val queue by vm.queue.collectAsState()
+    val queue by vm.discoverQueue.collectAsState()
     val loading by vm.queueLoading.collectAsState()
     val error by vm.queueError.collectAsState()
     val partner by vm.partner.collectAsState()

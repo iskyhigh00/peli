@@ -48,6 +48,19 @@ class FiltersTest {
         assertEquals(listOf(2, 1, 3), listOf(a, b, c).orderedBy(MineSort.Rating).map { it.movieId })
     }
 
+    @Test fun queueDropsEverythingAlreadyMarked() {
+        val queue = listOf(entry(1), entry(2), entry(3), entry(4))
+        val marked = listOf(entry(2, watchlist = true), entry(3, liked = true, seen = true), entry(4, disliked = true))
+        assertEquals(listOf(1), queue.withoutMarked(marked).map { it.movieId })
+    }
+
+    @Test fun queueKeepsEverythingWhenNothingIsMarked() {
+        val queue = listOf(entry(1), entry(2))
+        assertEquals(listOf(1, 2), queue.withoutMarked(emptyList()).map { it.movieId })
+        // Una marca vacía no cuenta como marcada.
+        assertEquals(listOf(1, 2), queue.withoutMarked(listOf(entry(1))).map { it.movieId })
+    }
+
     @Test fun ties_areBrokenByTitleSoOrderIsStable() {
         val x = entry(1, title = "B", updatedAt = 5)
         val y = entry(2, title = "A", updatedAt = 5)

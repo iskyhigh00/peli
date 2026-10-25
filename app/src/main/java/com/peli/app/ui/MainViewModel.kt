@@ -90,8 +90,18 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
 
     // ---- Descubrir -----------------------------------------------------------
 
-    /** Cola de sugerencias. */
+    /** Cola de sugerencias (sin filtrar por marcas). */
     val queue = MutableStateFlow<List<Entry>>(emptyList())
+
+    /**
+     * Lo que realmente se muestra en "Descubrir": la cola sin lo que ya marcaste, en cualquier pantalla
+     * y en el momento en que lo marcas (la cola se arma por adelantado y puede traer películas ya marcadas).
+     */
+    val discoverQueue: StateFlow<List<Entry>> = combine(queue, repo.mine) { q, marked -> q.withoutMarked(marked) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    /** Las que omitiste en esta sesión no vuelven a aparecer. */
+    private val skipped = HashSet<Int>()
     val queueLoading = MutableStateFlow(false)
     val queueError = MutableStateFlow<String?>(null)
     val undo = MutableStateFlow<UndoOffer?>(null)
@@ -254,7 +264,8 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
 
     fun answer(e: Entry, answer: Answer) {
         // Toques rápidos: solo cuenta la tarjeta que realmente está arriba.
-        if (queue.value.firstOrNull()?.movieId != e.movieId) return
+        if (discoverQueue.value.firstOrNull()?.movieId != e.movieId) return
+        if (answer == Answer.Skip) skipped += e.movieId
         queue.update { it.filter { x -> x.movieId != e.movieId } }
         viewModelScope.launch {
             if (answer != Answer.Skip) {
@@ -275,7 +286,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
                     previous = previous,
                 )
             }
-            if (queue.value.size < 4) refillQueue()
+            if (discoverQueue.value.size < 4) refillQueue()
         }
     }
 
@@ -285,6 +296,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         undo.value = null
         viewModelScope.launch {
             push(repo.restore(offer.card, offer.previous))
+            skipped -= offer.card.movieId
             queue.update { listOf(offer.card) + it.filter { x -> x.movieId != offer.card.movieId } }
         }
     }
@@ -314,7 +326,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
                 val ranked = repo.recommend(marked)
                 val known = repo.mine.first().map { it.movieId }.toSet()
                 queue.value = (partnerPicks() + queue.value + ranked)
-                    .filter { it.movieId !in known }
+                    .filter { it.movieId !in known && it.movieId !in skipped }
                     .distinctBy { it.movieId }
             } catch (e: CancellationException) {
                 throw e
@@ -367,7 +379,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
                 syncError.value = null
                 // Lo que tu pareja guardó pasa al frente de tus sugerencias.
                 val picks = partnerPicks()
-                if (picks.isNotEmpty()) queue.update { (picks + it).distinctBy { x -> x.movieId } }
+                if (picks.isNotEmpty()) queue.update { (picks.filter { p -> p.movieId !in skipped } + it).distinctBy { x -> x.movieId } }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
