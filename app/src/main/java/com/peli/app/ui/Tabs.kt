@@ -106,11 +106,18 @@ import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 
 @Composable
-private fun <T : Enum<T>> ChipRow(values: List<T>, selected: T, label: (T) -> String, onSelect: (T) -> Unit) {
+private fun <T : Enum<T>> ChipRow(
+    values: List<T>,
+    selected: T,
+    label: (T) -> String,
+    leading: @Composable () -> Unit = {},
+    onSelect: (T) -> Unit,
+) {
     Row(
         Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(CompactSpacing),
     ) {
+        leading()
         values.forEach { PeliFilterChip(label(it), it == selected, { onSelect(it) }) }
     }
 }
@@ -136,6 +143,8 @@ fun SearchTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Un
     // El texto vive en el ViewModel (sobrevive a cambiar de pestaña); aquí solo se refleja el campo.
     var text by remember { mutableStateOf(vm.searchQuery.value) }
     val filter by vm.searchFilter.collectAsState()
+    val years by vm.searchYears.collectAsState()
+    var showYears by rememberSaveable { mutableStateOf(false) }
     val results by vm.results.collectAsState()
     val mine by vm.mine.collectAsState()
     val error by vm.searchError.collectAsState()
@@ -143,12 +152,12 @@ fun SearchTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Un
     val refreshing by vm.refreshing.collectAsState()
     val byId = remember(mine) { mine.associateBy { it.movieId } }
     val feedMode = text.isBlank()
-    val shown = remember(results, mine, byId, filter, feedMode) {
+    val shown = remember(results, mine, byId, filter, feedMode, years) {
         if (feedMode && filter != SearchFilter.All && filter != SearchFilter.Unmarked) {
             // El feed solo trae películas sin marcar: para estos filtros se muestran tus marcas.
-            mine.filter { filter.accepts(it) }.orderedBy(MineSort.Recent)
+            mine.filter { filter.accepts(it) && years.accepts(it.year) }.orderedBy(MineSort.Recent)
         } else {
-            results.filter { filter.accepts(byId[it.movieId]) }
+            results.filter { filter.accepts(byId[it.movieId]) && years.accepts(it.year) }
         }
     }
     val pullState = rememberPullToRefreshState()
@@ -190,7 +199,10 @@ fun SearchTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Un
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                         keyboardActions = KeyboardActions(onSearch = { vm.submitSearch(); dismissKeyboard() }),
                     )
-                    ChipRow(SearchFilter.entries, filter, { it.label }) { vm.setSearchFilter(it) }
+                    ChipRow(
+                        SearchFilter.entries, filter, { it.label },
+                        leading = { YearChip(years) { showYears = true } },
+                    ) { vm.setSearchFilter(it) }
                 }
             }
             if (feedMode && (filter == SearchFilter.All || filter == SearchFilter.Unmarked) && shown.isNotEmpty()) {
@@ -211,7 +223,11 @@ fun SearchTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Un
                 shown.isEmpty() -> item {
                     EmptyState(
                         title = "Sin resultados",
-                        message = if (text.isBlank()) "Aún no hay películas con este filtro." else "No encontramos \"$text\". Prueba con otro título.",
+                        message = when {
+                            years != null -> "No hay películas de ${years!!.label()} con estos filtros. Prueba con otro rango de años."
+                            text.isBlank() -> "Aún no hay películas con este filtro."
+                            else -> "No encontramos \"$text\". Prueba con otro título."
+                        },
                         icon = Icons.Default.Search,
                     )
                 }
@@ -227,6 +243,10 @@ fun SearchTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Un
                 }
             }
         }
+    }
+
+    if (showYears) {
+        YearFilterSheet(years, onApply = vm::setSearchYears, onDismiss = { showYears = false })
     }
 }
 
@@ -361,8 +381,12 @@ private fun ColumnScope.DiscoverCardBody(
 fun MineTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Unit, onGoSearch: () -> Unit) {
     val filter by vm.mineFilter.collectAsState()
     val sort by vm.mineSort.collectAsState()
+    val years by vm.mineYears.collectAsState()
+    var showYears by rememberSaveable { mutableStateOf(false) }
     val mine by vm.mine.collectAsState()
-    val shown = remember(mine, filter, sort) { mine.filter { filter.accepts(it) }.orderedBy(sort) }
+    val shown = remember(mine, filter, sort, years) {
+        mine.filter { filter.accepts(it) && years.accepts(it.year) }.orderedBy(sort)
+    }
     var menuOpen by remember { mutableStateOf(false) }
 
     LazyColumn(
@@ -373,7 +397,10 @@ fun MineTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Unit
     ) {
         item {
             Column(verticalArrangement = Arrangement.spacedBy(CompactSpacing)) {
-                ChipRow(MineFilter.entries, filter, { it.label }) { vm.setMineFilter(it) }
+                ChipRow(
+                    MineFilter.entries, filter, { it.label },
+                    leading = { YearChip(years) { showYears = true } },
+                ) { vm.setMineFilter(it) }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         "${shown.size} " + if (shown.size == 1) "película" else "películas",
@@ -427,6 +454,10 @@ fun MineTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Unit
                 )
             }
         }
+    }
+
+    if (showYears) {
+        YearFilterSheet(years, onApply = vm::setMineYears, onDismiss = { showYears = false })
     }
 }
 

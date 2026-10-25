@@ -8,6 +8,8 @@ import java.util.Locale
 object ReleaseInfo {
     private val months = listOf("ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic")
 
+    fun currentYear(): Int = Calendar.getInstance().get(Calendar.YEAR)
+
     private fun today(): String = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
 
     /** Las fechas ISO se comparan como texto. Sin fecha exacta, se usa el año. */

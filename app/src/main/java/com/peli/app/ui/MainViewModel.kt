@@ -10,6 +10,7 @@ import com.peli.app.PeliApp
 import com.peli.app.data.Entry
 import com.peli.app.data.Remote
 import com.peli.app.data.RoomCodes
+import com.peli.app.data.YearRange
 import com.peli.app.data.Sharing
 import com.peli.app.data.computeMatches
 import com.peli.app.data.toggleDisliked
@@ -28,6 +29,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
@@ -64,6 +66,10 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         .map { SearchFilter.valueOf(it) }.stateIn(viewModelScope, SharingStarted.Eagerly, SearchFilter.All)
     val mineFilter: StateFlow<MineFilter> = saved.getStateFlow(KEY_MINE_FILTER, MineFilter.All.name)
         .map { MineFilter.valueOf(it) }.stateIn(viewModelScope, SharingStarted.Eagerly, MineFilter.All)
+    val searchYears: StateFlow<YearRange?> = saved.getStateFlow(KEY_SEARCH_YEARS, "")
+        .map { YearRange.decode(it) }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+    val mineYears: StateFlow<YearRange?> = saved.getStateFlow(KEY_MINE_YEARS, "")
+        .map { YearRange.decode(it) }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
     val mineSort: StateFlow<MineSort> = saved.getStateFlow(KEY_MINE_SORT, MineSort.Recent.name)
         .map { MineSort.valueOf(it) }.stateIn(viewModelScope, SharingStarted.Eagerly, MineSort.Recent)
 
@@ -71,6 +77,8 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
     fun setSearchFilter(f: SearchFilter) { saved[KEY_SEARCH_FILTER] = f.name }
     fun setMineFilter(f: MineFilter) { saved[KEY_MINE_FILTER] = f.name }
     fun setMineSort(s: MineSort) { saved[KEY_MINE_SORT] = s.name }
+    fun setSearchYears(r: YearRange?) { saved[KEY_SEARCH_YEARS] = r?.encode() ?: "" }
+    fun setMineYears(r: YearRange?) { saved[KEY_MINE_YEARS] = r?.encode() ?: "" }
 
     // ---- Buscar --------------------------------------------------------------
 
@@ -87,6 +95,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
 
     /** Último lote del feed personalizado: se reutiliza al volver a la lista vacía y cambia al deslizar. */
     private var feed: List<Entry> = emptyList()
+    private var feedYears: YearRange? = null
 
     // ---- Descubrir -----------------------------------------------------------
 
@@ -145,7 +154,8 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         // Búsqueda: espera a que dejes de escribir; si llega otra consulta, la anterior se cancela
         // (así nunca se muestra una respuesta vieja). "Buscar" del teclado o deslizar la lanza al instante.
         viewModelScope.launch {
-            merge(searchQuery.map { false }, searchNow.map { true }).collectLatest { immediate ->
+            // El rango se aplica al instante (sin la espera de escritura); su valor inicial no cuenta como cambio.
+            merge(searchQuery.map { false }, searchYears.drop(1).map { true }, searchNow.map { true }).collectLatest { immediate ->
                 if (!immediate && !firstSearch) delay(SEARCH_DEBOUNCE_MS)
                 firstSearch = false
                 runSearch(searchQuery.value)
@@ -177,7 +187,8 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         searchLoading.value = true
         searchError.value = null
         try {
-            results.value = if (q.isBlank()) loadFeed(refresh = pull) else repo.search(q.trim())
+            val years = searchYears.value
+            results.value = if (q.isBlank()) loadFeed(refresh = pull, years = years) else repo.search(q.trim(), years)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -197,12 +208,14 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
      * Sin búsqueda, la lista principal es como "Sorpréndeme": sugerencias según tus gustos.
      * Se mantiene estable mientras navegas y, al deslizar, trae un lote distinto sin repetir lo anterior.
      */
-    private suspend fun loadFeed(refresh: Boolean): List<Entry> {
-        if (!refresh && feed.isNotEmpty()) return feed
+    private suspend fun loadFeed(refresh: Boolean, years: YearRange?): List<Entry> {
+        // El lote guardado solo sirve si se pidió con el mismo rango de años.
+        if (!refresh && feed.isNotEmpty() && feedYears == years) return feed
         val avoid = if (refresh) feed.map { it.movieId }.toSet() else emptySet()
         // Se lee de la base (no del StateFlow, que al arrancar aún puede estar vacío) para personalizar de verdad.
-        val next = repo.recommend(repo.mine.first(), avoid = avoid, noise = FEED_NOISE).take(FEED_SIZE)
+        val next = repo.recommend(repo.mine.first(), avoid = avoid, noise = FEED_NOISE, years = years).take(FEED_SIZE)
         feed = next
+        feedYears = years
         return next
     }
 
@@ -461,6 +474,8 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         const val KEY_SEARCH_FILTER = "search_filter"
         const val KEY_MINE_FILTER = "mine_filter"
         const val KEY_MINE_SORT = "mine_sort"
+        const val KEY_SEARCH_YEARS = "search_years"
+        const val KEY_MINE_YEARS = "mine_years"
         const val SEARCH_DEBOUNCE_MS = 350L
         const val FEED_SIZE = 40
         const val FEED_NOISE = 0.3

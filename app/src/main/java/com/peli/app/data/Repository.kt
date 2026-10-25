@@ -7,6 +7,7 @@ import kotlinx.coroutines.coroutineScope
 class Repository(private val db: AppDb, private val api: TmdbApi) {
     private companion object {
         const val MIN_FRESH = 12
+        const val SEARCH_PAGES_WITH_YEARS = 3
     }
 
     private val dao = db.entries()
@@ -14,7 +15,23 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
     val mine = dao.observe(OWNER_ME)
     val partner = dao.observe(OWNER_PARTNER)
 
-    suspend fun search(q: String) = api.search(q).results.map { it.toEntry(OWNER_ME) }
+    /**
+     * Búsqueda por título. TMDB no filtra una búsqueda por rango de años, así que con rango se piden
+     * varias páginas y se filtra aquí (la primera página propaga el error; las demás son opcionales).
+     */
+    suspend fun search(q: String, years: YearRange? = null): List<Entry> {
+        if (years == null) return api.search(q).results.map { it.toEntry(OWNER_ME) }
+        val pages = coroutineScope {
+            val first = async { api.search(q, 1).results }
+            val rest = (2..SEARCH_PAGES_WITH_YEARS).map { p ->
+                async { runCatching { api.search(q, p).results }.getOrDefault(emptyList()) }
+            }
+            listOf(first.await()) + rest.awaitAll()
+        }
+        return pages.flatten().map { it.toEntry(OWNER_ME) }.distinctBy { it.movieId }.filter { it in years }
+    }
+
+    private operator fun YearRange.contains(e: Entry) = contains(e.year)
     suspend fun popular(page: Int) = api.popular(page).results.map { it.toEntry(OWNER_ME) }
 
     /** Aplica un cambio sobre mi marca de la película; si queda vacía se borra. Devuelve el resultado. */
@@ -61,6 +78,7 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
         marked: List<Entry>,
         avoid: Set<Int> = emptySet(),
         noise: Double = 0.08,
+        years: YearRange? = null,
     ): List<Entry> = coroutineScope {
         val known = marked.map { it.movieId }.toSet()
         val profile = Recommender.buildProfile(marked)
@@ -77,21 +95,47 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
             async { runCatching { api.recommendations(s.movieId).results }.getOrDefault(emptyList()) }
         }
         val topGenres = profile.topGenres(2)
-        val byGenre = async {
-            if (topGenres.isEmpty()) emptyList()
-            else runCatching { api.discover(topGenres.joinToString("|"), page = (1..3).random()).results }
-                .getOrDefault(emptyList())
+        val genreList = topGenres.joinToString("|")
+
+        // Con rango de años, TMDB filtra por fecha de estreno: así hay candidatas de sobra en ese rango.
+        // Si el rango llega al año actual o futuro, casi no hay votos todavía: se baja el mínimo.
+        val minVotes = if (years != null && years.to >= ReleaseInfo.currentYear()) 10 else 100
+        val byYears = years?.let { r ->
+            listOf(1, (2..4).random()).map { p ->
+                async {
+                    runCatching {
+                        api.discover(null, p, "popularity.desc", minVotes, r.startDate, r.endDate).results
+                    }.getOrDefault(emptyList())
+                }
+            }
+        }.orEmpty()
+        val byGenreYears = async {
+            if (years == null || topGenres.isEmpty()) emptyList()
+            else runCatching {
+                api.discover(genreList, (1..2).random(), "popularity.desc", minVotes, years.startDate, years.endDate).results
+            }.getOrDefault(emptyList())
         }
-        val popular = async { runCatching { api.popular((1..5).random()).results }.getOrDefault(emptyList()) }
+        val byGenre = async {
+            if (years != null || topGenres.isEmpty()) emptyList()
+            else runCatching { api.discover(genreList, page = (1..3).random()).results }.getOrDefault(emptyList())
+        }
+        val popular = async {
+            if (years != null) emptyList()
+            else runCatching { api.popular((1..5).random()).results }.getOrDefault(emptyList())
+        }
 
         seedJobs.awaitAll().forEach { add(it, countHit = true) }
+        byYears.awaitAll().forEach { add(it, countHit = false) }
+        add(byGenreYears.await(), countHit = false)
         add(byGenre.await(), countHit = false)
         add(popular.await(), countHit = false)
 
         val seedCount = seeds.size
         // Más ruido = más sorpresa en el orden (exploración).
         val ranked = Recommender.rank(
-            candidates = pool.values.filter { it.movieId !in known && it.posterPath != null && it.overview.isNotBlank() },
+            candidates = pool.values.filter {
+                it.movieId !in known && it.posterPath != null && it.overview.isNotBlank() && (years == null || it in years)
+            },
             profile = profile,
             hits = hits,
             seedCount = seedCount,

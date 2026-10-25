@@ -56,6 +56,9 @@ object Changelog {
         "1.1.3" to listOf(
             "Arreglo: al deslizar para actualizar a veces salía «Comparison method violates its general contract».",
         ),
+        "1.1.4" to listOf(
+            "Filtro por años en Buscar y en Mis pelis: rango, décadas, clásicas y próximos estrenos.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

@@ -25,15 +25,20 @@ interface TmdbApi {
     suspend fun popular(@Query("page") page: Int = 1): TmdbPage
 
     @GET("search/movie")
-    suspend fun search(@Query("query") query: String): TmdbPage
+    suspend fun search(@Query("query") query: String, @Query("page") page: Int = 1): TmdbPage
 
-    /** Películas bien valoradas de ciertos géneros (ids separados por "|" = cualquiera de ellos). */
+    /**
+     * Descubrir por géneros (ids separados por "|" = cualquiera de ellos) y/o rango de fechas de estreno.
+     * Los parámetros nulos no se envían.
+     */
     @GET("discover/movie")
     suspend fun discover(
-        @Query("with_genres") genres: String,
+        @Query("with_genres") genres: String? = null,
         @Query("page") page: Int = 1,
         @Query("sort_by") sortBy: String = "vote_average.desc",
         @Query("vote_count.gte") minVotes: Int = 500,
+        @Query("primary_release_date.gte") releasedFrom: String? = null,
+        @Query("primary_release_date.lte") releasedTo: String? = null,
     ): TmdbPage
 
     @GET("movie/{id}/recommendations")
