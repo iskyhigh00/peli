@@ -483,6 +483,7 @@ private fun CodeSheet(
         sheetState = sheetState,
         shape = SheetShape,
         containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+        contentColor = MaterialTheme.colorScheme.onSurface,
     ) {
         Column(
             Modifier.padding(horizontal = ScreenHorizontalPadding).padding(bottom = SectionSpacing),

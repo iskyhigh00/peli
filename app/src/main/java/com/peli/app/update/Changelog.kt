@@ -34,6 +34,9 @@ object Changelog {
             "Salas con tu pareja: cuando a los dos les interesa la misma película aparece un match.",
             "En Descubrir, lo que le interesa a tu pareja aparece primero.",
         ),
+        "1.0.8" to listOf(
+            "Arreglo: los textos de tarjetas y ventanas se veían negros sobre fondo oscuro.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

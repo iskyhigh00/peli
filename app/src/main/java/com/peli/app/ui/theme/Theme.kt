@@ -4,6 +4,7 @@ import android.os.Build
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
@@ -88,6 +89,8 @@ fun PeliTheme(
     MaterialTheme(colorScheme = scheme, typography = PeliTypography, shapes = PeliShapes) {
         CompositionLocalProvider(
             LocalIndication provides ripple(color = MaterialTheme.colorScheme.primaryContainer, bounded = true),
+            // Sin esto el texto sobre fondos transparentes (tarjetas, hojas) sale negro, ilegible en oscuro.
+            LocalContentColor provides MaterialTheme.colorScheme.onSurface,
             content = content,
         )
     }

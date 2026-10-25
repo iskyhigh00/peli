@@ -81,6 +81,7 @@ fun WhatsNewSheet(items: List<Pair<String, List<String>>>, onDismiss: () -> Unit
         sheetState = sheetState,
         shape = SheetShape,
         containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+        contentColor = MaterialTheme.colorScheme.onSurface,
     ) {
         Column(
             Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp),
