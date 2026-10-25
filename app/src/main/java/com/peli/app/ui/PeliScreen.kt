@@ -57,7 +57,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.peli.app.data.Entry
@@ -201,7 +200,7 @@ private fun Home(vm: MainViewModel, onOpen: (Entry) -> Unit) {
                 AnimatedVisibility(
                     visible = newVersion != null,
                     enter = fadeIn(spring(Spring.DampingRatioMediumBouncy)) +
-                        slideInVertically(spring(Spring.DampingRatioMediumBouncy, visibilityThreshold = IntOffset.VisibilityThreshold)) { -it },
+                        slideInVertically(spring(Spring.DampingRatioMediumBouncy)) { -it },
                     exit = fadeOut() + slideOutVertically { -it },
                 ) {
                     UpdateBanner(
@@ -216,7 +215,7 @@ private fun Home(vm: MainViewModel, onOpen: (Entry) -> Unit) {
                         targetState = tab,
                         transitionSpec = {
                             (fadeIn(spring(Spring.DampingRatioMediumBouncy)) +
-                                slideInVertically(spring(Spring.DampingRatioMediumBouncy, visibilityThreshold = IntOffset.VisibilityThreshold)) { it / 3 }) togetherWith
+                                slideInVertically(spring(Spring.DampingRatioMediumBouncy)) { it / 3 }) togetherWith
                                 fadeOut(tween(120))
                         },
                         label = "tabContent",

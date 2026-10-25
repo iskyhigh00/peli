@@ -46,7 +46,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.peli.app.data.Entry
 import com.peli.app.ui.components.CompactSpacing
@@ -169,7 +168,7 @@ fun DiscoverTab(vm: MainViewModel) {
                     contentKey = { it.movieId },
                     transitionSpec = {
                         (fadeIn(spring(Spring.DampingRatioMediumBouncy)) +
-                            slideInVertically(spring(Spring.DampingRatioMediumBouncy, visibilityThreshold = IntOffset.VisibilityThreshold)) { it / 3 }) togetherWith
+                            slideInVertically(spring(Spring.DampingRatioMediumBouncy)) { it / 3 }) togetherWith
                             fadeOut()
                     },
                     label = "discoverCard",
