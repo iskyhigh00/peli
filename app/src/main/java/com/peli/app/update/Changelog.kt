@@ -53,6 +53,9 @@ object Changelog {
         "1.1.2" to listOf(
             "Descubrir ya no muestra películas que marcaste en otra pantalla, ni las que omites.",
         ),
+        "1.1.3" to listOf(
+            "Arreglo: al deslizar para actualizar a veces salía «Comparison method violates its general contract».",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

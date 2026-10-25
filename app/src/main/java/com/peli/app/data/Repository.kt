@@ -3,7 +3,6 @@ package com.peli.app.data
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
-import kotlin.random.Random
 
 class Repository(private val db: AppDb, private val api: TmdbApi) {
     private companion object {
@@ -90,12 +89,14 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
         add(popular.await(), countHit = false)
 
         val seedCount = seeds.size
-        val ranked = pool.values
-            .filter { it.movieId !in known && it.posterPath != null && it.overview.isNotBlank() }
-            // Ruido para no ver siempre el mismo orden (exploración); más ruido = más sorpresa.
-            .sortedByDescending {
-                Recommender.score(it, profile, hits[it.movieId] ?: 0, seedCount) + Random.nextDouble(0.0, noise)
-            }
+        // Más ruido = más sorpresa en el orden (exploración).
+        val ranked = Recommender.rank(
+            candidates = pool.values.filter { it.movieId !in known && it.posterPath != null && it.overview.isNotBlank() },
+            profile = profile,
+            hits = hits,
+            seedCount = seedCount,
+            noise = noise,
+        )
         // Prefiere lo que aún no se mostró; si casi no queda, no se descarta nada.
         val fresh = ranked.filter { it.movieId !in avoid }
         if (fresh.size >= MIN_FRESH) fresh else ranked

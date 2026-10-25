@@ -74,6 +74,33 @@ class RecommenderTest {
         assertTrue(Recommender.score(action, profile, 0, 0) > Recommender.score(horror, profile, 0, 0))
     }
 
+    /** Reproduce el fallo real: ordenar con azar dentro del comparador lanzaba IllegalArgumentException. */
+    @Test fun rankingManyCandidatesWithNoiseNeverThrowsAndKeepsEveryone() {
+        val candidates = (1..600).map { id ->
+            entry(id, genres = listOf("28", "12", "27", "18").shuffled(kotlin.random.Random(id)).take(2).joinToString(","), rating = (id % 100) / 10.0)
+        }
+        repeat(60) { seed ->
+            val ranked = Recommender.rank(candidates, profile, emptyMap(), 0, noise = 0.3, random = kotlin.random.Random(seed))
+            assertEquals(600, ranked.size)
+            assertEquals(candidates.map { it.movieId }.toSet(), ranked.map { it.movieId }.toSet())
+        }
+    }
+
+    @Test fun rankingWithoutNoiseIsByScoreDescending() {
+        val a = entry(1, genres = "28", rating = 9.0)
+        val b = entry(2, genres = "28", rating = 6.0)
+        val c = entry(3, genres = "27", rating = 9.0)
+        val ranked = Recommender.rank(listOf(c, b, a), profile, emptyMap(), 0, noise = 0.0)
+        assertEquals(listOf(1, 2, 3), ranked.map { it.movieId })
+    }
+
+    @Test fun rankingIsReproducibleForTheSameSeed() {
+        val candidates = (1..50).map { entry(it, genres = "28", rating = 5.0 + (it % 5)) }
+        val one = Recommender.rank(candidates, profile, emptyMap(), 0, 0.5, kotlin.random.Random(7)).map { it.movieId }
+        val two = Recommender.rank(candidates, profile, emptyMap(), 0, 0.5, kotlin.random.Random(7)).map { it.movieId }
+        assertEquals(one, two)
+    }
+
     @Test fun topGenresOnlyIncludesPositiveOnes() {
         assertEquals(setOf(28, 12), profile.topGenres(2).toSet())
         assertEquals(2, profile.topGenres(5).size)

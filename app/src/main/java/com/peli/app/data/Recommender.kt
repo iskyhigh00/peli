@@ -2,6 +2,7 @@ package com.peli.app.data
 
 import kotlin.math.abs
 import kotlin.math.max
+import kotlin.random.Random
 
 /**
  * Recomendador basado en contenido + señal colaborativa de TMDB.
@@ -51,6 +52,27 @@ object Recommender {
 
     /** Calidad 0..1: nota 5 -> 0, nota 10 -> 1. */
     fun quality(c: Entry): Double = (((c.rating ?: 0.0) - 5.0) / 5.0).coerceIn(0.0, 1.0)
+
+    /**
+     * Ordena las candidatas de mayor a menor puntaje, con un poco de azar ([noise]) para variar el orden.
+     * El puntaje (con su azar) se calcula UNA vez por película y luego se ordena: si el azar se sortea
+     * dentro del comparador, el orden es inconsistente y Java lanza "Comparison method violates its
+     * general contract".
+     */
+    fun rank(
+        candidates: Collection<Entry>,
+        profile: Profile,
+        hits: Map<Int, Int>,
+        seedCount: Int,
+        noise: Double,
+        random: Random = Random.Default,
+    ): List<Entry> = candidates
+        .map { c ->
+            val jitter = if (noise > 0) random.nextDouble(0.0, noise) else 0.0
+            c to score(c, profile, hits[c.movieId] ?: 0, seedCount) + jitter
+        }
+        .sortedByDescending { it.second }
+        .map { it.first }
 
     /** @param seedHits cuántas de mis [seedCount] películas "me gustó" recomiendan a [c]. */
     fun score(c: Entry, profile: Profile, seedHits: Int, seedCount: Int): Double {
