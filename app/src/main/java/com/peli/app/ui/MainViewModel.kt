@@ -74,6 +74,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun toggleFavorite(e: Entry) = update(e) { it.copy(favorite = !it.favorite, disliked = false) }
     fun toggleSeen(e: Entry) = update(e) { it.copy(seen = !it.seen) }
+    fun toggleDislike(e: Entry) = update(e) { it.copy(disliked = !it.disliked, favorite = false) }
 
     private fun update(e: Entry, change: (Entry) -> Entry) {
         viewModelScope.launch { repo.update(e, change) }

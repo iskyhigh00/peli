@@ -16,6 +16,9 @@ object Changelog {
         "1.0.2" to listOf(
             "Las películas que aún no se estrenan muestran \"Próximo estreno\" y su fecha.",
         ),
+        "1.0.3" to listOf(
+            "Botón \"No me gusta\" en cada película, con filtro para verlas.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

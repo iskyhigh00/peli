@@ -27,7 +27,9 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.ThumbDown
 import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.ThumbDown
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -45,6 +47,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
@@ -192,14 +195,16 @@ fun MovieCard(
     onOpen: () -> Unit,
     onFavorite: () -> Unit,
     onSeen: () -> Unit,
+    onDislike: () -> Unit,
     modifier: Modifier = Modifier,
     badge: String? = null,
 ) {
     val scheme = MaterialTheme.colorScheme
     val favorite = mine?.favorite == true
     val seen = mine?.seen == true
+    val disliked = mine?.disliked == true
     GlassCard(
-        modifier = modifier,
+        modifier = modifier.alpha(if (disliked) 0.6f else 1f),
         shape = MaterialTheme.shapes.large,
         contentPadding = PaddingValues(12.dp),
         onClick = onOpen,
@@ -255,6 +260,14 @@ fun MovieCard(
                         description = if (seen) "Desmarcar ${entry.title} como vista" else "Marcar ${entry.title} como vista",
                         checkedTint = scheme.secondary,
                     )
+                    ToggleIconButton(
+                        checked = disliked,
+                        onClick = onDislike,
+                        icon = Icons.Outlined.ThumbDown,
+                        checkedIcon = Icons.Filled.ThumbDown,
+                        description = if (disliked) "Quitar ${entry.title} de las que no me gustan" else "No me gusta ${entry.title}",
+                        checkedTint = scheme.error,
+                    )
                 }
             }
         }
@@ -277,9 +290,9 @@ private fun MovieCardPreview() {
     PeliTheme {
         BrandBackground {
             Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                MovieCard(sampleEntry, sampleEntry, {}, {}, {}, badge = "Les gusta a las dos")
-                MovieCard(sampleEntry.copy(favorite = false), null, {}, {}, {})
-                MovieCard(sampleEntry.copy(title = "Estreno futuro", favorite = false, year = "2099", releaseDate = "2099-01-15"), null, {}, {}, {})
+                MovieCard(sampleEntry, sampleEntry, {}, {}, {}, {}, badge = "Les gusta a las dos")
+                MovieCard(sampleEntry.copy(favorite = false, disliked = true), sampleEntry.copy(favorite = false, disliked = true), {}, {}, {}, {})
+                MovieCard(sampleEntry.copy(title = "Estreno futuro", favorite = false, year = "2099", releaseDate = "2099-01-15"), null, {}, {}, {}, {})
             }
         }
     }

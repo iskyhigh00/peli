@@ -71,8 +71,8 @@ import com.peli.app.ui.theme.SheetShape
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-private enum class SearchFilter(val label: String) { All("Todas"), Favorites("Favoritas"), Seen("Vistas"), Unmarked("Sin marcar") }
-private enum class MineFilter(val label: String) { All("Todas"), Favorites("Favoritas"), Seen("Vistas") }
+private enum class SearchFilter(val label: String) { All("Todas"), Favorites("Favoritas"), Seen("Vistas"), Disliked("No me gustan"), Unmarked("Sin marcar") }
+private enum class MineFilter(val label: String) { All("Todas"), Favorites("Favoritas"), Seen("Vistas"), Disliked("No me gustan") }
 
 @Composable
 private fun <T : Enum<T>> ChipRow(values: List<T>, selected: T, label: (T) -> String, onSelect: (T) -> Unit) {
@@ -106,6 +106,7 @@ fun SearchTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Un
             SearchFilter.All -> true
             SearchFilter.Favorites -> m?.favorite == true
             SearchFilter.Seen -> m?.seen == true
+            SearchFilter.Disliked -> m?.disliked == true
             SearchFilter.Unmarked -> m == null
         }
     }
@@ -141,6 +142,7 @@ fun SearchTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Un
                     e, m, onOpen = { onOpen(e) },
                     onFavorite = { vm.toggleFavorite(m ?: e) },
                     onSeen = { vm.toggleSeen(m ?: e) },
+                    onDislike = { vm.toggleDislike(m ?: e) },
                     modifier = Modifier.animateItem().entrance(shown.indexOf(e)),
                 )
             }
@@ -223,9 +225,10 @@ fun MineTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Unit
     val byId = mine.associateBy { it.movieId }
     val shown = mine.filter {
         when (filter) {
-            MineFilter.All -> it.favorite || it.seen
+            MineFilter.All -> true
             MineFilter.Favorites -> it.favorite
             MineFilter.Seen -> it.seen
+            MineFilter.Disliked -> it.disliked
         }
     }
 
@@ -252,6 +255,7 @@ fun MineTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Unit
                     e, byId[e.movieId], onOpen = { onOpen(e) },
                     onFavorite = { vm.toggleFavorite(e) },
                     onSeen = { vm.toggleSeen(e) },
+                    onDislike = { vm.toggleDislike(e) },
                     modifier = Modifier.animateItem().entrance(shown.indexOf(e)),
                 )
             }
@@ -311,6 +315,7 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
                         m.entry, byId[m.entry.movieId], onOpen = { onOpen(m.entry) },
                         onFavorite = { vm.toggleFavorite(byId[m.entry.movieId] ?: m.entry.copy(owner = com.peli.app.data.OWNER_ME)) },
                         onSeen = { vm.toggleSeen(byId[m.entry.movieId] ?: m.entry.copy(owner = com.peli.app.data.OWNER_ME)) },
+                        onDislike = { vm.toggleDislike(byId[m.entry.movieId] ?: m.entry.copy(owner = com.peli.app.data.OWNER_ME)) },
                         badge = when {
                             m.both -> "Les gusta a las dos"
                             m.iLike -> "Te gusta a ti"

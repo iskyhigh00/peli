@@ -153,7 +153,7 @@ private fun Home(vm: MainViewModel, onOpen: (Entry) -> Unit) {
     val bottomScrim by animateFloatAsState(if (canScrollMore) 0.7f else 0f, tween(250), label = "bottomScrim")
 
     val items = remember { Tab.entries.map { NavItem(it.label, it.icon) } }
-    val libraryCount = mine.count { it.favorite || it.seen }
+    val libraryCount = mine.size
     val subtitle = when (tab) {
         Tab.Search -> "Encuentra tu próxima película"
         Tab.Discover -> "Cuéntanos qué te gusta"

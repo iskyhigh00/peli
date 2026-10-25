@@ -20,6 +20,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.ThumbDown
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -48,6 +49,7 @@ fun DetailScreen(entry: Entry, mine: Entry?, vm: MainViewModel, onBack: () -> Un
     val scheme = MaterialTheme.colorScheme
     val favorite = mine?.favorite == true
     val seen = mine?.seen == true
+    val disliked = mine?.disliked == true
 
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
@@ -86,6 +88,12 @@ fun DetailScreen(entry: Entry, mine: Entry?, vm: MainViewModel, onBack: () -> Un
                         { vm.toggleSeen(mine ?: entry) },
                         Modifier.fillMaxWidth(),
                         icon = Icons.Default.Check,
+                    )
+                    TonalButton(
+                        if (disliked) "Marcada como no me gusta" else "No me gusta",
+                        { vm.toggleDislike(mine ?: entry) },
+                        Modifier.fillMaxWidth(),
+                        icon = Icons.Default.ThumbDown,
                     )
                 }
                 Box(Modifier.height(32.dp))
