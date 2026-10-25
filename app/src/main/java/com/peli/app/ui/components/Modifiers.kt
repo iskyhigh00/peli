@@ -39,16 +39,25 @@ fun Modifier.pressScale(source: InteractionSource, pressedScale: Float = 0.95f):
     }
 }
 
-/** Entrada: fadeIn + slide vertical (1/3 de su alto) con spring "bouncy", escalonada por índice. */
+/** Claves que ya hicieron su animación de entrada (para no repetirla al volver o al hacer scroll). */
+private val animatedEntrances = HashSet<Any>()
+
+/**
+ * Entrada: fadeIn + slide vertical (1/3 de su alto) con spring "bouncy", escalonada por índice.
+ * Con [key], cada elemento anima solo la primera vez que aparece.
+ */
 @Composable
-fun Modifier.entrance(index: Int = 0): Modifier {
-    val progress = remember { Animatable(0f) }
+fun Modifier.entrance(index: Int = 0, key: Any? = null): Modifier {
+    val already = remember { key != null && key in animatedEntrances }
+    val progress = remember { Animatable(if (already) 1f else 0f) }
     LaunchedEffect(Unit) {
+        if (already) return@LaunchedEffect
         delay(index.coerceIn(0, 8) * 45L)
         progress.animateTo(
             1f,
             spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
         )
+        if (key != null) animatedEntrances.add(key)
     }
     return this.graphicsLayer {
         alpha = progress.value.coerceIn(0f, 1f)

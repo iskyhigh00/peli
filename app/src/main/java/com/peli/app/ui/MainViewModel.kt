@@ -102,10 +102,44 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         loading.value = false
     }
 
-    /** Con texto busca; vacío muestra las populares. */
+    /** true mientras se actualiza con el gesto de deslizar hacia abajo. */
+    val refreshing = MutableStateFlow(false)
+    private var lastQuery: String? = null
+
+    /**
+     * Con texto busca; vacío muestra las populares. Si ya está cargada esa misma búsqueda no se repite
+     * (así la lista no cambia al volver de ver una película).
+     */
     fun search(query: String) {
+        if (query == lastQuery && results.value.isNotEmpty()) return
+        lastQuery = query
         guarded {
             results.value = if (query.isBlank()) repo.popular(1) else repo.search(query.trim())
+        }
+    }
+
+    /** Deslizar hacia abajo en la lista principal: vuelve a pedir el listado completo. */
+    fun refreshSearch(query: String) {
+        viewModelScope.launch {
+            refreshing.value = true
+            try {
+                results.value = if (query.isBlank()) repo.popular(1) else repo.search(query.trim())
+                lastQuery = query
+                error.value = null
+            } catch (e: Exception) {
+                error.value = "Error de red: ${e.message}"
+            } finally {
+                refreshing.value = false
+            }
+        }
+    }
+
+    /** Deslizar hacia abajo en "Juntos": sincroniza con la sala ahora mismo. */
+    fun refreshSync() {
+        viewModelScope.launch {
+            refreshing.value = true
+            sync()
+            refreshing.value = false
         }
     }
 

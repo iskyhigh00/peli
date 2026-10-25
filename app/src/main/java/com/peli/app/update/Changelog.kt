@@ -40,6 +40,10 @@ object Changelog {
         "1.0.9" to listOf(
             "Toca una carátula para verla en grande, con zoom y arrastre.",
         ),
+        "1.0.10" to listOf(
+            "Desliza hacia abajo para actualizar la lista.",
+            "Al volver de una película, la lista queda donde estaba.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

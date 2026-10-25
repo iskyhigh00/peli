@@ -38,9 +38,12 @@ import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.PullToRefreshBox
+import androidx.compose.material3.PullToRefreshDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -98,6 +101,7 @@ private fun <T : Enum<T>> ChipRow(values: List<T>, selected: T, label: (T) -> St
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Unit) {
     var query by rememberSaveable { mutableStateOf("") }
@@ -107,6 +111,8 @@ fun SearchTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Un
     val error by vm.error.collectAsState()
     val loading by vm.loading.collectAsState()
     val byId = mine.associateBy { it.movieId }
+    val refreshing by vm.refreshing.collectAsState()
+    val pullState = rememberPullToRefreshState()
 
     // Espera 350ms tras la última tecla antes de consultar.
     LaunchedEffect(query) {
@@ -126,40 +132,55 @@ fun SearchTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Un
         }
     }
 
-    LazyColumn(
-        Modifier.fillMaxSize(),
-        state = listState,
-        contentPadding = screenContentPadding(),
-        verticalArrangement = Arrangement.spacedBy(ItemSpacing),
+    PullToRefreshBox(
+        isRefreshing = refreshing,
+        onRefresh = { vm.refreshSearch(query) },
+        state = pullState,
+        indicator = {
+            PullToRefreshDefaults.Indicator(
+                state = pullState,
+                isRefreshing = refreshing,
+                modifier = Modifier.align(Alignment.TopCenter),
+                containerColor = MaterialTheme.colorScheme.surface,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        },
     ) {
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(ItemSpacing)) {
-                PeliTextField(
-                    query, { query = it }, "Buscar película",
-                    leadingIcon = Icons.Default.Search, onClear = { query = "" },
-                )
-                ChipRow(SearchFilter.entries, filter, { it.label }) { filter = it }
+        LazyColumn(
+            Modifier.fillMaxSize(),
+            state = listState,
+            contentPadding = screenContentPadding(),
+            verticalArrangement = Arrangement.spacedBy(ItemSpacing),
+        ) {
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(ItemSpacing)) {
+                    PeliTextField(
+                        query, { query = it }, "Buscar película",
+                        leadingIcon = Icons.Default.Search, onClear = { query = "" },
+                    )
+                    ChipRow(SearchFilter.entries, filter, { it.label }) { filter = it }
+                }
             }
-        }
-        when {
-            loading && results.isEmpty() -> items(4) { MovieCardSkeleton() }
-            error != null && results.isEmpty() -> item { ErrorState(error!!, onRetry = { vm.search(query) }) }
-            shown.isEmpty() -> item {
-                EmptyState(
-                    title = "Sin resultados",
-                    message = if (query.isBlank()) "Aún no hay películas con este filtro." else "No encontramos \"$query\". Prueba con otro título.",
-                    icon = Icons.Default.Search,
-                )
-            }
-            else -> items(shown, key = { it.movieId }) { e ->
-                val m = byId[e.movieId]
-                MovieCard(
-                    e, m, onOpen = { onOpen(e) },
-                    onWant = { vm.toggleWant(m ?: e) },
-                    onLiked = { vm.toggleLiked(m ?: e) },
-                    onDislike = { vm.toggleDislike(m ?: e) },
-                    modifier = Modifier.animateItem().entrance(shown.indexOf(e)),
-                )
+            when {
+                loading && results.isEmpty() -> items(4) { MovieCardSkeleton() }
+                error != null && results.isEmpty() -> item { ErrorState(error!!, onRetry = { vm.search(query) }) }
+                shown.isEmpty() -> item {
+                    EmptyState(
+                        title = "Sin resultados",
+                        message = if (query.isBlank()) "Aún no hay películas con este filtro." else "No encontramos \"$query\". Prueba con otro título.",
+                        icon = Icons.Default.Search,
+                    )
+                }
+                else -> items(shown, key = { it.movieId }) { e ->
+                    val m = byId[e.movieId]
+                    MovieCard(
+                        e, m, onOpen = { onOpen(e) },
+                        onWant = { vm.toggleWant(m ?: e) },
+                        onLiked = { vm.toggleLiked(m ?: e) },
+                        onDislike = { vm.toggleDislike(m ?: e) },
+                        modifier = Modifier.animateItem().entrance(shown.indexOf(e), e.movieId),
+                    )
+                }
             }
         }
     }
@@ -312,7 +333,7 @@ fun MineTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Unit
                     onWant = { vm.toggleWant(e) },
                     onLiked = { vm.toggleLiked(e) },
                     onDislike = { vm.toggleDislike(e) },
-                    modifier = Modifier.animateItem().entrance(shown.indexOf(e)),
+                    modifier = Modifier.animateItem().entrance(shown.indexOf(e), e.movieId),
                 )
             }
         }
@@ -321,6 +342,7 @@ fun MineTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Unit
 
 private enum class TogetherSheet { None, Import, Join }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Unit) {
     val matches by vm.matches.collectAsState()
@@ -331,114 +353,131 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
     val byId = mine.associateBy { it.movieId }
     var sheet by rememberSaveable { mutableStateOf(TogetherSheet.None) }
     val context = LocalContext.current
+    val refreshing by vm.refreshing.collectAsState()
+    val pullState = rememberPullToRefreshState()
 
     val both = matches.filter { it.both }
     val single = matches.filter { !it.both }
     fun mineOrNew(m: com.peli.app.data.Match) = byId[m.entry.movieId] ?: m.entry.copy(owner = com.peli.app.data.OWNER_ME)
 
-    LazyColumn(
-        Modifier.fillMaxSize(),
-        state = listState,
-        contentPadding = screenContentPadding(),
-        verticalArrangement = Arrangement.spacedBy(ItemSpacing),
+    PullToRefreshBox(
+        isRefreshing = refreshing,
+        onRefresh = vm::refreshSync,
+        state = pullState,
+        indicator = {
+            PullToRefreshDefaults.Indicator(
+                state = pullState,
+                isRefreshing = refreshing,
+                modifier = Modifier.align(Alignment.TopCenter),
+                containerColor = MaterialTheme.colorScheme.surface,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        },
     ) {
-        item {
-            GlassCard {
-                when {
-                    !vm.cloudAvailable -> {
-                        Text("Lista de tu pareja", style = MaterialTheme.typography.titleMedium)
-                        Text(
-                            if (partner.isEmpty()) "Aún no la importas." else "${partner.size} películas importadas.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Spacer(Modifier.height(ItemSpacing))
-                        Row(horizontalArrangement = Arrangement.spacedBy(CompactSpacing)) {
-                            GradientButton("Importar lista", { sheet = TogetherSheet.Import }, Modifier.weight(1f), icon = Icons.Default.Download)
-                            if (partner.isNotEmpty()) TonalButton("Borrar", vm::clearPartner)
-                        }
-                    }
-                    room == null -> {
-                        Text("Conecta con tu pareja", style = MaterialTheme.typography.titleMedium)
-                        Text(
-                            "Creen una sala o únanse con un código. Cuando a los dos les interese la misma película, será un match.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Spacer(Modifier.height(ItemSpacing))
-                        Row(horizontalArrangement = Arrangement.spacedBy(CompactSpacing)) {
-                            GradientButton("Crear sala", vm::createRoom, Modifier.weight(1f), icon = Icons.Default.Group)
-                            TonalButton("Tengo un código", { sheet = TogetherSheet.Join }, Modifier.weight(1f))
-                        }
-                    }
-                    else -> {
-                        Text("Sala ${RoomCodes.format(room!!)}", style = MaterialTheme.typography.titleMedium)
-                        Text(
-                            when {
-                                syncError != null -> "No se pudo sincronizar: $syncError"
-                                partner.isEmpty() -> "Esperando a tu pareja… compárteles el código."
-                                else -> "Conectados · tu pareja tiene ${partner.size} películas marcadas."
-                            },
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = if (syncError != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Spacer(Modifier.height(ItemSpacing))
-                        Row(horizontalArrangement = Arrangement.spacedBy(CompactSpacing)) {
-                            GradientButton(
-                                "Compartir código",
-                                {
-                                    val send = Intent(Intent.ACTION_SEND).apply {
-                                        type = "text/plain"
-                                        putExtra(Intent.EXTRA_TEXT, vm.roomShareText())
-                                    }
-                                    context.startActivity(Intent.createChooser(send, "Invitar a tu pareja"))
-                                },
-                                Modifier.weight(1f),
-                                icon = Icons.Default.Share,
+        LazyColumn(
+            Modifier.fillMaxSize(),
+            state = listState,
+            contentPadding = screenContentPadding(),
+            verticalArrangement = Arrangement.spacedBy(ItemSpacing),
+        ) {
+            item {
+                GlassCard {
+                    when {
+                        !vm.cloudAvailable -> {
+                            Text("Lista de tu pareja", style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                if (partner.isEmpty()) "Aún no la importas." else "${partner.size} películas importadas.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
-                            TonalButton("Salir", vm::leaveRoom)
+                            Spacer(Modifier.height(ItemSpacing))
+                            Row(horizontalArrangement = Arrangement.spacedBy(CompactSpacing)) {
+                                GradientButton("Importar lista", { sheet = TogetherSheet.Import }, Modifier.weight(1f), icon = Icons.Default.Download)
+                                if (partner.isNotEmpty()) TonalButton("Borrar", vm::clearPartner)
+                            }
+                        }
+                        room == null -> {
+                            Text("Conecta con tu pareja", style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                "Creen una sala o únanse con un código. Cuando a los dos les interese la misma película, será un match.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Spacer(Modifier.height(ItemSpacing))
+                            Row(horizontalArrangement = Arrangement.spacedBy(CompactSpacing)) {
+                                GradientButton("Crear sala", vm::createRoom, Modifier.weight(1f), icon = Icons.Default.Group)
+                                TonalButton("Tengo un código", { sheet = TogetherSheet.Join }, Modifier.weight(1f))
+                            }
+                        }
+                        else -> {
+                            Text("Sala ${RoomCodes.format(room!!)}", style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                when {
+                                    syncError != null -> "No se pudo sincronizar: $syncError"
+                                    partner.isEmpty() -> "Esperando a tu pareja… compárteles el código."
+                                    else -> "Conectados · tu pareja tiene ${partner.size} películas marcadas."
+                                },
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = if (syncError != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Spacer(Modifier.height(ItemSpacing))
+                            Row(horizontalArrangement = Arrangement.spacedBy(CompactSpacing)) {
+                                GradientButton(
+                                    "Compartir código",
+                                    {
+                                        val send = Intent(Intent.ACTION_SEND).apply {
+                                            type = "text/plain"
+                                            putExtra(Intent.EXTRA_TEXT, vm.roomShareText())
+                                        }
+                                        context.startActivity(Intent.createChooser(send, "Invitar a tu pareja"))
+                                    },
+                                    Modifier.weight(1f),
+                                    icon = Icons.Default.Share,
+                                )
+                                TonalButton("Salir", vm::leaveRoom)
+                            }
                         }
                     }
                 }
             }
-        }
-        when {
-            matches.isEmpty() -> item {
-                EmptyState(
-                    title = if (room != null && partner.isEmpty()) "Esperando a tu pareja" else "Aún no hay matches",
-                    message = if (room != null) {
-                        "Cuando los dos marquen «Quiero verla» en la misma película, aparecerá aquí con un match."
-                    } else {
-                        "Conéctate con tu pareja y marquen películas con «Quiero verla»."
-                    },
-                    icon = Icons.Default.Group,
-                )
-            }
-            else -> {
-                if (both.isNotEmpty()) {
-                    item { Text("Matches (${both.size})", style = MaterialTheme.typography.titleLarge) }
-                    items(both, key = { it.entry.movieId }) { m ->
-                        MovieCard(
-                            m.entry, byId[m.entry.movieId], onOpen = { onOpen(m.entry) },
-                            onWant = { vm.toggleWant(mineOrNew(m)) },
-                            onLiked = { vm.toggleLiked(mineOrNew(m)) },
-                            onDislike = { vm.toggleDislike(mineOrNew(m)) },
-                            badge = "Les interesa a las dos",
-                            modifier = Modifier.animateItem().entrance(both.indexOf(m)),
-                        )
-                    }
+            when {
+                matches.isEmpty() -> item {
+                    EmptyState(
+                        title = if (room != null && partner.isEmpty()) "Esperando a tu pareja" else "Aún no hay matches",
+                        message = if (room != null) {
+                            "Cuando los dos marquen «Quiero verla» en la misma película, aparecerá aquí con un match."
+                        } else {
+                            "Conéctate con tu pareja y marquen películas con «Quiero verla»."
+                        },
+                        icon = Icons.Default.Group,
+                    )
                 }
-                if (single.isNotEmpty()) {
-                    item { Text("A uno le interesa (${single.size})", style = MaterialTheme.typography.titleLarge) }
-                    items(single, key = { it.entry.movieId }) { m ->
-                        MovieCard(
-                            m.entry, byId[m.entry.movieId], onOpen = { onOpen(m.entry) },
-                            onWant = { vm.toggleWant(mineOrNew(m)) },
-                            onLiked = { vm.toggleLiked(mineOrNew(m)) },
-                            onDislike = { vm.toggleDislike(mineOrNew(m)) },
-                            badge = if (m.iWant) "Te interesa a ti" else "Le interesa a tu pareja",
-                            modifier = Modifier.animateItem().entrance(single.indexOf(m)),
-                        )
+                else -> {
+                    if (both.isNotEmpty()) {
+                        item { Text("Matches (${both.size})", style = MaterialTheme.typography.titleLarge) }
+                        items(both, key = { it.entry.movieId }) { m ->
+                            MovieCard(
+                                m.entry, byId[m.entry.movieId], onOpen = { onOpen(m.entry) },
+                                onWant = { vm.toggleWant(mineOrNew(m)) },
+                                onLiked = { vm.toggleLiked(mineOrNew(m)) },
+                                onDislike = { vm.toggleDislike(mineOrNew(m)) },
+                                badge = "Les interesa a las dos",
+                                modifier = Modifier.animateItem().entrance(both.indexOf(m), m.entry.movieId),
+                            )
+                        }
+                    }
+                    if (single.isNotEmpty()) {
+                        item { Text("A uno le interesa (${single.size})", style = MaterialTheme.typography.titleLarge) }
+                        items(single, key = { it.entry.movieId }) { m ->
+                            MovieCard(
+                                m.entry, byId[m.entry.movieId], onOpen = { onOpen(m.entry) },
+                                onWant = { vm.toggleWant(mineOrNew(m)) },
+                                onLiked = { vm.toggleLiked(mineOrNew(m)) },
+                                onDislike = { vm.toggleDislike(mineOrNew(m)) },
+                                badge = if (m.iWant) "Te interesa a ti" else "Le interesa a tu pareja",
+                                modifier = Modifier.animateItem().entrance(single.indexOf(m), m.entry.movieId),
+                            )
+                        }
                     }
                 }
             }

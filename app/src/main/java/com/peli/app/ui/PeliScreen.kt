@@ -50,6 +50,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -88,6 +89,7 @@ fun PeliScreen(vm: MainViewModel = viewModel()) {
     PeliTheme {
         var selected by remember { mutableStateOf<Entry?>(null) }
         val mine by vm.mine.collectAsState()
+        val saveableStateHolder = rememberSaveableStateHolder()
 
         // Sincroniza con la sala cada 6 s, solo mientras la app está visible.
         val room by vm.room.collectAsState()
@@ -114,7 +116,10 @@ fun PeliScreen(vm: MainViewModel = viewModel()) {
                         LocalShared provides SharedScopes(this@SharedTransitionLayout, this@AnimatedContent),
                     ) {
                         if (entry == null) {
-                            Home(vm, onOpen = { selected = it })
+                            // Conserva pestaña, scroll, búsqueda y filtros mientras se mira una película.
+                            saveableStateHolder.SaveableStateProvider("home") {
+                                Home(vm, onOpen = { selected = it })
+                            }
                         } else {
                             DetailScreen(
                                 entry = entry,
