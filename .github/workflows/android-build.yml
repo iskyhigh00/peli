@@ -17,6 +17,8 @@ jobs:
       APK_REPO: ${{ secrets.APK_REPO }}
       APK_READ_TOKEN: ${{ secrets.APK_READ_TOKEN }}
       TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
     steps:
       - uses: actions/checkout@v4
 

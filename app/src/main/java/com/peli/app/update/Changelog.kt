@@ -30,6 +30,10 @@ object Changelog {
             "Estados claros: \"Quiero verla\" (se comparte con tu pareja) y \"La vi y me gustó\" (la app aprende).",
             "Recomendaciones inteligentes según los géneros que te gustan, lo reciente y la nota de TMDB.",
         ),
+        "1.0.7" to listOf(
+            "Salas con tu pareja: cuando a los dos les interesa la misma película aparece un match.",
+            "En Descubrir, lo que le interesa a tu pareja aparece primero.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

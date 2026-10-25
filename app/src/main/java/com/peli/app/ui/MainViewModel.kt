@@ -7,6 +7,9 @@ import com.peli.app.APP_VERSION
 import com.peli.app.BuildConfig
 import com.peli.app.PeliApp
 import com.peli.app.data.Entry
+import com.peli.app.data.OWNER_ME
+import com.peli.app.data.Remote
+import com.peli.app.data.RoomCodes
 import com.peli.app.data.Sharing
 import com.peli.app.data.computeMatches
 import com.peli.app.data.toggleDisliked
@@ -16,17 +19,20 @@ import com.peli.app.data.toggleWatch
 import com.peli.app.update.Changelog
 import com.peli.app.update.Updater
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
-    private val repo = (app as PeliApp).repository
+    private val peli = app as PeliApp
+    private val repo = peli.repository
+    private val pairing = peli.pairing
 
     val mine = repo.mine.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     val partner = repo.partner.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
@@ -50,6 +56,22 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** Novedades a mostrar tras actualizar (versión -> cambios). */
     val whatsNew = MutableStateFlow<List<Pair<String, List<String>>>>(emptyList())
 
+    // ---- Sala con la pareja -------------------------------------------------
+
+    /** ¿Hay servidor configurado? Si no, solo funciona el intercambio manual de códigos. */
+    val cloudAvailable = Remote.configured
+
+    /** Código de la sala actual (null = sin conectar). */
+    val room = MutableStateFlow(pairing.room)
+
+    /** Último error de sincronización (null = bien). */
+    val syncError = MutableStateFlow<String?>(null)
+
+    /** Matches nuevos pendientes de mostrar (los dos quieren verla). */
+    val pendingMatches = MutableStateFlow<List<Entry>>(emptyList())
+
+    private val syncLock = Mutex()
+
     init {
         viewModelScope.launch(Dispatchers.IO) { Updater.cleanupDownloads(getApplication()) }
         whatsNew.value = Changelog.takeUnseen(getApplication())
@@ -59,6 +81,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         } else {
             search("")
             refillQueue()
+        }
+        // Tinder: cada vez que aparece una película que a los dos nos interesa, se avisa una sola vez.
+        viewModelScope.launch {
+            matches.collect { list ->
+                val announced = pairing.announced
+                val fresh = list.filter { it.both && it.entry.movieId !in announced }
+                if (fresh.isNotEmpty()) {
+                    pairing.announced = announced + fresh.map { it.entry.movieId }
+                    pendingMatches.update { it + fresh.map { m -> m.entry } }
+                }
+            }
         }
     }
 
@@ -82,7 +115,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun toggleDislike(e: Entry) = update(e) { it.toggleDisliked() }
 
     private fun update(e: Entry, change: (Entry) -> Entry) {
-        viewModelScope.launch { repo.update(e, change) }
+        viewModelScope.launch { applyAndPush(e, change) }
+    }
+
+    /** Guarda localmente y sube el cambio a la sala (si falla, el próximo sync lo reintenta). */
+    private suspend fun applyAndPush(e: Entry, change: (Entry) -> Entry) {
+        val next = repo.update(e, change)
+        val r = room.value ?: return
+        runCatching { repo.push(r, pairing.userId, next) }
     }
 
     /** Respuesta en "Descubrir": con ella la app aprende tus gustos y pasa a la siguiente. */
@@ -91,9 +131,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun answer(e: Entry, answer: Answer) {
         viewModelScope.launch {
             when (answer) {
-                Answer.Want -> repo.update(e) { it.copy(watchlist = true, seen = false, liked = false, disliked = false) }
-                Answer.SeenLiked -> repo.update(e) { it.copy(liked = true, seen = true, watchlist = false, disliked = false) }
-                Answer.NotInterested -> repo.update(e) { it.copy(disliked = true, liked = false, watchlist = false) }
+                Answer.Want -> applyAndPush(e) { it.copy(watchlist = true, seen = false, liked = false, disliked = false) }
+                Answer.SeenLiked -> applyAndPush(e) { it.copy(liked = true, seen = true, watchlist = false, disliked = false) }
+                Answer.NotInterested -> applyAndPush(e) { it.copy(disliked = true, liked = false, watchlist = false) }
                 Answer.Skip -> Unit
             }
             queue.update { it.filter { x -> x.movieId != e.movieId } }
@@ -101,17 +141,77 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Sugerencias ordenadas por el recomendador según lo que ya marcaste. */
+    /** Películas que a tu pareja le interesan y yo aún no marqué: van primero en "Descubrir". */
+    private fun partnerPicks(): List<Entry> {
+        val known = mine.value.map { it.movieId }.toSet()
+        return partner.value
+            .filter { it.watchlist && !it.seen && !it.disliked && it.movieId !in known }
+            .map { it.copy(owner = OWNER_ME, watchlist = false) }
+    }
+
+    /** Sugerencias: primero las de tu pareja, luego las ordenadas por el recomendador. */
     fun refillQueue() {
         guarded {
             val marked = mine.value
             val known = marked.map { it.movieId }.toSet()
             val ranked = repo.recommend(marked)
-            queue.value = (queue.value + ranked)
+            queue.value = (partnerPicks() + queue.value + ranked)
                 .filter { it.movieId !in known }
                 .distinctBy { it.movieId }
         }
     }
+
+    // ---- Sala: crear / unirse / sincronizar ----------------------------------
+
+    fun createRoom() = enterRoom(RoomCodes.newCode())
+
+    fun joinRoom(input: String) {
+        val code = RoomCodes.normalize(input)
+        if (code == null) message.value = "Código no válido: son 10 letras y números" else enterRoom(code)
+    }
+
+    private fun enterRoom(code: String) {
+        pairing.room = code
+        pairing.lastPush = 0
+        room.value = code
+        viewModelScope.launch { sync() }
+    }
+
+    fun leaveRoom() {
+        pairing.room = null
+        room.value = null
+        syncError.value = null
+        viewModelScope.launch { repo.clearPartner() }
+    }
+
+    fun roomShareText(): String {
+        val code = room.value?.let { RoomCodes.format(it) } ?: ""
+        return "Únete a mi sala en Peli para ver qué películas queremos ver juntos. Código: $code\n" +
+            "(Peli → Juntos → Tengo un código)"
+    }
+
+    /** Un ciclo de sincronización; se llama cada pocos segundos mientras la app está abierta. */
+    suspend fun sync() {
+        val r = room.value ?: return
+        if (!Remote.configured) return
+        syncLock.withLock {
+            val started = System.currentTimeMillis()
+            try {
+                repo.sync(r, pairing.userId, mine.value, pairing.lastPush)
+                pairing.lastPush = started
+                syncError.value = null
+                // Lo que tu pareja guardó pasa al frente de tus sugerencias.
+                val picks = partnerPicks()
+                if (picks.isNotEmpty()) queue.update { (picks + it).distinctBy { x -> x.movieId } }
+            } catch (e: Exception) {
+                syncError.value = e.message ?: e.javaClass.simpleName
+            }
+        }
+    }
+
+    fun dismissMatch() = pendingMatches.update { it.drop(1) }
+
+    // ---- Actualizaciones -----------------------------------------------------
 
     /** Al abrir la app es silencioso; manual (botón) informa también si está al día o falló. */
     fun checkForUpdate(manual: Boolean) {
@@ -149,6 +249,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun dismissWhatsNew() { whatsNew.value = emptyList() }
+
+    // ---- Intercambio manual de códigos (sin servidor) ------------------------
 
     fun exportCode() = Sharing.export(mine.value)
 

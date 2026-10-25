@@ -29,6 +29,22 @@ Las candidatas salen de las recomendaciones de TMDB para tus últimas películas
 géneros favoritos y de algunas populares (exploración). Los datos viven en Room (base local);
 `Repository` es el punto donde se conectaría una base remota para sincronizar la pareja.
 
+## Salas con tu pareja (Supabase)
+Cada teléfono tiene un id anónimo; uno crea una sala (código de 10 caracteres) y el otro se une. Cada cambio
+(quiero verla / me gustó / no me gusta) se sube a la tabla `entries` y cada 6 s se descarga lo de la pareja.
+Cuando una película está en «quiero verla» de los dos aparece **«¡Es un match!»** y queda en «Juntos».
+En «Descubrir» lo que le interesa a tu pareja sale primero. Sin servidor configurado, la app sigue
+funcionando con el intercambio manual de códigos.
+
+Configuración (una vez):
+1. Crear un proyecto gratis en https://supabase.com.
+2. SQL Editor → pegar `supabase/schema.sql` → Run.
+3. Project Settings → API: copiar **Project URL** y la clave **anon public** como secretos de GitHub
+   `SUPABASE_URL` y `SUPABASE_ANON_KEY` (o en `local.properties` para desarrollo).
+
+Seguridad: la tabla usa RLS; una fila solo se lee/escribe si la petición trae el header `x-room` con el código de
+esa sala, así que el código es el secreto compartido de la pareja (no lo publiques).
+
 ## Rediseño (Material 3 Expressive)
 Tema propio en `ui/theme` (colores, Inter Variable en `res/font`, formas) y componentes en `ui/components`
 (`GlassCard`, `GradientButton`, `ShimmerBox`, `AnimatedNavigationBar`…). Material You está disponible con

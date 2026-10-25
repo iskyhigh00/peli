@@ -58,11 +58,16 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.delay
 import com.peli.app.data.Entry
 import com.peli.app.ui.components.AnimatedNavigationBar
 import com.peli.app.ui.components.BrandBackground
 import com.peli.app.ui.components.LocalShared
+import com.peli.app.ui.components.MatchOverlay
 import com.peli.app.ui.components.NavItem
 import com.peli.app.ui.components.SharedScopes
 import com.peli.app.ui.components.SystemBarScrims
@@ -83,6 +88,20 @@ fun PeliScreen(vm: MainViewModel = viewModel()) {
     PeliTheme {
         var selected by remember { mutableStateOf<Entry?>(null) }
         val mine by vm.mine.collectAsState()
+
+        // Sincroniza con la sala cada 6 s, solo mientras la app está visible.
+        val room by vm.room.collectAsState()
+        val lifecycleOwner = LocalLifecycleOwner.current
+        LaunchedEffect(room, lifecycleOwner) {
+            if (room != null) {
+                lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                    while (true) {
+                        vm.sync()
+                        delay(6000)
+                    }
+                }
+            }
+        }
         BrandBackground {
             SharedTransitionLayout {
                 AnimatedContent(
@@ -126,6 +145,7 @@ private fun Home(vm: MainViewModel, onOpen: (Entry) -> Unit) {
     val newVersion by vm.newVersion.collectAsState()
     val progress by vm.progress.collectAsState()
     val whatsNew by vm.whatsNew.collectAsState()
+    val pendingMatches by vm.pendingMatches.collectAsState()
 
     LaunchedEffect(message) {
         message?.let { snack.showSnackbar(it); vm.message.value = null }
@@ -274,6 +294,15 @@ private fun Home(vm: MainViewModel, onOpen: (Entry) -> Unit) {
             snack,
             Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 88.dp),
         )
+
+        pendingMatches.firstOrNull()?.let { match ->
+            MatchOverlay(
+                entry = match,
+                more = pendingMatches.size - 1,
+                onKeep = vm::dismissMatch,
+                onSeeList = { tab = Tab.Together; vm.dismissMatch() },
+            )
+        }
     }
 
     if (whatsNew.isNotEmpty()) WhatsNewSheet(whatsNew, onDismiss = vm::dismissWhatsNew)

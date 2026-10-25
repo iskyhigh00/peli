@@ -1,5 +1,6 @@
 package com.peli.app.ui
 
+import android.content.Intent
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -31,6 +32,7 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.ThumbDown
 import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -51,9 +53,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.peli.app.data.Entry
+import com.peli.app.data.RoomCodes
 import com.peli.app.ui.components.ActionButton
 import com.peli.app.ui.components.CompactSpacing
 import com.peli.app.ui.components.DiscoverSkeleton
@@ -165,6 +169,8 @@ fun DiscoverTab(vm: MainViewModel) {
     val queue by vm.queue.collectAsState()
     val loading by vm.loading.collectAsState()
     val error by vm.error.collectAsState()
+    val partner by vm.partner.collectAsState()
+    val partnerWants = partner.filter { it.watchlist }.map { it.movieId }.toSet()
     val current = queue.firstOrNull()
     val navInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
@@ -211,6 +217,9 @@ fun DiscoverTab(vm: MainViewModel) {
                     ) {
                         if (e.dateLabel.isNotBlank()) StatusChip(e.dateLabel)
                         if (e.isUpcoming) UpcomingChip()
+                        if (e.movieId in partnerWants) {
+                            StatusChip("A tu pareja le interesa", accent = MaterialTheme.colorScheme.tertiary)
+                        }
                     }
                     Text(
                         e.overview,
@@ -306,14 +315,22 @@ fun MineTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Unit
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+private enum class TogetherSheet { None, Import, Join }
+
 @Composable
 fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Unit) {
     val matches by vm.matches.collectAsState()
     val partner by vm.partner.collectAsState()
     val mine by vm.mine.collectAsState()
+    val room by vm.room.collectAsState()
+    val syncError by vm.syncError.collectAsState()
     val byId = mine.associateBy { it.movieId }
-    var showSheet by rememberSaveable { mutableStateOf(false) }
+    var sheet by rememberSaveable { mutableStateOf(TogetherSheet.None) }
+    val context = LocalContext.current
+
+    val both = matches.filter { it.both }
+    val single = matches.filter { !it.both }
+    fun mineOrNew(m: com.peli.app.data.Match) = byId[m.entry.movieId] ?: m.entry.copy(owner = com.peli.app.data.OWNER_ME)
 
     LazyColumn(
         Modifier.fillMaxSize(),
@@ -323,60 +340,141 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
     ) {
         item {
             GlassCard {
-                Text("Lista de tu pareja", style = MaterialTheme.typography.titleMedium)
-                Text(
-                    if (partner.isEmpty()) "Aún no la importas." else "${partner.size} películas importadas.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.height(ItemSpacing))
-                Row(horizontalArrangement = Arrangement.spacedBy(CompactSpacing)) {
-                    GradientButton("Importar lista", { showSheet = true }, Modifier.weight(1f), icon = Icons.Default.Download)
-                    if (partner.isNotEmpty()) TonalButton("Borrar", vm::clearPartner)
+                when {
+                    !vm.cloudAvailable -> {
+                        Text("Lista de tu pareja", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            if (partner.isEmpty()) "Aún no la importas." else "${partner.size} películas importadas.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.height(ItemSpacing))
+                        Row(horizontalArrangement = Arrangement.spacedBy(CompactSpacing)) {
+                            GradientButton("Importar lista", { sheet = TogetherSheet.Import }, Modifier.weight(1f), icon = Icons.Default.Download)
+                            if (partner.isNotEmpty()) TonalButton("Borrar", vm::clearPartner)
+                        }
+                    }
+                    room == null -> {
+                        Text("Conecta con tu pareja", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            "Creen una sala o únanse con un código. Cuando a los dos les interese la misma película, será un match.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.height(ItemSpacing))
+                        Row(horizontalArrangement = Arrangement.spacedBy(CompactSpacing)) {
+                            GradientButton("Crear sala", vm::createRoom, Modifier.weight(1f), icon = Icons.Default.Group)
+                            TonalButton("Tengo un código", { sheet = TogetherSheet.Join }, Modifier.weight(1f))
+                        }
+                    }
+                    else -> {
+                        Text("Sala ${RoomCodes.format(room!!)}", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            when {
+                                syncError != null -> "No se pudo sincronizar: $syncError"
+                                partner.isEmpty() -> "Esperando a tu pareja… compárteles el código."
+                                else -> "Conectados · tu pareja tiene ${partner.size} películas marcadas."
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (syncError != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.height(ItemSpacing))
+                        Row(horizontalArrangement = Arrangement.spacedBy(CompactSpacing)) {
+                            GradientButton(
+                                "Compartir código",
+                                {
+                                    val send = Intent(Intent.ACTION_SEND).apply {
+                                        type = "text/plain"
+                                        putExtra(Intent.EXTRA_TEXT, vm.roomShareText())
+                                    }
+                                    context.startActivity(Intent.createChooser(send, "Invitar a tu pareja"))
+                                },
+                                Modifier.weight(1f),
+                                icon = Icons.Default.Share,
+                            )
+                            TonalButton("Salir", vm::leaveRoom)
+                        }
+                    }
                 }
             }
         }
         when {
-            partner.isEmpty() -> item {
-                EmptyState(
-                    title = "Comparen sus listas",
-                    message = "Pídele a tu pareja que comparta su código desde \"Mis pelis\" e impórtalo aquí. Se comparan las que cada uno quiere ver.",
-                    icon = Icons.Default.Group,
-                )
-            }
             matches.isEmpty() -> item {
                 EmptyState(
-                    title = "Nada pendiente por ahora",
-                    message = "Marquen más películas con «Quiero verla» para que aparezcan aquí.",
+                    title = if (room != null && partner.isEmpty()) "Esperando a tu pareja" else "Aún no hay matches",
+                    message = if (room != null) {
+                        "Cuando los dos marquen «Quiero verla» en la misma película, aparecerá aquí con un match."
+                    } else {
+                        "Conéctate con tu pareja y marquen películas con «Quiero verla»."
+                    },
                     icon = Icons.Default.Group,
                 )
             }
             else -> {
-                item { Text("Para ver juntos (${matches.size})", style = MaterialTheme.typography.titleLarge) }
-                items(matches, key = { it.entry.movieId }) { m ->
-                    MovieCard(
-                        m.entry, byId[m.entry.movieId], onOpen = { onOpen(m.entry) },
-                        onWant = { vm.toggleWant(byId[m.entry.movieId] ?: m.entry.copy(owner = com.peli.app.data.OWNER_ME)) },
-                        onLiked = { vm.toggleLiked(byId[m.entry.movieId] ?: m.entry.copy(owner = com.peli.app.data.OWNER_ME)) },
-                        onDislike = { vm.toggleDislike(byId[m.entry.movieId] ?: m.entry.copy(owner = com.peli.app.data.OWNER_ME)) },
-                        badge = when {
-                            m.both -> "Les interesa a las dos"
-                            m.iWant -> "Te interesa a ti"
-                            else -> "Le interesa a tu pareja"
-                        },
-                        modifier = Modifier.animateItem().entrance(matches.indexOf(m)),
-                    )
+                if (both.isNotEmpty()) {
+                    item { Text("Matches (${both.size})", style = MaterialTheme.typography.titleLarge) }
+                    items(both, key = { it.entry.movieId }) { m ->
+                        MovieCard(
+                            m.entry, byId[m.entry.movieId], onOpen = { onOpen(m.entry) },
+                            onWant = { vm.toggleWant(mineOrNew(m)) },
+                            onLiked = { vm.toggleLiked(mineOrNew(m)) },
+                            onDislike = { vm.toggleDislike(mineOrNew(m)) },
+                            badge = "Les interesa a las dos",
+                            modifier = Modifier.animateItem().entrance(both.indexOf(m)),
+                        )
+                    }
+                }
+                if (single.isNotEmpty()) {
+                    item { Text("A uno le interesa (${single.size})", style = MaterialTheme.typography.titleLarge) }
+                    items(single, key = { it.entry.movieId }) { m ->
+                        MovieCard(
+                            m.entry, byId[m.entry.movieId], onOpen = { onOpen(m.entry) },
+                            onWant = { vm.toggleWant(mineOrNew(m)) },
+                            onLiked = { vm.toggleLiked(mineOrNew(m)) },
+                            onDislike = { vm.toggleDislike(mineOrNew(m)) },
+                            badge = if (m.iWant) "Te interesa a ti" else "Le interesa a tu pareja",
+                            modifier = Modifier.animateItem().entrance(single.indexOf(m)),
+                        )
+                    }
                 }
             }
         }
     }
 
-    if (showSheet) ImportSheet(onDismiss = { showSheet = false }, onImport = vm::importCode)
+    when (sheet) {
+        TogetherSheet.Import -> CodeSheet(
+            title = "Importar lista de tu pareja",
+            help = "Pega el código que te compartió desde \"Mis pelis\".",
+            field = "Código",
+            action = "Importar",
+            minLines = 3,
+            onDismiss = { sheet = TogetherSheet.None },
+            onSubmit = vm::importCode,
+        )
+        TogetherSheet.Join -> CodeSheet(
+            title = "Unirme a la sala de mi pareja",
+            help = "Escribe el código de 10 letras y números que te compartió.",
+            field = "Código de sala",
+            action = "Unirme",
+            minLines = 1,
+            onDismiss = { sheet = TogetherSheet.None },
+            onSubmit = vm::joinRoom,
+        )
+        TogetherSheet.None -> Unit
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ImportSheet(onDismiss: () -> Unit, onImport: (String) -> Unit) {
+private fun CodeSheet(
+    title: String,
+    help: String,
+    field: String,
+    action: String,
+    minLines: Int,
+    onDismiss: () -> Unit,
+    onSubmit: (String) -> Unit,
+) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
     var code by remember { mutableStateOf("") }
@@ -390,17 +488,13 @@ private fun ImportSheet(onDismiss: () -> Unit, onImport: (String) -> Unit) {
             Modifier.padding(horizontal = ScreenHorizontalPadding).padding(bottom = SectionSpacing),
             verticalArrangement = Arrangement.spacedBy(ItemSpacing),
         ) {
-            Text("Importar lista de tu pareja", style = MaterialTheme.typography.headlineSmall)
-            Text(
-                "Pega el código que te compartió desde \"Mis pelis\".",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            PeliTextField(code, { code = it }, "Código", singleLine = false, minLines = 3, onClear = { code = "" })
+            Text(title, style = MaterialTheme.typography.headlineSmall)
+            Text(help, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            PeliTextField(code, { code = it }, field, singleLine = minLines == 1, minLines = minLines, onClear = { code = "" })
             GradientButton(
-                "Importar",
+                action,
                 {
-                    onImport(code)
+                    onSubmit(code)
                     scope.launch { sheetState.hide() }.invokeOnCompletion { onDismiss() }
                 },
                 Modifier.fillMaxWidth(),

@@ -14,11 +14,27 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
     suspend fun search(q: String) = api.search(q).results.map { it.toEntry(OWNER_ME) }
     suspend fun popular(page: Int) = api.popular(page).results.map { it.toEntry(OWNER_ME) }
 
-    /** Aplica un cambio sobre mi marca de la película; si queda vacía se borra. */
-    suspend fun update(base: Entry, change: (Entry) -> Entry) {
+    /** Aplica un cambio sobre mi marca de la película; si queda vacía se borra. Devuelve el resultado. */
+    suspend fun update(base: Entry, change: (Entry) -> Entry): Entry {
         val current = dao.get(OWNER_ME, base.movieId) ?: base.copy(owner = OWNER_ME)
         val next = change(current).copy(updatedAt = System.currentTimeMillis())
         if (next.isEmpty) dao.delete(OWNER_ME, next.movieId) else dao.upsert(next)
+        return next
+    }
+
+    /** Sube un cambio a la sala (también las marcas vaciadas, para que la pareja las vea quitadas). */
+    suspend fun push(room: String, userId: String, e: Entry) =
+        Remote.api.upsert(room, listOf(e.toRemote(room, userId)))
+
+    /**
+     * Sincroniza con la sala: sube lo marcado desde [since] (todo si es 0) y reemplaza la lista de
+     * la pareja con lo que hay en la nube. Es idempotente, así que se puede repetir sin problema.
+     */
+    suspend fun sync(room: String, userId: String, mine: List<Entry>, since: Long) {
+        val rows = mine.filter { since == 0L || it.updatedAt > since }.map { it.toRemote(room, userId) }
+        if (rows.isNotEmpty()) Remote.api.upsert(room, rows)
+        val others = Remote.api.others(room, "eq.$room", "neq.$userId").map { it.toEntry() }.filter { !it.isEmpty }
+        dao.replaceAll(OWNER_PARTNER, others)
     }
 
     /**
