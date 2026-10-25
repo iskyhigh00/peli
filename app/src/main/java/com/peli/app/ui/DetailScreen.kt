@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -37,6 +38,7 @@ import com.peli.app.ui.components.ScreenHorizontalPadding
 import com.peli.app.ui.components.SectionSpacing
 import com.peli.app.ui.components.StatusChip
 import com.peli.app.ui.components.TonalButton
+import com.peli.app.ui.components.UpcomingChip
 import com.peli.app.ui.components.sharedPoster
 import com.peli.app.ui.components.sharedTitle
 
@@ -61,7 +63,10 @@ fun DetailScreen(entry: Entry, mine: Entry?, vm: MainViewModel, onBack: () -> Un
             ) {
                 GlassCard {
                     Text(entry.title, style = MaterialTheme.typography.headlineMedium, modifier = Modifier.sharedTitle(entry.movieId))
-                    if (entry.year.isNotBlank()) StatusChip(entry.year)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (entry.dateLabel.isNotBlank()) StatusChip(entry.dateLabel)
+                        if (entry.isUpcoming) UpcomingChip()
+                    }
                     Text(
                         entry.overview.ifBlank { "Sin descripción" },
                         style = MaterialTheme.typography.bodyLarge,

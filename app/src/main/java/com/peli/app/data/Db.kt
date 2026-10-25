@@ -9,6 +9,8 @@ import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.Transaction
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -38,12 +40,20 @@ abstract class EntryDao {
     }
 }
 
-@Database(entities = [Entry::class], version = 1, exportSchema = false)
+private val MIGRATION_1_2 = object : Migration(1, 2) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE entries ADD COLUMN releaseDate TEXT")
+    }
+}
+
+@Database(entities = [Entry::class], version = 2, exportSchema = false)
 abstract class AppDb : RoomDatabase() {
     abstract fun entries(): EntryDao
 
     companion object {
         fun create(context: Context) =
-            Room.databaseBuilder(context, AppDb::class.java, "peli.db").build()
+            Room.databaseBuilder(context, AppDb::class.java, "peli.db")
+                .addMigrations(MIGRATION_1_2)
+                .build()
     }
 }

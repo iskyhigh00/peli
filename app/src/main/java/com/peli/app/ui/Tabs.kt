@@ -64,6 +64,7 @@ import com.peli.app.ui.components.ScreenHorizontalPadding
 import com.peli.app.ui.components.SectionSpacing
 import com.peli.app.ui.components.StatusChip
 import com.peli.app.ui.components.TonalButton
+import com.peli.app.ui.components.UpcomingChip
 import com.peli.app.ui.components.entrance
 import com.peli.app.ui.components.screenContentPadding
 import com.peli.app.ui.theme.SheetShape
@@ -180,7 +181,10 @@ fun DiscoverTab(vm: MainViewModel) {
                         )
                         Spacer(Modifier.height(ItemSpacing))
                         Text(e.title, style = MaterialTheme.typography.headlineSmall)
-                        if (e.year.isNotBlank()) StatusChip(e.year)
+                        Row(horizontalArrangement = Arrangement.spacedBy(CompactSpacing)) {
+                            if (e.dateLabel.isNotBlank()) StatusChip(e.dateLabel)
+                            if (e.isUpcoming) UpcomingChip()
+                        }
                         Spacer(Modifier.height(CompactSpacing))
                         Text(
                             e.overview,

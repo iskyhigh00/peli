@@ -148,6 +148,12 @@ fun StatusChip(text: String, modifier: Modifier = Modifier, accent: Color = Mate
     )
 }
 
+/** "Próximo estreno" para películas con fecha futura. */
+@Composable
+fun UpcomingChip(modifier: Modifier = Modifier) {
+    StatusChip("Próximo estreno", modifier, accent = MaterialTheme.colorScheme.tertiary)
+}
+
 /** Filter chip con fondo y check animados al seleccionar. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -214,12 +220,15 @@ fun MovieCard(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.sharedTitle(entry.movieId),
                 )
-                if (entry.year.isNotBlank()) {
-                    Text(entry.year, style = MaterialTheme.typography.labelMedium, color = scheme.onSurfaceVariant)
+                if (entry.dateLabel.isNotBlank()) {
+                    Text(entry.dateLabel, style = MaterialTheme.typography.labelMedium, color = scheme.onSurfaceVariant)
                 }
-                if (badge != null) {
+                if (entry.isUpcoming || badge != null) {
                     Spacer(Modifier.height(4.dp))
-                    StatusChip(badge)
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        if (entry.isUpcoming) UpcomingChip()
+                        if (badge != null) StatusChip(badge)
+                    }
                 }
                 Spacer(Modifier.height(8.dp))
                 Text(
@@ -270,6 +279,7 @@ private fun MovieCardPreview() {
             Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 MovieCard(sampleEntry, sampleEntry, {}, {}, {}, badge = "Les gusta a las dos")
                 MovieCard(sampleEntry.copy(favorite = false), null, {}, {}, {})
+                MovieCard(sampleEntry.copy(title = "Estreno futuro", favorite = false, year = "2099", releaseDate = "2099-01-15"), null, {}, {}, {})
             }
         }
     }

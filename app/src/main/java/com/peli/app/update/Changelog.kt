@@ -13,6 +13,9 @@ object Changelog {
             "La app se actualiza sola desde GitHub.",
             "Versionado simple: un dígito por campo (hasta 9.9.9).",
         ),
+        "1.0.2" to listOf(
+            "Las películas que aún no se estrenan muestran \"Próximo estreno\" y su fecha.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

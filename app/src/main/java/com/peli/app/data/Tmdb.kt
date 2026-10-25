@@ -58,4 +58,5 @@ fun TmdbMovie.toEntry(owner: String) = Entry(
     overview = overview.orEmpty(),
     posterPath = poster_path,
     year = release_date.orEmpty().take(4),
+    releaseDate = release_date?.takeIf { it.isNotBlank() },
 )
