@@ -41,6 +41,7 @@ interface TmdbApi {
 
     companion object {
         const val POSTER_BASE = "https://image.tmdb.org/t/p/w342"
+        const val POSTER_LARGE = "https://image.tmdb.org/t/p/w780"
 
         fun create(): TmdbApi {
             val client = OkHttpClient.Builder()

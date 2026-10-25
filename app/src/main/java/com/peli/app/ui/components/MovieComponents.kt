@@ -10,6 +10,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -75,11 +76,15 @@ fun PosterImage(
     modifier: Modifier = Modifier,
     shape: Shape = MaterialTheme.shapes.large,
     contentScale: ContentScale = ContentScale.Crop,
+    onClick: (() -> Unit)? = null,
 ) {
     var failed by remember(path) { mutableStateOf(false) }
     var loaded by remember(path) { mutableStateOf(false) }
     Box(
-        modifier.clip(shape).background(MaterialTheme.colorScheme.surfaceVariant),
+        modifier
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .then(if (onClick != null) Modifier.clickable(onClickLabel = "Ampliar carátula", onClick = onClick) else Modifier),
         contentAlignment = Alignment.Center,
     ) {
         if (path == null || failed) {

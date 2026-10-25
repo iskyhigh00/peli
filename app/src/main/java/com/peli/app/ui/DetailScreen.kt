@@ -28,6 +28,10 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,6 +41,7 @@ import com.peli.app.ui.components.GlassCard
 import com.peli.app.ui.components.GradientButton
 import com.peli.app.ui.components.ItemSpacing
 import com.peli.app.ui.components.PosterImage
+import com.peli.app.ui.components.PosterViewer
 import com.peli.app.ui.components.ScreenHorizontalPadding
 import com.peli.app.ui.components.SectionSpacing
 import com.peli.app.ui.components.StatusChip
@@ -53,6 +58,7 @@ fun DetailScreen(entry: Entry, mine: Entry?, vm: MainViewModel, onBack: () -> Un
     val liked = mine?.liked == true
     val seen = mine?.seen == true
     val disliked = mine?.disliked == true
+    var zoomed by remember { mutableStateOf(false) }
 
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
@@ -61,6 +67,7 @@ fun DetailScreen(entry: Entry, mine: Entry?, vm: MainViewModel, onBack: () -> Un
                 contentDescription = "Carátula de ${entry.title}",
                 modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f).sharedPoster(entry.movieId),
                 shape = RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp),
+                onClick = { zoomed = true },
             )
             Column(
                 Modifier.padding(horizontal = ScreenHorizontalPadding, vertical = SectionSpacing),
@@ -121,5 +128,6 @@ fun DetailScreen(entry: Entry, mine: Entry?, vm: MainViewModel, onBack: () -> Un
         ) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
         }
+        if (zoomed) PosterViewer(entry.posterPath, entry.title) { zoomed = false }
     }
 }

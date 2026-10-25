@@ -37,6 +37,9 @@ object Changelog {
         "1.0.8" to listOf(
             "Arreglo: los textos de tarjetas y ventanas se veían negros sobre fondo oscuro.",
         ),
+        "1.0.9" to listOf(
+            "Toca una carátula para verla en grande, con zoom y arrastre.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

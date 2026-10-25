@@ -71,6 +71,7 @@ import com.peli.app.ui.components.MovieCardSkeleton
 import com.peli.app.ui.components.PeliFilterChip
 import com.peli.app.ui.components.PeliTextField
 import com.peli.app.ui.components.PosterImage
+import com.peli.app.ui.components.PosterViewer
 import com.peli.app.ui.components.ScreenHorizontalPadding
 import com.peli.app.ui.components.SectionSpacing
 import com.peli.app.ui.components.StatusChip
@@ -171,6 +172,7 @@ fun DiscoverTab(vm: MainViewModel) {
     val error by vm.error.collectAsState()
     val partner by vm.partner.collectAsState()
     val partnerWants = partner.filter { it.watchlist }.map { it.movieId }.toSet()
+    var zoomed by remember { mutableStateOf<Entry?>(null) }
     val current = queue.firstOrNull()
     val navInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
@@ -199,6 +201,7 @@ fun DiscoverTab(vm: MainViewModel) {
                         e.posterPath, "Carátula de ${e.title}",
                         Modifier.fillMaxWidth().weight(1f),
                         contentScale = ContentScale.Fit,
+                        onClick = { zoomed = e },
                     )
                     Spacer(Modifier.height(12.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -246,6 +249,7 @@ fun DiscoverTab(vm: MainViewModel) {
                 )
             }
         }
+        zoomed?.let { PosterViewer(it.posterPath, it.title) { zoomed = null } }
     } else {
         Column(
             Modifier
