@@ -14,6 +14,8 @@ data class TmdbMovie(
     val overview: String?,
     val poster_path: String?,
     val release_date: String?,
+    val genre_ids: List<Int>? = null,
+    val vote_average: Double? = null,
 )
 
 data class TmdbPage(val results: List<TmdbMovie> = emptyList())
@@ -24,6 +26,15 @@ interface TmdbApi {
 
     @GET("search/movie")
     suspend fun search(@Query("query") query: String): TmdbPage
+
+    /** Películas bien valoradas de ciertos géneros (ids separados por "|" = cualquiera de ellos). */
+    @GET("discover/movie")
+    suspend fun discover(
+        @Query("with_genres") genres: String,
+        @Query("page") page: Int = 1,
+        @Query("sort_by") sortBy: String = "vote_average.desc",
+        @Query("vote_count.gte") minVotes: Int = 500,
+    ): TmdbPage
 
     @GET("movie/{id}/recommendations")
     suspend fun recommendations(@Path("id") id: Int): TmdbPage
@@ -59,4 +70,6 @@ fun TmdbMovie.toEntry(owner: String) = Entry(
     posterPath = poster_path,
     year = release_date.orEmpty().take(4),
     releaseDate = release_date?.takeIf { it.isNotBlank() },
+    genres = genre_ids?.takeIf { it.isNotEmpty() }?.joinToString(","),
+    rating = vote_average,
 )

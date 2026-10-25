@@ -19,8 +19,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.ThumbUp
+import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.filled.ThumbDown
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -48,7 +49,8 @@ import com.peli.app.ui.components.sharedTitle
 fun DetailScreen(entry: Entry, mine: Entry?, vm: MainViewModel, onBack: () -> Unit) {
     BackHandler(onBack = onBack)
     val scheme = MaterialTheme.colorScheme
-    val favorite = mine?.favorite == true
+    val want = mine?.watchlist == true
+    val liked = mine?.liked == true
     val seen = mine?.seen == true
     val disliked = mine?.disliked == true
 
@@ -79,17 +81,25 @@ fun DetailScreen(entry: Entry, mine: Entry?, vm: MainViewModel, onBack: () -> Un
                 }
                 Column(verticalArrangement = Arrangement.spacedBy(ItemSpacing)) {
                     GradientButton(
-                        if (favorite) "En favoritas" else "Agregar a favoritas",
-                        { vm.toggleFavorite(mine ?: entry) },
+                        if (want) "En mi lista para ver" else "Quiero verla",
+                        { vm.toggleWant(mine ?: entry) },
                         Modifier.fillMaxWidth(),
-                        icon = if (favorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        icon = if (want) Icons.Default.Bookmark else Icons.Outlined.BookmarkBorder,
                     )
                     TonalButton(
-                        if (seen) "Marcada como vista" else "Ya la vi",
-                        { vm.toggleSeen(mine ?: entry) },
+                        if (liked) "La vi y me gustó" else "Ya la vi y me gustó",
+                        { vm.toggleLiked(mine ?: entry) },
                         Modifier.fillMaxWidth(),
-                        icon = Icons.Default.Check,
+                        icon = Icons.Default.ThumbUp,
                     )
+                    if (!liked) {
+                        TonalButton(
+                            if (seen) "La vi (sin opinión)" else "Ya la vi, sin opinión",
+                            { vm.toggleSeen(mine ?: entry) },
+                            Modifier.fillMaxWidth(),
+                            icon = Icons.Default.Check,
+                        )
+                    }
                     TonalButton(
                         if (disliked) "Marcada como no me gusta" else "No me gusta",
                         { vm.toggleDislike(mine ?: entry) },

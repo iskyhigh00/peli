@@ -26,6 +26,10 @@ object Changelog {
         "1.0.5" to listOf(
             "Las carátulas se ven completas, sin recortes.",
         ),
+        "1.0.6" to listOf(
+            "Estados claros: \"Quiero verla\" (se comparte con tu pareja) y \"La vi y me gustó\" (la app aprende).",
+            "Recomendaciones inteligentes según los géneros que te gustan, lo reciente y la nota de TMDB.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

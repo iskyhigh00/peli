@@ -1,11 +1,20 @@
 package com.peli.app.data
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 
 const val OWNER_ME = "ME"
 const val OWNER_PARTNER = "PARTNER"
 
-/** Una película marcada por una persona (yo o mi pareja). */
+/**
+ * Una película marcada por una persona (yo o mi pareja).
+ *
+ * Estados:
+ *  - [watchlist] "Quiero verla": es lo que se comparte y se compara con la pareja.
+ *  - [liked]     "La vi y me gustó": señal de gusto para recomendar. Implica [seen].
+ *  - [seen]      "Ya la vi" (con o sin opinión): deja de contar como pendiente.
+ *  - [disliked]  "No me gusta / no me interesa": señal negativa.
+ */
 @Entity(tableName = "entries", primaryKeys = ["movieId", "owner"])
 data class Entry(
     val movieId: Int,
@@ -14,17 +23,50 @@ data class Entry(
     val overview: String,
     val posterPath: String?,
     val year: String,
-    val favorite: Boolean = false,
+    /** La columna se llama "favorite" por compatibilidad con versiones anteriores. */
+    @ColumnInfo(name = "favorite") val liked: Boolean = false,
     val seen: Boolean = false,
     val disliked: Boolean = false,
     /** yyyy-MM-dd de TMDB; null si se guardó antes de existir este campo o TMDB no la tiene. */
     val releaseDate: String? = null,
+    val watchlist: Boolean = false,
+    /** Ids de género de TMDB separados por coma (para aprender gustos). */
+    val genres: String? = null,
+    /** Nota promedio de TMDB (0..10). */
+    val rating: Double? = null,
+    /** Última vez que la marqué (ms); los gustos recientes pesan más. */
+    val updatedAt: Long = 0,
 ) {
-    val isEmpty get() = !favorite && !seen && !disliked
+    val isEmpty get() = !liked && !seen && !disliked && !watchlist
 
     /** Aún no se estrena (fecha futura; sin fecha, año posterior al actual). */
     val isUpcoming get() = ReleaseInfo.isUpcoming(releaseDate, year)
 
     /** Fecha "12 nov 2026" si es próximo estreno; si no, solo el año. */
     val dateLabel get() = if (isUpcoming) ReleaseInfo.format(releaseDate) ?: year else year
+
+    val genreIds: List<Int> get() = genres?.split(",")?.mapNotNull { it.trim().toIntOrNull() }.orEmpty()
+}
+
+// Transiciones de estado: cada acción deja el estado consistente (p. ej. "me gustó" implica "la vi").
+fun Entry.toggleWatch() =
+    if (watchlist) copy(watchlist = false) else copy(watchlist = true, seen = false, liked = false, disliked = false)
+
+fun Entry.toggleLiked() =
+    if (liked) copy(liked = false) else copy(liked = true, seen = true, watchlist = false, disliked = false)
+
+fun Entry.toggleSeen() =
+    if (seen) copy(seen = false, liked = false) else copy(seen = true, watchlist = false)
+
+fun Entry.toggleDisliked() =
+    if (disliked) copy(disliked = false) else copy(disliked = true, liked = false, watchlist = false)
+
+/** Texto corto del estado actual (para chips). Null si no hay marca. */
+fun Entry.stateLabel(): String? = when {
+    watchlist -> "Quiero verla"
+    liked -> "La vi · me gustó"
+    disliked && seen -> "La vi · no me gustó"
+    disliked -> "No me gusta"
+    seen -> "La vi"
+    else -> null
 }

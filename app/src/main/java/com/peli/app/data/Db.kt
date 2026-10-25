@@ -46,14 +46,25 @@ private val MIGRATION_1_2 = object : Migration(1, 2) {
     }
 }
 
-@Database(entities = [Entry::class], version = 2, exportSchema = false)
+/** "favorite" pasa a significar "la vi y me gustó"; las que solo me interesaban pasan a "quiero verla". */
+private val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE entries ADD COLUMN watchlist INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE entries ADD COLUMN genres TEXT")
+        db.execSQL("ALTER TABLE entries ADD COLUMN rating REAL")
+        db.execSQL("ALTER TABLE entries ADD COLUMN updatedAt INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("UPDATE entries SET watchlist = 1, favorite = 0 WHERE favorite = 1 AND seen = 0")
+    }
+}
+
+@Database(entities = [Entry::class], version = 3, exportSchema = false)
 abstract class AppDb : RoomDatabase() {
     abstract fun entries(): EntryDao
 
     companion object {
         fun create(context: Context) =
             Room.databaseBuilder(context, AppDb::class.java, "peli.db")
-                .addMigrations(MIGRATION_1_2)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                 .build()
     }
 }

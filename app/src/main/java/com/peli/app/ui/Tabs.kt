@@ -26,6 +26,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Group
@@ -53,6 +54,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.peli.app.data.Entry
+import com.peli.app.ui.components.ActionButton
 import com.peli.app.ui.components.CompactSpacing
 import com.peli.app.ui.components.DiscoverSkeleton
 import com.peli.app.ui.components.EmptyState
@@ -76,8 +78,10 @@ import com.peli.app.ui.theme.SheetShape
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-private enum class SearchFilter(val label: String) { All("Todas"), Favorites("Favoritas"), Seen("Vistas"), Disliked("No me gustan"), Unmarked("Sin marcar") }
-private enum class MineFilter(val label: String) { All("Todas"), Favorites("Favoritas"), Seen("Vistas"), Disliked("No me gustan") }
+private enum class SearchFilter(val label: String) {
+    All("Todas"), Want("Quiero ver"), Liked("Me gustaron"), Seen("Vistas"), Disliked("No me gustan"), Unmarked("Sin marcar")
+}
+private enum class MineFilter(val label: String) { All("Todas"), Want("Quiero ver"), Liked("Me gustaron"), Seen("Vistas"), Disliked("No me gustan") }
 
 @Composable
 private fun <T : Enum<T>> ChipRow(values: List<T>, selected: T, label: (T) -> String, onSelect: (T) -> Unit) {
@@ -109,7 +113,8 @@ fun SearchTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Un
         val m = byId[it.movieId]
         when (filter) {
             SearchFilter.All -> true
-            SearchFilter.Favorites -> m?.favorite == true
+            SearchFilter.Want -> m?.watchlist == true
+            SearchFilter.Liked -> m?.liked == true
             SearchFilter.Seen -> m?.seen == true
             SearchFilter.Disliked -> m?.disliked == true
             SearchFilter.Unmarked -> m == null
@@ -145,8 +150,8 @@ fun SearchTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Un
                 val m = byId[e.movieId]
                 MovieCard(
                     e, m, onOpen = { onOpen(e) },
-                    onFavorite = { vm.toggleFavorite(m ?: e) },
-                    onSeen = { vm.toggleSeen(m ?: e) },
+                    onWant = { vm.toggleWant(m ?: e) },
+                    onLiked = { vm.toggleLiked(m ?: e) },
                     onDislike = { vm.toggleDislike(m ?: e) },
                     modifier = Modifier.animateItem().entrance(shown.indexOf(e)),
                 )
@@ -190,12 +195,16 @@ fun DiscoverTab(vm: MainViewModel) {
                         contentScale = ContentScale.Fit,
                     )
                     Spacer(Modifier.height(12.dp))
-                    Text(
-                        e.title,
-                        style = MaterialTheme.typography.titleLarge,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            e.title,
+                            style = MaterialTheme.typography.titleLarge,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f),
+                        )
+                        TextButton(onClick = { vm.answer(e, MainViewModel.Answer.Skip) }) { Text("Omitir") }
+                    }
                     Row(
                         Modifier.padding(vertical = CompactSpacing),
                         horizontalArrangement = Arrangement.spacedBy(CompactSpacing),
@@ -212,14 +221,20 @@ fun DiscoverTab(vm: MainViewModel) {
                     )
                 }
             }
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(CompactSpacing),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                TonalButton("No", { vm.answer(current, false) }, Modifier.weight(1f), icon = Icons.Default.ThumbDown)
-                TextButton(onClick = { vm.answer(current, null) }) { Text("Omitir") }
-                GradientButton("Sí", { vm.answer(current, true) }, Modifier.weight(1f), icon = Icons.Default.ThumbUp)
+            // "Ya la vi y me gustó" enseña tus gustos a la app; "Quiero verla" va a la lista que se comparte.
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(CompactSpacing)) {
+                ActionButton(
+                    "No me interesa", Icons.Default.ThumbDown,
+                    { vm.answer(current, MainViewModel.Answer.NotInterested) }, Modifier.weight(1f),
+                )
+                ActionButton(
+                    "La vi y me gustó", Icons.Default.ThumbUp,
+                    { vm.answer(current, MainViewModel.Answer.SeenLiked) }, Modifier.weight(1f),
+                )
+                ActionButton(
+                    "Quiero verla", Icons.Default.Bookmark,
+                    { vm.answer(current, MainViewModel.Answer.Want) }, Modifier.weight(1f), gradient = true,
+                )
             }
         }
     } else {
@@ -253,7 +268,8 @@ fun MineTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Unit
     val shown = mine.filter {
         when (filter) {
             MineFilter.All -> true
-            MineFilter.Favorites -> it.favorite
+            MineFilter.Want -> it.watchlist
+            MineFilter.Liked -> it.liked
             MineFilter.Seen -> it.seen
             MineFilter.Disliked -> it.disliked
         }
@@ -270,7 +286,7 @@ fun MineTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Unit
             item {
                 EmptyState(
                     title = "Tu lista está vacía",
-                    message = "Marca películas como favoritas o vistas y aparecerán aquí.",
+                    message = "Marca las que quieres ver y las que ya viste y te gustaron: aparecerán aquí.",
                     actionLabel = "Buscar películas",
                     actionIcon = Icons.Default.Search,
                     onAction = onGoSearch,
@@ -280,8 +296,8 @@ fun MineTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Unit
             items(shown, key = { it.movieId }) { e ->
                 MovieCard(
                     e, byId[e.movieId], onOpen = { onOpen(e) },
-                    onFavorite = { vm.toggleFavorite(e) },
-                    onSeen = { vm.toggleSeen(e) },
+                    onWant = { vm.toggleWant(e) },
+                    onLiked = { vm.toggleLiked(e) },
                     onDislike = { vm.toggleDislike(e) },
                     modifier = Modifier.animateItem().entrance(shown.indexOf(e)),
                 )
@@ -324,14 +340,14 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
             partner.isEmpty() -> item {
                 EmptyState(
                     title = "Comparen sus listas",
-                    message = "Pídele a tu pareja que comparta su código desde \"Mis pelis\" e impórtalo aquí.",
+                    message = "Pídele a tu pareja que comparta su código desde \"Mis pelis\" e impórtalo aquí. Se comparan las que cada uno quiere ver.",
                     icon = Icons.Default.Group,
                 )
             }
             matches.isEmpty() -> item {
                 EmptyState(
                     title = "Nada pendiente por ahora",
-                    message = "Marquen más favoritas para que aparezcan películas para ver juntos.",
+                    message = "Marquen más películas con «Quiero verla» para que aparezcan aquí.",
                     icon = Icons.Default.Group,
                 )
             }
@@ -340,13 +356,13 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
                 items(matches, key = { it.entry.movieId }) { m ->
                     MovieCard(
                         m.entry, byId[m.entry.movieId], onOpen = { onOpen(m.entry) },
-                        onFavorite = { vm.toggleFavorite(byId[m.entry.movieId] ?: m.entry.copy(owner = com.peli.app.data.OWNER_ME)) },
-                        onSeen = { vm.toggleSeen(byId[m.entry.movieId] ?: m.entry.copy(owner = com.peli.app.data.OWNER_ME)) },
+                        onWant = { vm.toggleWant(byId[m.entry.movieId] ?: m.entry.copy(owner = com.peli.app.data.OWNER_ME)) },
+                        onLiked = { vm.toggleLiked(byId[m.entry.movieId] ?: m.entry.copy(owner = com.peli.app.data.OWNER_ME)) },
                         onDislike = { vm.toggleDislike(byId[m.entry.movieId] ?: m.entry.copy(owner = com.peli.app.data.OWNER_ME)) },
                         badge = when {
-                            m.both -> "Les gusta a las dos"
-                            m.iLike -> "Te gusta a ti"
-                            else -> "Le gusta a tu pareja"
+                            m.both -> "Les interesa a las dos"
+                            m.iWant -> "Te interesa a ti"
+                            else -> "Le interesa a tu pareja"
                         },
                         modifier = Modifier.animateItem().entrance(matches.indexOf(m)),
                     )

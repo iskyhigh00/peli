@@ -16,6 +16,19 @@ App Android (Kotlin + Jetpack Compose + Room) para decidir qué películas ver e
 ## Siguiente paso posible
 Sincronizar las listas automáticamente con un backend (p. ej. Firestore) en vez de intercambiar el código a mano.
 
+## Estados de cada película
+- **Quiero verla** → lista que se comparte y compara con tu pareja («Juntos»).
+- **La vi y me gustó** → enseña tus gustos a la app (implica «la vi»).
+- **No me gusta / no me interesa** → señal negativa; no vuelve a aparecer en «Descubrir».
+- **Ya la vi (sin opinión)** → sale de lo pendiente, sin afectar las recomendaciones.
+
+## Recomendador (`data/Recommender.kt`)
+Perfil de géneros (me gustó +1, quiero verla +0.5, no me gusta −0.8/−1, más peso a lo reciente) y puntaje
+por candidata: 50% afinidad de géneros, 30% nota de TMDB, 20% cuántas de tus «me gustó» la recomiendan.
+Las candidatas salen de las recomendaciones de TMDB para tus últimas películas, de las mejor valoradas de tus
+géneros favoritos y de algunas populares (exploración). Los datos viven en Room (base local);
+`Repository` es el punto donde se conectaría una base remota para sincronizar la pareja.
+
 ## Rediseño (Material 3 Expressive)
 Tema propio en `ui/theme` (colores, Inter Variable en `res/font`, formas) y componentes en `ui/components`
 (`GlassCard`, `GradientButton`, `ShimmerBox`, `AnimatedNavigationBar`…). Material You está disponible con

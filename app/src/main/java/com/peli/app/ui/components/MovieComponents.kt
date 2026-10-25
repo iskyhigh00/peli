@@ -24,11 +24,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.ThumbDown
-import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.BookmarkBorder
+import androidx.compose.material.icons.outlined.ThumbUp
 import androidx.compose.material.icons.outlined.ThumbDown
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
@@ -63,6 +64,7 @@ import coil.request.ImageRequest
 import com.peli.app.data.Entry
 import com.peli.app.data.OWNER_ME
 import com.peli.app.data.TmdbApi
+import com.peli.app.data.stateLabel
 import com.peli.app.ui.theme.PeliTheme
 
 /** Carátula: shimmer mientras carga y crossfade de 500ms; icono si no hay imagen. `Fit` muestra la imagen completa. */
@@ -190,22 +192,40 @@ fun PeliFilterChip(label: String, selected: Boolean, onClick: () -> Unit, modifi
     )
 }
 
-/** Tarjeta de lista: carátula, título, descripción corta y acciones de favorita / vista. */
+/** Color del chip de estado: quiero verla (primary), me gustó (mint), no me gusta (rojo), vista (neutro). */
+@Composable
+private fun stateAccent(e: Entry): Color {
+    val scheme = MaterialTheme.colorScheme
+    return when {
+        e.watchlist -> scheme.primary
+        e.liked -> scheme.secondary
+        e.disliked -> scheme.error
+        else -> scheme.onSurfaceVariant
+    }
+}
+
+/**
+ * Tarjeta de lista con tres acciones:
+ *  - marcador: "Quiero verla" (lo que se comparte con la pareja),
+ *  - pulgar arriba: "La vi y me gustó" (la app aprende de esto),
+ *  - pulgar abajo: "No me gusta / no me interesa".
+ */
 @Composable
 fun MovieCard(
     entry: Entry,
     mine: Entry?,
     onOpen: () -> Unit,
-    onFavorite: () -> Unit,
-    onSeen: () -> Unit,
+    onWant: () -> Unit,
+    onLiked: () -> Unit,
     onDislike: () -> Unit,
     modifier: Modifier = Modifier,
     badge: String? = null,
 ) {
     val scheme = MaterialTheme.colorScheme
-    val favorite = mine?.favorite == true
-    val seen = mine?.seen == true
+    val want = mine?.watchlist == true
+    val liked = mine?.liked == true
     val disliked = mine?.disliked == true
+    val state = if (badge == null) mine?.stateLabel() else null
     GlassCard(
         modifier = modifier.alpha(if (disliked) 0.6f else 1f),
         shape = MaterialTheme.shapes.large,
@@ -231,11 +251,12 @@ fun MovieCard(
                 if (entry.dateLabel.isNotBlank()) {
                     Text(entry.dateLabel, style = MaterialTheme.typography.labelMedium, color = scheme.onSurfaceVariant)
                 }
-                if (entry.isUpcoming || badge != null) {
+                if (entry.isUpcoming || badge != null || state != null) {
                     Spacer(Modifier.height(4.dp))
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         if (entry.isUpcoming) UpcomingChip()
                         if (badge != null) StatusChip(badge)
+                        if (state != null && mine != null) StatusChip(state, accent = stateAccent(mine))
                     }
                 }
                 Spacer(Modifier.height(8.dp))
@@ -248,19 +269,19 @@ fun MovieCard(
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     ToggleIconButton(
-                        checked = favorite,
-                        onClick = onFavorite,
-                        icon = Icons.Default.FavoriteBorder,
-                        checkedIcon = Icons.Default.Favorite,
-                        description = if (favorite) "Quitar ${entry.title} de favoritas" else "Agregar ${entry.title} a favoritas",
-                        checkedTint = scheme.tertiary,
+                        checked = want,
+                        onClick = onWant,
+                        icon = Icons.Outlined.BookmarkBorder,
+                        checkedIcon = Icons.Filled.Bookmark,
+                        description = if (want) "Quitar ${entry.title} de las que quiero ver" else "Quiero ver ${entry.title}",
+                        checkedTint = scheme.primary,
                     )
                     ToggleIconButton(
-                        checked = seen,
-                        onClick = onSeen,
-                        icon = Icons.Outlined.CheckCircle,
-                        checkedIcon = Icons.Default.Check,
-                        description = if (seen) "Desmarcar ${entry.title} como vista" else "Marcar ${entry.title} como vista",
+                        checked = liked,
+                        onClick = onLiked,
+                        icon = Icons.Outlined.ThumbUp,
+                        checkedIcon = Icons.Filled.ThumbUp,
+                        description = if (liked) "Quitar el me gustó de ${entry.title}" else "Ya vi ${entry.title} y me gustó",
                         checkedTint = scheme.secondary,
                     )
                     ToggleIconButton(
@@ -284,7 +305,7 @@ internal val sampleEntry = Entry(
     overview = "Un grupo de exploradores viaja a través de un agujero de gusano en busca de un nuevo hogar para la humanidad.",
     posterPath = null,
     year = "2014",
-    favorite = true,
+    watchlist = true,
 )
 
 @ThemePreviews
@@ -293,9 +314,10 @@ private fun MovieCardPreview() {
     PeliTheme {
         BrandBackground {
             Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                MovieCard(sampleEntry, sampleEntry, {}, {}, {}, {}, badge = "Les gusta a las dos")
-                MovieCard(sampleEntry.copy(favorite = false, disliked = true), sampleEntry.copy(favorite = false, disliked = true), {}, {}, {}, {})
-                MovieCard(sampleEntry.copy(title = "Estreno futuro", favorite = false, year = "2099", releaseDate = "2099-01-15"), null, {}, {}, {}, {})
+                MovieCard(sampleEntry, sampleEntry, {}, {}, {}, {}, badge = "Les interesa a las dos")
+                MovieCard(sampleEntry.copy(watchlist = false, liked = true, seen = true), sampleEntry.copy(watchlist = false, liked = true, seen = true), {}, {}, {}, {})
+                MovieCard(sampleEntry.copy(watchlist = false, disliked = true), sampleEntry.copy(watchlist = false, disliked = true), {}, {}, {}, {})
+                MovieCard(sampleEntry.copy(title = "Estreno futuro", watchlist = false, year = "2099", releaseDate = "2099-01-15"), null, {}, {}, {}, {})
             }
         }
     }

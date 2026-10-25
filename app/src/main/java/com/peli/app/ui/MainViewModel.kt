@@ -9,6 +9,10 @@ import com.peli.app.PeliApp
 import com.peli.app.data.Entry
 import com.peli.app.data.Sharing
 import com.peli.app.data.computeMatches
+import com.peli.app.data.toggleDisliked
+import com.peli.app.data.toggleLiked
+import com.peli.app.data.toggleSeen
+import com.peli.app.data.toggleWatch
 import com.peli.app.update.Changelog
 import com.peli.app.update.Updater
 import kotlinx.coroutines.Dispatchers
@@ -72,39 +76,40 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun toggleFavorite(e: Entry) = update(e) { it.copy(favorite = !it.favorite, disliked = false) }
-    fun toggleSeen(e: Entry) = update(e) { it.copy(seen = !it.seen) }
-    fun toggleDislike(e: Entry) = update(e) { it.copy(disliked = !it.disliked, favorite = false) }
+    fun toggleWant(e: Entry) = update(e) { it.toggleWatch() }
+    fun toggleLiked(e: Entry) = update(e) { it.toggleLiked() }
+    fun toggleSeen(e: Entry) = update(e) { it.toggleSeen() }
+    fun toggleDislike(e: Entry) = update(e) { it.toggleDisliked() }
 
     private fun update(e: Entry, change: (Entry) -> Entry) {
         viewModelScope.launch { repo.update(e, change) }
     }
 
-    /** Aprender del usuario: me gusta / no me gusta / ya la vi, y pasa a la siguiente. */
-    fun answer(e: Entry, like: Boolean?) {
+    /** Respuesta en "Descubrir": con ella la app aprende tus gustos y pasa a la siguiente. */
+    enum class Answer { Want, SeenLiked, NotInterested, Skip }
+
+    fun answer(e: Entry, answer: Answer) {
         viewModelScope.launch {
-            when (like) {
-                true -> repo.update(e) { it.copy(favorite = true, disliked = false) }
-                false -> repo.update(e) { it.copy(favorite = false, disliked = true) }
-                null -> Unit
+            when (answer) {
+                Answer.Want -> repo.update(e) { it.copy(watchlist = true, seen = false, liked = false, disliked = false) }
+                Answer.SeenLiked -> repo.update(e) { it.copy(liked = true, seen = true, watchlist = false, disliked = false) }
+                Answer.NotInterested -> repo.update(e) { it.copy(disliked = true, liked = false, watchlist = false) }
+                Answer.Skip -> Unit
             }
             queue.update { it.filter { x -> x.movieId != e.movieId } }
-            if (queue.value.size < 3) refillQueue()
+            if (queue.value.size < 4) refillQueue()
         }
     }
 
-    /** Sugerencias basadas en mis favoritas; si no hay, populares al azar. */
+    /** Sugerencias ordenadas por el recomendador según lo que ya marcaste. */
     fun refillQueue() {
         guarded {
-            val known = mine.value.map { it.movieId }.toSet()
-            val favs = mine.value.filter { it.favorite }.shuffled().take(3)
-            val fresh = if (favs.isEmpty()) repo.popular((1..5).random())
-            else favs.flatMap { repo.recommendations(it.movieId) }
-            val merged = (queue.value + fresh)
-                .filter { it.movieId !in known && it.posterPath != null && it.overview.isNotBlank() }
+            val marked = mine.value
+            val known = marked.map { it.movieId }.toSet()
+            val ranked = repo.recommend(marked)
+            queue.value = (queue.value + ranked)
+                .filter { it.movieId !in known }
                 .distinctBy { it.movieId }
-                .shuffled()
-            queue.value = merged
         }
     }
 
