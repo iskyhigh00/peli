@@ -3,11 +3,16 @@ package com.peli.app.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.peli.app.APP_VERSION
 import com.peli.app.BuildConfig
 import com.peli.app.PeliApp
 import com.peli.app.data.Entry
 import com.peli.app.data.Sharing
 import com.peli.app.data.computeMatches
+import com.peli.app.update.Changelog
+import com.peli.app.update.Updater
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -32,7 +37,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** Cola de sugerencias para "Descubrir". */
     val queue = MutableStateFlow<List<Entry>>(emptyList())
 
+    /** Versión nueva disponible (null = al día o sin consultar). */
+    val newVersion = MutableStateFlow<String?>(null)
+
+    /** Progreso de descarga: -2 inactivo, -1 sin tamaño conocido, 0..100. */
+    val progress = MutableStateFlow(-2)
+
+    /** Novedades a mostrar tras actualizar (versión -> cambios). */
+    val whatsNew = MutableStateFlow<List<Pair<String, List<String>>>>(emptyList())
+
     init {
+        viewModelScope.launch(Dispatchers.IO) { Updater.cleanupDownloads(getApplication()) }
+        whatsNew.value = Changelog.takeUnseen(getApplication())
+        checkForUpdate(manual = false)
         if (BuildConfig.TMDB_API_KEY.isBlank()) {
             error.value = "Falta TMDB_API_KEY en local.properties"
         } else {
@@ -89,6 +106,43 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             queue.value = merged
         }
     }
+
+    /** Al abrir la app es silencioso; manual (botón) informa también si está al día o falló. */
+    fun checkForUpdate(manual: Boolean) {
+        viewModelScope.launch {
+            val res = withContext(Dispatchers.IO) { Updater.checkLatest() }
+            val v = res.version
+            when {
+                v == null -> if (manual) message.value = "No se pudo consultar: ${res.error}"
+                Updater.isNewer(v, APP_VERSION) -> {
+                    newVersion.value = v
+                    if (manual) message.value = "Hay una versión nueva: v$v (tienes v$APP_VERSION)."
+                }
+                else -> {
+                    newVersion.value = null
+                    if (manual) message.value = "Estás al día (v$APP_VERSION)."
+                }
+            }
+        }
+    }
+
+    fun installUpdate() {
+        val v = newVersion.value ?: return
+        viewModelScope.launch {
+            progress.value = -1
+            try {
+                withContext(Dispatchers.IO) {
+                    Updater.downloadAndInstall(getApplication(), v) { p -> progress.value = p }
+                }
+            } catch (e: Exception) {
+                message.value = "No se pudo actualizar: ${e.message}"
+            } finally {
+                progress.value = -2
+            }
+        }
+    }
+
+    fun dismissWhatsNew() { whatsNew.value = emptyList() }
 
     fun exportCode() = Sharing.export(mine.value)
 

@@ -15,3 +15,24 @@ App Android (Kotlin + Jetpack Compose + Room) para decidir qué películas ver e
 
 ## Siguiente paso posible
 Sincronizar las listas automáticamente con un backend (p. ej. Firestore) en vez de intercambiar el código a mano.
+
+## Rediseño (Material 3 Expressive)
+Tema propio en `ui/theme` (colores, Inter Variable en `res/font`, formas) y componentes en `ui/components`
+(`GlassCard`, `GradientButton`, `ShimmerBox`, `AnimatedNavigationBar`…). Material You está disponible con
+`PeliTheme(dynamicColor = true)`; por defecto se usa la paleta de marca.
+
+## Auto-actualización
+Al abrir, la app consulta el último Release de un repo privado de APK y, si hay versión nueva, muestra un banner
+con «Actualizar» (descarga con progreso e instala encima, conservando los datos). Código en `update/Updater.kt`;
+el workflow `.github/workflows/android-build.yml` compila, firma y publica `Peli.apk` + `version.txt`.
+
+Para publicar una versión nueva suban **juntos** `versionCode`, `versionName` (app/build.gradle.kts) y
+`APP_VERSION` (AppVersion.kt) y agreguen sus novedades en `update/Changelog.kt`.
+
+### Configuración en GitHub (una sola vez)
+1. Crear el repo **privado** `iskyhigh00/peli-apk` (si usas otro nombre, cámbialo en `Updater.REPO`) y un Release con tag `peli-apk`.
+2. Token fine-grained **solo lectura** (Contents: Read) sobre `peli-apk` → secreto `APK_READ_TOKEN` en este repo.
+3. Token fine-grained **Contents: Read and write** sobre `peli-apk` → secreto `APK_PUBLISH_TOKEN`; secreto `APK_REPO` = `iskyhigh00/peli-apk`.
+4. Keystore (`keytool -genkeypair -v -keystore peli.jks -alias peli -keyalg RSA -keysize 2048 -validity 10000`) →
+   `base64 -w0 peli.jks` en `KEYSTORE_B64`, más `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`. Usar siempre la misma llave.
+5. Secreto `TMDB_API_KEY` con tu clave de TMDB.
