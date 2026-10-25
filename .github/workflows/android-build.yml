@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -53,13 +53,15 @@ jobs:
           grep -m1 'versionName' app/build.gradle.kts \
             | sed -E 's/.*"([0-9.]+)".*/\1/' > version.txt
 
-      - name: guardar APK como artefacto
-        uses: actions/upload-artifact@v4
+      # Release en ESTE repo: el APK se baja directo (sin .zip). Enlace fijo al más nuevo:
+      # https://github.com/<dueño>/peli/releases/latest/download/Peli.apk
+      - name: release en este repo
+        uses: softprops/action-gh-release@v2
         with:
-          name: Peli-apk
-          path: |
-            Peli.apk
-            version.txt
+          tag_name: build-${{ github.run_number }}
+          name: Peli build ${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          files: Peli.apk
 
       - name: publish
         if: ${{ env.APK_PUBLISH_TOKEN != '' && env.APK_REPO != '' }}
