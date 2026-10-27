@@ -39,10 +39,10 @@ object FeedAvoid {
         val out = ArrayList<Set<Int>>()
         var keep = history.size
         while (keep >= 20) {
-            out += history.takeLast(keep).toSet()
+            out.add(history.takeLast(keep).toSet())
             keep /= 2
         }
-        out += emptySet()
+        out.add(emptySet())
         return out
     }
 }

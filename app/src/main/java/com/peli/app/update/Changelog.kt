@@ -96,7 +96,7 @@ object Changelog {
         "1.2.4" to listOf(
             "El botón 10 del panel de nota ya no se corta.",
         ),
-        "1.2.5" to listOf(
+        "1.2.6" to listOf(
             "Al actualizar la lista principal salen películas nuevas: se recuerdan las que ya viste pasar (hasta ~800) y solo después de muchas actualizaciones se repiten.",
             "Más variedad en las sugerencias: se sortean tus películas y géneros favoritos y se exploran más páginas.",
         ),
