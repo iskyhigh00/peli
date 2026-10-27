@@ -104,6 +104,36 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
         dao.replaceAll(OWNER_PARTNER, others)
     }
 
+    // ---- Cuenta de Google y amigos -------------------------------------------
+
+    suspend fun setPartner(list: List<Entry>) = dao.replaceAll(OWNER_PARTNER, list)
+
+    /** Sube un cambio mío a mi cuenta (también las marcas vaciadas, para que mis amigos las vean quitadas). */
+    suspend fun pushAccount(userId: String, e: Entry) = Social.api.upsert(listOf(e.toUserEntry(userId)))
+
+    data class AccountSync(val friends: List<Friend>, val partner: List<Entry>?)
+
+    /**
+     * Un ciclo con mi cuenta: sube lo marcado desde [since] (todo si es 0), trae amigos y solicitudes y,
+     * si hay un amigo aceptado elegido, sus marcas. Es idempotente.
+     */
+    suspend fun syncAccount(userId: String, mine: List<Entry>, since: Long, friendId: String?): AccountSync {
+        val rows = mine.filter { since == 0L || it.updatedAt > since }.map { it.toUserEntry(userId) }
+        if (rows.isNotEmpty()) Social.api.upsert(rows)
+        val friends = Social.api.myFriends()
+        val partner = friendId?.takeIf { id -> friends.any { it.friend_id == id && it.accepted } }
+            ?.let { id -> Social.api.entriesOf("eq.$id").map { it.toEntry() }.filter { !it.isEmpty } }
+        return AccountSync(friends, partner)
+    }
+
+    suspend fun myProfile(): Profile? = Social.api.myProfile().firstOrNull()
+    suspend fun createProfile(username: String): Profile =
+        Social.api.createProfile(mapOf("p_username" to username)).first()
+    suspend fun requestFriend(query: String): String = Social.api.requestFriend(mapOf("p_query" to query))
+    suspend fun acceptFriend(id: String) = Social.api.acceptFriend(mapOf("p_friend" to id))
+    suspend fun removeFriend(id: String) = Social.api.removeFriend(mapOf("p_friend" to id))
+    suspend fun friends(): List<Friend> = Social.api.myFriends()
+
     /**
      * Sugerencias para "Descubrir", ordenadas por [Recommender]:
      *  - candidatas = recomendaciones de TMDB para mis últimas "me gustó"

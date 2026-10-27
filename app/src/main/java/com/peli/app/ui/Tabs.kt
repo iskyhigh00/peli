@@ -474,7 +474,10 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
     val partner by vm.partner.collectAsState()
     val mine by vm.mine.collectAsState()
     val room by vm.room.collectAsState()
+    val profile by vm.profile.collectAsState()
     val syncError by vm.syncError.collectAsState()
+    val hasProfile = profile != null
+    val connected = room != null || hasProfile
     val byId = remember(mine) { mine.associateBy { it.movieId } }
     var sheet by rememberSaveable { mutableStateOf(TogetherSheet.None) }
     var confirm by rememberSaveable { mutableStateOf(Confirm.None) }
@@ -506,7 +509,10 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
             contentPadding = screenContentPadding(),
             verticalArrangement = Arrangement.spacedBy(ItemSpacing),
         ) {
-            item {
+            if (vm.googleAvailable) item {
+                GlassCard { AccountCardContent(vm, syncError) }
+            }
+            if (!vm.googleAvailable || !hasProfile) item {
                 GlassCard {
                     when {
                         !vm.cloudAvailable -> {
@@ -569,8 +575,8 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
             when {
                 matches.isEmpty() -> item {
                     EmptyState(
-                        title = if (room != null && partner.isEmpty()) "Esperando a tu pareja" else "Aún no hay matches",
-                        message = if (room != null) {
+                        title = if (connected && partner.isEmpty()) "Esperando a tu pareja" else "Aún no hay matches",
+                        message = if (connected) {
                             "Cuando los dos marquen «Quiero verla» en la misma película, aparecerá aquí con un match."
                         } else {
                             "Conéctate con tu pareja y marquen películas con «Quiero verla»."

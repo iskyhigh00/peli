@@ -83,6 +83,10 @@ object Changelog {
             "Al marcar «La vi y me gustó» te pide al tiro una nota de 1 a 10 para afinar tus recomendaciones (puedes omitirla).",
             "Sincronización con tu pareja activada (Supabase).",
         ),
+        "1.2.1" to listOf(
+            "Entra con Google, elige tu nombre de usuario y recibe un ID de amigo para que te agreguen.",
+            "Agrega amigos por ID o @usuario, acepta solicitudes y elige con quién comparar listas.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

@@ -8,6 +8,14 @@ import com.peli.app.APP_VERSION
 import com.peli.app.BuildConfig
 import com.peli.app.CrashReporter
 import com.peli.app.PeliApp
+import com.peli.app.auth.GoogleToken
+import com.peli.app.data.Friend
+import com.peli.app.data.FriendRequestResult
+import com.peli.app.data.Profile
+import com.peli.app.data.Social
+import com.peli.app.data.SupabaseAuth
+import com.peli.app.data.Usernames
+import com.peli.app.data.accountMessage
 import com.peli.app.data.Entry
 import com.peli.app.data.InsightsState
 import com.peli.app.data.RatingSource
@@ -61,6 +69,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
     private val repo = peli.repository
     private val pairing = peli.pairing
     private val sourcePrefs = peli.sourcePrefs
+    private val account = peli.account
 
     val mine = repo.mine.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     val partner = repo.partner.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
@@ -216,6 +225,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         launch(Dispatchers.IO) { Updater.cleanupDownloads(getApplication()) }
         whatsNew.value = Changelog.takeUnseen(getApplication())
         launch(Dispatchers.IO) { crashReport.value = CrashReporter.pending(getApplication()) }
+        if (account.session != null) launch { if (account.profile == null) loadProfile() else syncAccount() }
         checkForUpdate(manual = false)
         refillQueue()
 
@@ -363,6 +373,17 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
     }
 
     private suspend fun push(next: Entry) {
+        val s = account.session
+        if (s != null && account.profile != null) {
+            try {
+                repo.pushAccount(s.userId, next)
+            } catch (ex: CancellationException) {
+                throw ex
+            } catch (ex: Exception) {
+                AppLog.w("Cuenta", "no se pudo subir el cambio (se reintenta en el próximo sync)", ex)
+            }
+            return
+        }
         val r = room.value ?: return
         try {
             repo.push(r, pairing.userId, next)
@@ -505,6 +526,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
 
     /** Un ciclo de sincronización; se llama cada pocos segundos mientras la app está abierta. */
     suspend fun sync() {
+        if (account.session != null && account.profile != null) return syncAccount()
         val r = room.value ?: return
         if (!Remote.configured) return
         syncLock.withLock {
@@ -524,6 +546,215 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
                 syncError.value = e.message ?: e.javaClass.simpleName
             }
         }
+    }
+
+    // ---- Cuenta de Google, usuario y amigos -----------------------------------
+
+    /** Hay servidor y cliente de Google configurados en esta compilación. */
+    val googleAvailable = Social.configured
+
+    val signedIn = MutableStateFlow(account.session != null)
+    val accountEmail = MutableStateFlow(account.session?.email)
+    val profile = MutableStateFlow(account.profile)
+    val friends = MutableStateFlow<List<Friend>>(emptyList())
+    val activeFriend = MutableStateFlow(account.activeFriend)
+    val accountBusy = MutableStateFlow(false)
+
+    /** Hay algo que sincronizar en segundo plano: una sala (modo anterior) o mi cuenta con usuario. */
+    val syncActive: StateFlow<Boolean> = combine(room, profile) { r, p -> r != null || p != null }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, room.value != null || profile.value != null)
+
+    fun showMessage(text: String) { message.value = text }
+
+    /** Google entregó su token: se canjea por una sesión de Supabase y se busca mi perfil. */
+    fun signInWithGoogle(token: GoogleToken) {
+        launch {
+            accountBusy.value = true
+            try {
+                val session = withContext(Dispatchers.IO) { SupabaseAuth.signInWithGoogle(token.idToken, token.rawNonce) }
+                account.save(session)
+                signedIn.value = true
+                accountEmail.value = session.email
+                AppLog.i("Cuenta", "sesión iniciada")
+                loadProfile()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                AppLog.w("Cuenta", "falló el canje del token de Google", e)
+                message.value = e.accountMessage()
+            } finally {
+                accountBusy.value = false
+            }
+        }
+    }
+
+    private suspend fun loadProfile() {
+        val p = repo.myProfile()
+        account.profile = p
+        profile.value = p
+        AppLog.i("Cuenta", if (p == null) "sin nombre de usuario todavía" else "perfil: @${p.username}")
+        if (p != null) syncAccount()
+    }
+
+    fun createProfile(username: String) {
+        val name = username.trim()
+        if (!Usernames.isValid(name)) {
+            message.value = Usernames.explain(name) ?: "Escribe un nombre de usuario."
+            return
+        }
+        launch {
+            accountBusy.value = true
+            try {
+                val p: Profile = repo.createProfile(name)
+                account.profile = p
+                profile.value = p
+                AppLog.i("Cuenta", "perfil creado: @${p.username}")
+                message.value = "Listo, @${p.username}. Tu ID de amigo es ${com.peli.app.data.FriendCodes.format(p.friend_code)}."
+                syncAccount()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                AppLog.w("Cuenta", "no se pudo crear el perfil", e)
+                message.value = e.accountMessage()
+            } finally {
+                accountBusy.value = false
+            }
+        }
+    }
+
+    fun addFriend(query: String) {
+        val q = query.trim()
+        if (q.length < 3) {
+            message.value = "Escribe el ID (ABCD-EFGH) o el @usuario de tu amigo."
+            return
+        }
+        launch {
+            accountBusy.value = true
+            try {
+                message.value = when (val r = FriendRequestResult.parse(repo.requestFriend(q))) {
+                    is FriendRequestResult.Sent -> "Solicitud enviada a @${r.username}. Cuando la acepte, podrán comparar listas."
+                    is FriendRequestResult.Accepted -> "¡Ahora eres amigo de @${r.username}!"
+                    is FriendRequestResult.AlreadyExists -> "Ya tienes una solicitud o amistad con @${r.username}."
+                    FriendRequestResult.NotFound -> "No encontré a nadie con ese ID o usuario."
+                    FriendRequestResult.Self -> "Ese eres tú 🙂"
+                    null -> "Respuesta inesperada del servidor."
+                }
+                AppLog.i("Amigos", "agregar «$q» → ${message.value}")
+                syncAccount()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                AppLog.w("Amigos", "no se pudo agregar a «$q»", e)
+                message.value = e.accountMessage()
+            } finally {
+                accountBusy.value = false
+            }
+        }
+    }
+
+    fun acceptFriend(f: Friend) = friendAction("aceptar a @${f.username}") {
+        repo.acceptFriend(f.friend_id)
+        if (account.activeFriend == null) selectFriend(f.friend_id, sync = false)
+    }
+
+    fun removeFriend(f: Friend) = friendAction("quitar a @${f.username}") {
+        repo.removeFriend(f.friend_id)
+        if (account.activeFriend == f.friend_id) clearActiveFriend()
+    }
+
+    private fun friendAction(what: String, block: suspend () -> Unit) {
+        launch {
+            accountBusy.value = true
+            try {
+                AppLog.i("Amigos", what)
+                block()
+                syncAccount()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                AppLog.w("Amigos", "no se pudo $what", e)
+                message.value = e.accountMessage()
+            } finally {
+                accountBusy.value = false
+            }
+        }
+    }
+
+    /** Elige con qué amigo se comparan las listas (matches, "Descubrir" y nota de tu pareja). */
+    fun selectFriend(id: String, sync: Boolean = true) {
+        if (account.activeFriend == id) return
+        account.activeFriend = id
+        account.baselineFriend = null
+        activeFriend.value = id
+        AppLog.i("Amigos", "se compara con el amigo $id")
+        launch {
+            repo.clearPartner()
+            if (sync) syncAccount()
+        }
+    }
+
+    private suspend fun clearActiveFriend() {
+        account.activeFriend = null
+        account.baselineFriend = null
+        activeFriend.value = null
+        repo.clearPartner()
+    }
+
+    fun signOut() {
+        AppLog.i("Cuenta", "cerrar sesión")
+        account.clear()
+        signedIn.value = false
+        accountEmail.value = null
+        profile.value = null
+        friends.value = emptyList()
+        activeFriend.value = null
+        launch { repo.clearPartner() }
+    }
+
+    /** Un ciclo con mi cuenta: sube mis marcas, trae amigos y las marcas del amigo elegido. */
+    private suspend fun syncAccount() {
+        val s = account.session ?: return
+        if (account.profile == null) return
+        syncLock.withLock {
+            val started = System.currentTimeMillis()
+            try {
+                val result = repo.syncAccount(s.userId, mine.value, account.lastPush, account.activeFriend)
+                account.lastPush = started
+                friends.value = result.friends
+
+                // Sin amigo elegido: si hay uno aceptado, se elige solo; si el elegido ya no es amigo, se quita.
+                val accepted = result.friends.filter { it.accepted }
+                val active = account.activeFriend
+                if (active != null && accepted.none { it.friend_id == active }) {
+                    clearActiveFriend()
+                } else if (active == null && accepted.size == 1) {
+                    selectFriend(accepted.first().friend_id, sync = false)
+                }
+
+                val partner = result.partner
+                if (partner != null && active != null) {
+                    // Los matches que ya existían al elegir al amigo no se "estrenan" todos de golpe.
+                    if (account.baselineFriend != active) {
+                        val existing = computeMatches(mine.value, partner).filter { it.both }.map { it.entry.movieId }
+                        pairing.announced = pairing.announced + existing
+                        account.baselineFriend = active
+                    }
+                    repo.setPartner(partner)
+                    picksToFront()
+                }
+                syncError.value = null
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (syncError.value == null) AppLog.w("Cuenta", "falló la sincronización de la cuenta", e)
+                syncError.value = e.accountMessage()
+            }
+        }
+    }
+
+    private fun picksToFront() {
+        val picks = partnerPicks()
+        if (picks.isNotEmpty()) queue.update { (picks.filter { p -> p.movieId !in skipped } + it).distinctBy { x -> x.movieId } }
     }
 
     /** Deslizar hacia abajo en "Juntos": sincroniza con la sala ahora mismo. */

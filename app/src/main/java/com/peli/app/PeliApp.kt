@@ -5,10 +5,12 @@ import android.app.Application
 import android.content.ComponentCallbacks2
 import android.content.res.Configuration
 import android.os.Bundle
+import com.peli.app.data.AccountStore
 import com.peli.app.data.AppDb
 import com.peli.app.data.PairingStore
 import com.peli.app.data.Repository
 import com.peli.app.data.SourcePrefs
+import com.peli.app.data.Social
 import com.peli.app.data.TmdbApi
 import com.peli.app.log.AppLog
 
@@ -17,6 +19,7 @@ class PeliApp : Application() {
         super.onCreate()
         AppLog.init(this)
         CrashReporter.install(this)
+        Social.store = account
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
             private fun name(a: Activity) = a.javaClass.simpleName
             override fun onActivityCreated(a: Activity, state: Bundle?) =
@@ -57,6 +60,7 @@ class PeliApp : Application() {
         })
     }
 
+    val account by lazy { AccountStore(this) }
     val pairing by lazy { PairingStore(this) }
     val sourcePrefs by lazy { SourcePrefs(this) }
     val repository by lazy { Repository(AppDb.create(this), TmdbApi.create()) }

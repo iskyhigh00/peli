@@ -8,7 +8,7 @@ plugins {
 }
 
 /** Única fuente de la versión: x.y.z con un dígito por campo (0.0.0 a 9.9.9). Usar scripts/bump-version.sh. */
-val appVersion = "1.2.0"
+val appVersion = "1.2.1"
 require(Regex("[0-9]\\.[0-9]\\.[0-9]").matches(appVersion)) { "appVersion debe ser x.y.z de un dígito (máx 9.9.9)" }
 val (vMajor, vMinor, vPatch) = appVersion.split(".").map { it.toInt() }
 
@@ -35,6 +35,8 @@ android {
         buildConfigField("String", "SUPABASE_ANON_KEY", "\"$supabaseKey\"")
         val omdbKey = System.getenv("OMDB_API_KEY") ?: localProps.getProperty("OMDB_API_KEY", "")
         buildConfigField("String", "OMDB_API_KEY", "\"$omdbKey\"")
+        val googleWebClientId = System.getenv("GOOGLE_WEB_CLIENT_ID") ?: localProps.getProperty("GOOGLE_WEB_CLIENT_ID", "")
+        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$googleWebClientId\"")
         val updateToken = System.getenv("APK_READ_TOKEN") ?: ""
         buildConfigField("String", "UPDATE_TOKEN", "\"$updateToken\"")
     }
@@ -92,6 +94,11 @@ dependencies {
     implementation("com.squareup.retrofit2:converter-gson:2.11.0")
     implementation("com.google.code.gson:gson:2.10.1")
     implementation("io.coil-kt:coil-compose:2.6.0")
+
+    // Inicio de sesión con Google (Credential Manager).
+    implementation("androidx.credentials:credentials:1.3.0")
+    implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
+    implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
 
     testImplementation("junit:junit:4.13.2")
 }

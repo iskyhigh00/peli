@@ -120,10 +120,10 @@ fun PeliScreen(vm: MainViewModel = viewModel()) {
         val context = LocalContext.current
 
         // Sincroniza con la sala cada 6 s, solo mientras la app está visible.
-        val room by vm.room.collectAsState()
+        val syncActive by vm.syncActive.collectAsState()
         val lifecycleOwner = LocalLifecycleOwner.current
-        LaunchedEffect(room, lifecycleOwner) {
-            if (room != null) {
+        LaunchedEffect(syncActive, lifecycleOwner) {
+            if (syncActive) {
                 lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
                     while (true) {
                         vm.sync()
