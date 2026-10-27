@@ -110,4 +110,4 @@ fun RemoteEntry.toEntry() = Entry(
     movieId = movie_id, owner = OWNER_PARTNER, title = title, overview = overview, posterPath = poster_path,
     year = year, liked = liked, seen = seen, disliked = disliked, releaseDate = release_date,
     watchlist = watchlist, genres = genres, rating = rating, updatedAt = updated_at, myRating = my_rating,
-)
+).normalized()

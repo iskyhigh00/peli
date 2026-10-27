@@ -50,9 +50,39 @@ data class Entry(
     val genreIds: List<Int> get() = genres?.split(",")?.mapNotNull { it.trim().toIntOrNull() }.orEmpty()
 }
 
+/**
+ * La misma película sin ninguna marca personal: solo metadatos. Es lo que se usa para empezar MI marca
+ * desde una entrada que viene de otra persona (pareja/amigo) o de una lista de sugerencias, para no
+ * heredar sus estados, su nota ni su fecha.
+ */
+fun Entry.asUnmarked(owner: String) = copy(
+    owner = owner,
+    watchlist = false,
+    liked = false,
+    seen = false,
+    disliked = false,
+    myRating = 0,
+    updatedAt = 0,
+)
+
+/**
+ * Repara estados incoherentes de forma conservadora (datos importados o antiguos):
+ * la nota implica "la vi"; "me gustó" implica "la vi" y no es "no me gusta"; "no me gusta" no está en "quiero verla".
+ */
+fun Entry.normalized(): Entry {
+    var e = copy(myRating = myRating.coerceIn(0, 10))
+    if (e.myRating > 0) e = e.copy(seen = true, watchlist = false)
+    if (e.liked) e = e.copy(seen = true, watchlist = false, disliked = false)
+    if (e.disliked) e = e.copy(liked = false, watchlist = false)
+    if (e.watchlist) e = e.copy(seen = false, liked = false, disliked = false, myRating = 0)
+    return e
+}
+
 // Transiciones de estado: cada acción deja el estado consistente (p. ej. "me gustó" implica "la vi").
+// "Quiero verla" es una película pendiente: no puede conservar una nota ni estar vista.
 fun Entry.toggleWatch() =
-    if (watchlist) copy(watchlist = false) else copy(watchlist = true, seen = false, liked = false, disliked = false)
+    if (watchlist) copy(watchlist = false)
+    else copy(watchlist = true, seen = false, liked = false, disliked = false, myRating = 0)
 
 fun Entry.toggleLiked() =
     if (liked) copy(liked = false) else copy(liked = true, seen = true, watchlist = false, disliked = false)

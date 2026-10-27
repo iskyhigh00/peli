@@ -82,6 +82,7 @@ import com.peli.app.data.Match
 import com.peli.app.data.OWNER_ME
 import com.peli.app.data.RoomCodes
 import com.peli.app.data.accepts
+import com.peli.app.data.asUnmarked
 import com.peli.app.ui.components.ActionButton
 import com.peli.app.ui.components.CompactSpacing
 import com.peli.app.ui.components.DiscoverSkeleton
@@ -498,7 +499,7 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
 
     val both = remember(matches) { matches.filter { it.both } }
     val single = remember(matches) { matches.filter { !it.both } }
-    fun mineOrNew(m: Match) = byId[m.entry.movieId] ?: m.entry.copy(owner = OWNER_ME)
+    fun mineOrNew(m: Match) = byId[m.entry.movieId] ?: m.entry.asUnmarked(OWNER_ME)
 
     PullToRefreshBox(
         isRefreshing = refreshing,

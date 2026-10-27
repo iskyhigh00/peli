@@ -20,6 +20,6 @@ object Sharing {
         val body = text.trim().removePrefix(PREFIX)
         val json = String(Base64.decode(body, Base64.DEFAULT))
         val type = object : TypeToken<List<Entry>>() {}.type
-        gson.fromJson<List<Entry>>(json, type).map { it.copy(owner = OWNER_PARTNER) }
+        gson.fromJson<List<Entry>>(json, type).map { it.copy(owner = OWNER_PARTNER).normalized() }
     }.getOrNull().takeIf { text.trim().startsWith(PREFIX) }
 }

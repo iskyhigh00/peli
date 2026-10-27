@@ -3,6 +3,8 @@ package com.peli.app.data
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 class Repository(private val db: AppDb, private val api: TmdbApi) {
     private companion object {
@@ -24,7 +26,7 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
         val pages = coroutineScope {
             val first = async { api.search(q, 1).results }
             val rest = (2..SEARCH_PAGES_WITH_YEARS).map { p ->
-                async { runCatching { api.search(q, p).results }.getOrDefault(emptyList()) }
+                async { attempt { api.search(q, p).results }.getOrDefault(emptyList()) }
             }
             listOf(first.await()) + rest.awaitAll()
         }
@@ -34,12 +36,17 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
     private operator fun YearRange.contains(e: Entry) = contains(e.year)
     suspend fun popular(page: Int) = api.popular(page).results.map { it.toEntry(OWNER_ME) }
 
-    /** Aplica un cambio sobre mi marca de la película; si queda vacía se borra. Devuelve el resultado. */
-    suspend fun update(base: Entry, change: (Entry) -> Entry): Entry {
-        val current = dao.get(OWNER_ME, base.movieId) ?: base.copy(owner = OWNER_ME)
-        val next = change(current).copy(updatedAt = System.currentTimeMillis())
+    /** Serializa leer-modificar-guardar de mis marcas: dos cambios seguidos sobre un título no se pisan. */
+    private val writeLock = Mutex()
+
+    /**
+     * Aplica un cambio sobre MI marca de la película; si queda vacía se borra. Devuelve el resultado.
+     * Si aún no tengo marca, se parte de los metadatos de [base] sin heredar nada de nadie más.
+     */
+    suspend fun update(base: Entry, change: (Entry) -> Entry): Entry = writeLock.withLock {
+        val next = Marks.apply(dao.get(OWNER_ME, base.movieId), base, System.currentTimeMillis(), change)
         if (next.isEmpty) dao.delete(OWNER_ME, next.movieId) else dao.upsert(next)
-        return next
+        next
     }
 
     /**
@@ -49,11 +56,11 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
      */
     suspend fun insights(movieId: Int): MovieInsights = coroutineScope {
         val details = async { api.details(movieId) }
-        val reviews = async { runCatching { api.reviews(movieId).results }.getOrDefault(emptyList()) }
+        val reviews = async { attempt { api.reviews(movieId).results }.getOrDefault(emptyList()) }
         val d = details.await()
         val imdbId = d.external_ids?.imdb_id?.takeIf { it.isNotBlank() }
         val omdb = if (Omdb.configured && imdbId != null) {
-            runCatching { Omdb.api.byImdb(imdbId, com.peli.app.BuildConfig.OMDB_API_KEY) }
+            attempt { Omdb.api.byImdb(imdbId, com.peli.app.BuildConfig.OMDB_API_KEY) }
                 .getOrNull()?.takeIf { it.response == "True" }
         } else null
         MovieInsights(
@@ -83,10 +90,11 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
 
     /** Vuelve a [previous] (o quita la marca si era null). Devuelve el estado resultante. */
     suspend fun restore(base: Entry, previous: Entry?): Entry {
-        val cleared = base.copy(owner = OWNER_ME, watchlist = false, liked = false, seen = false, disliked = false)
-        val result = (previous ?: cleared).copy(updatedAt = System.currentTimeMillis())
-        if (result.isEmpty) dao.delete(OWNER_ME, result.movieId) else dao.upsert(result)
-        return result
+        return writeLock.withLock {
+            val result = Marks.restored(base, previous, System.currentTimeMillis())
+            if (result.isEmpty) dao.delete(OWNER_ME, result.movieId) else dao.upsert(result)
+            result
+        }
     }
 
     /** Sube un cambio a la sala (también las marcas vaciadas, para que la pareja las vea quitadas). */
@@ -153,15 +161,17 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
         val pool = LinkedHashMap<Int, Entry>()
         val votes = HashMap<Int, Int>()
         val contributions = HashMap<Int, MutableList<Pair<Double, Int>>>()
-        fun add(list: List<TmdbMovie>, seed: Entry? = null) = list.forEachIndexed { pos, m ->
-            pool.putIfAbsent(m.id, m.toEntry(OWNER_ME))
-            m.vote_count?.let { votes[m.id] = it }
-            if (seed != null) contributions.getOrPut(m.id) { ArrayList() } += Recommender.seedStrength(seed) to pos
+        val tally = SourceTally()
+        fun add(result: Result<List<TmdbMovie>>?, seed: Entry? = null) {
+            if (result == null) return   // fuente que no aplicaba: no cuenta como éxito ni como fallo
+            tally.record(result)?.forEachIndexed { pos, m ->
+                pool.putIfAbsent(m.id, m.toEntry(OWNER_ME))
+                m.vote_count?.let { votes[m.id] = it }
+                if (seed != null) contributions.getOrPut(m.id) { ArrayList() }.add(Recommender.seedStrength(seed) to pos)
+            }
         }
 
-        val seedJobs = seeds.map { s ->
-            async { s to runCatching { api.recommendations(s.movieId).results }.getOrDefault(emptyList()) }
-        }
+        val seedJobs = seeds.map { s -> async { s to attempt { api.recommendations(s.movieId).results } } }
         // De mis 3 géneros favoritos se sortean 2: así cada vez salen cosas distintas.
         val topGenres = profile.topGenres(3).shuffled().take(2)
         val genreList = topGenres.joinToString("|")
@@ -171,40 +181,39 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
         val minVotes = if (years != null && years.to >= ReleaseInfo.currentYear()) 10 else 100
         val byYears = years?.let { r ->
             listOf(1, (2..4).random()).map { p ->
-                async {
-                    runCatching {
-                        api.discover(null, p, "popularity.desc", minVotes, r.startDate, r.endDate).results
-                    }.getOrDefault(emptyList())
-                }
+                async { attempt { api.discover(null, p, "popularity.desc", minVotes, r.startDate, r.endDate).results } }
             }
         }.orEmpty()
         val byGenreYears = async {
-            if (years == null || topGenres.isEmpty()) emptyList()
-            else runCatching {
+            if (years == null || topGenres.isEmpty()) null
+            else attempt {
                 api.discover(genreList, (1..2).random(), "popularity.desc", minVotes, years.startDate, years.endDate).results
-            }.getOrDefault(emptyList())
+            }
         }
         val byGenre = async {
-            if (years != null || topGenres.isEmpty()) emptyList()
-            else runCatching { api.discover(genreList, page = (1..10).random()).results }.getOrDefault(emptyList())
+            if (years != null || topGenres.isEmpty()) null
+            else attempt { api.discover(genreList, page = (1..10).random()).results }
         }
         val byGenrePopular = async {
-            if (years != null || topGenres.isEmpty()) emptyList()
-            else runCatching { api.discover(genreList, page = (1..8).random(), sortBy = "popularity.desc").results }
-                .getOrDefault(emptyList())
+            if (years != null || topGenres.isEmpty()) null
+            else attempt { api.discover(genreList, page = (1..8).random(), sortBy = "popularity.desc").results }
         }
-        // Sin gustos aún (o como exploración) se pide material popular; sin gustos, dos páginas distintas.
-        val popularPages = if (profile.isEmpty) 2 else 1
-        val popular = if (years != null) emptyList() else (1..popularPages).map {
-            async { runCatching { api.popular((1..15).random()).results }.getOrDefault(emptyList()) }
+        // Sin gustos aún se piden dos páginas populares distintas; con gustos, una (exploración).
+        val popularPages = if (profile.isEmpty) (1..15).shuffled().take(2) else listOf((1..15).random())
+        val popular = if (years != null) emptyList() else popularPages.map { page ->
+            async { attempt { api.popular(page).results } }
         }
 
-        seedJobs.awaitAll().forEach { (seed, list) -> add(list, seed) }
+        seedJobs.awaitAll().forEach { (seed, result) -> add(result, seed) }
         byYears.awaitAll().forEach { add(it) }
         add(byGenreYears.await())
         add(byGenre.await())
         add(byGenrePopular.await())
         popular.awaitAll().forEach { add(it) }
+
+        // Si NINGUNA fuente respondió es un fallo de red o de servicio, no "no hay películas".
+        tally.requireAny()
+        if (tally.failed > 0) com.peli.app.log.AppLog.w("Candidatas", "${tally.failed} fuentes fallaron y ${tally.ok} respondieron")
 
         val candidates = pool.values.filter {
             it.movieId !in known && it.posterPath != null && it.overview.isNotBlank() && (years == null || it in years)

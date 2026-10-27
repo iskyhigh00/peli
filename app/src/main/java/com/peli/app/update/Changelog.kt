@@ -110,6 +110,11 @@ object Changelog {
         "1.2.8" to listOf(
             "Arreglado un cierre inesperado de la app (error de Compose «Placement happened before lookahead»): se quitó la animación compartida de la carátula al abrir el detalle, que lo provocaba.",
         ),
+        "1.2.9" to listOf(
+            "Al pulsar «Quiero verla» en una película que ya tenía otra persona, ahora se guarda tu marca (antes podía quedar vacía).",
+            "Una película pendiente ya no conserva una nota antigua; los estados incoherentes se reparan al importarlos.",
+            "Si falla la red al actualizar la lista principal, se conserva lo que ya se veía y se avisa en vez de mostrar «sin resultados».",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

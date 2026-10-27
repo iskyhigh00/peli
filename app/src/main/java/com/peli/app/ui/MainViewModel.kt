@@ -285,7 +285,8 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
             throw e
         } catch (e: Exception) {
             AppLog.w("Buscar", "falló la búsqueda «$q»", e)
-            if (pull && results.value.isNotEmpty()) {
+            if (q.isBlank() && results.value.isNotEmpty()) {
+                // Lista principal: ante un fallo de red se conserva lo que ya se veía (no se avanza de ronda).
                 message.value = "No se pudo actualizar: ${e.message}"
             } else {
                 results.value = emptyList()
