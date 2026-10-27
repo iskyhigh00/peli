@@ -87,6 +87,9 @@ object Changelog {
             "Entra con Google, elige tu nombre de usuario y recibe un ID de amigo para que te agreguen.",
             "Agrega amigos por ID o @usuario, acepta solicitudes y elige con quién comparar listas.",
         ),
+        "1.2.2" to listOf(
+            "Activado el inicio de sesión con Google: entra en «Juntos» y crea tu usuario e ID de amigo.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"
