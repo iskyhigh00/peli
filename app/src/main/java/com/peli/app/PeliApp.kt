@@ -10,6 +10,8 @@ import com.peli.app.data.AppDb
 import com.peli.app.data.ExposureStore
 import com.peli.app.data.PairingStore
 import com.peli.app.data.Repository
+import com.peli.app.data.ScopeStore
+import com.peli.app.data.Scopes
 import com.peli.app.data.SourcePrefs
 import com.peli.app.data.Social
 import com.peli.app.data.TmdbApi
@@ -65,5 +67,14 @@ class PeliApp : Application() {
     val account by lazy { AccountStore(this) }
     val pairing by lazy { PairingStore(this) }
     val sourcePrefs by lazy { SourcePrefs(this) }
-    val repository by lazy { Repository(AppDb.create(this), TmdbApi.create()) }
+    val scopes by lazy { ScopeStore(this) }
+    val repository by lazy {
+        Repository(AppDb.create(this), TmdbApi.create()).also { repo ->
+            // A dónde se envían mis marcas AHORA (se evalúa al escribir cada marca).
+            repo.destinations = {
+                val userId = account.session?.userId
+                Scopes.destinations(scopes.current(userId), userId, account.profile != null, pairing.room)
+            }
+        }
+    }
 }

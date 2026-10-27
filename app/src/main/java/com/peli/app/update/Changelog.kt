@@ -115,6 +115,13 @@ object Changelog {
             "Una película pendiente ya no conserva una nota antigua; los estados incoherentes se reparan al importarlos.",
             "Si falla la red al actualizar la lista principal, se conserva lo que ya se veía y se avisa en vez de mostrar «sin resultados».",
         ),
+        "1.3.0" to listOf(
+            "Tus marcas se guardan y se envían con una cola durable: lo que cambies sin conexión (incluso quitar una marca) se envía cuando vuelva la red.",
+            "Cada cuenta tiene sus propias películas en el teléfono. Al iniciar sesión se te pregunta si las películas sin cuenta pasan a esa cuenta; nunca se suben solas.",
+            "Si cambias de amigo, sales de una sala o cierras sesión mientras se carga algo, lo que llegue tarde se descarta.",
+            "Las listas largas de tus amigos se descargan completas por páginas antes de reemplazar la anterior.",
+            "Deshacer y el aprendizaje de Descubrir ya no esperan a la red.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

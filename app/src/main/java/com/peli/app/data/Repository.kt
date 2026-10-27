@@ -1,5 +1,7 @@
 package com.peli.app.data
 
+import androidx.room.withTransaction
+import com.google.gson.Gson
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -9,10 +11,16 @@ import kotlinx.coroutines.sync.withLock
 class Repository(private val db: AppDb, private val api: TmdbApi) {
     private companion object {
         const val MIN_FRESH = 12
+        const val PAGE_SIZE = 500
         const val SEARCH_PAGES_WITH_YEARS = 3
     }
 
     private val dao = db.entries()
+    private val gson = Gson()
+    private val outbox = Outbox(RoomOutboxTable(db.outbox()))
+
+    /** Destinos de envío activos ahora; lo asigna PeliApp. Cada marca se encola para los destinos de ESE momento. */
+    var destinations: () -> List<String> = { emptyList() }
 
     val mine = dao.observe(OWNER_ME)
     val partner = dao.observe(OWNER_PARTNER)
@@ -44,10 +52,51 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
      * Si aún no tengo marca, se parte de los metadatos de [base] sin heredar nada de nadie más.
      */
     suspend fun update(base: Entry, change: (Entry) -> Entry): Entry = writeLock.withLock {
-        val next = Marks.apply(dao.get(OWNER_ME, base.movieId), base, System.currentTimeMillis(), change)
-        if (next.isEmpty) dao.delete(OWNER_ME, next.movieId) else dao.upsert(next)
-        next
+        db.withTransaction {
+            val next = Marks.apply(dao.get(OWNER_ME, base.movieId), base, System.currentTimeMillis(), change)
+            store(next)
+            next
+        }
     }
+
+    /** Guarda mi marca y, en la misma transacción, la encola para cada destino activo (una marca vaciada también). */
+    private suspend fun store(next: Entry) {
+        if (next.isEmpty) dao.delete(OWNER_ME, next.movieId) else dao.upsert(next)
+        val payload = gson.toJson(next)
+        for (dest in destinations()) outbox.enqueue(dest, next.movieId, payload)
+    }
+
+    /** Encola TODO lo guardado hacia un destino (al activarlo): los envíos son idempotentes. */
+    suspend fun enqueueAll(dest: String) = writeLock.withLock {
+        db.withTransaction {
+            for (e in dao.all(OWNER_ME)) outbox.enqueue(dest, e.movieId, gson.toJson(e))
+        }
+    }
+
+    suspend fun pending(dest: String): Int = outbox.pending(dest)
+
+    /** Envía lo pendiente de un destino, por lotes. Un solo llamador a la vez (lo garantiza el ViewModel). */
+    suspend fun drain(dest: String, deviceId: String): Int = outbox.drain(dest) { items ->
+        val entries = items.map { gson.fromJson(it.payload, Entry::class.java) }
+        when {
+            dest.startsWith("acct:") -> {
+                val uid = dest.removePrefix("acct:")
+                check(Social.currentUserId() == uid) { "La sesión activa no es la de este destino" }
+                Social.api.upsert(entries.map { it.toUserEntry(uid) })
+            }
+            dest.startsWith("room:") -> {
+                val room = dest.removePrefix("room:")
+                Remote.api.upsert(room, entries.map { it.toRemote(room, deviceId) })
+            }
+            else -> error("Destino desconocido: $dest")
+        }
+    }
+
+    // ---- Colecciones por cuenta (sin borrar ni mezclar) ----------------------
+
+    suspend fun meCount(): Int = dao.count(OWNER_ME)
+    suspend fun stashCount(scope: String): Int = dao.count(Scopes.stash(scope))
+    suspend fun switchScope(from: String, to: String) = writeLock.withLock { dao.switchScope(from, to) }
 
     /**
      * Valoraciones de una película: TMDB (nota + reseñas) y, con clave de OMDb, IMDb / Rotten Tomatoes /
@@ -91,48 +140,35 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
     /** Vuelve a [previous] (o quita la marca si era null). Devuelve el estado resultante. */
     suspend fun restore(base: Entry, previous: Entry?): Entry {
         return writeLock.withLock {
-            val result = Marks.restored(base, previous, System.currentTimeMillis())
-            if (result.isEmpty) dao.delete(OWNER_ME, result.movieId) else dao.upsert(result)
-            result
+            db.withTransaction {
+                val result = Marks.restored(base, previous, System.currentTimeMillis())
+                store(result)
+                result
+            }
         }
-    }
-
-    /** Sube un cambio a la sala (también las marcas vaciadas, para que la pareja las vea quitadas). */
-    suspend fun push(room: String, userId: String, e: Entry) =
-        Remote.api.upsert(room, listOf(e.toRemote(room, userId)))
-
-    /**
-     * Sincroniza con la sala: sube lo marcado desde [since] (todo si es 0) y reemplaza la lista de
-     * la pareja con lo que hay en la nube. Es idempotente, así que se puede repetir sin problema.
-     */
-    suspend fun sync(room: String, userId: String, mine: List<Entry>, since: Long) {
-        val rows = mine.filter { since == 0L || it.updatedAt > since }.map { it.toRemote(room, userId) }
-        if (rows.isNotEmpty()) Remote.api.upsert(room, rows)
-        val others = Remote.api.others(room, "eq.$room", "neq.$userId").map { it.toEntry() }.filter { !it.isEmpty }
-        dao.replaceAll(OWNER_PARTNER, others)
     }
 
     // ---- Cuenta de Google y amigos -------------------------------------------
 
     suspend fun setPartner(list: List<Entry>) = dao.replaceAll(OWNER_PARTNER, list)
 
-    /** Sube un cambio mío a mi cuenta (también las marcas vaciadas, para que mis amigos las vean quitadas). */
-    suspend fun pushAccount(userId: String, e: Entry) = Social.api.upsert(listOf(e.toUserEntry(userId)))
+    /** Mis amigos y, si hay un amigo aceptado elegido, su lista COMPLETA (se pide por páginas antes de reemplazar nada). */
+    class AccountPull(val friends: List<Friend>, val partner: List<Entry>?)
 
-    data class AccountSync(val friends: List<Friend>, val partner: List<Entry>?)
-
-    /**
-     * Un ciclo con mi cuenta: sube lo marcado desde [since] (todo si es 0), trae amigos y solicitudes y,
-     * si hay un amigo aceptado elegido, sus marcas. Es idempotente.
-     */
-    suspend fun syncAccount(userId: String, mine: List<Entry>, since: Long, friendId: String?): AccountSync {
-        val rows = mine.filter { since == 0L || it.updatedAt > since }.map { it.toUserEntry(userId) }
-        if (rows.isNotEmpty()) Social.api.upsert(rows)
+    suspend fun pullAccount(friendId: String?): AccountPull {
         val friends = Social.api.myFriends()
-        val partner = friendId?.takeIf { id -> friends.any { it.friend_id == id && it.accepted } }
-            ?.let { id -> Social.api.entriesOf("eq.$id").map { it.toEntry() }.filter { !it.isEmpty } }
-        return AccountSync(friends, partner)
+        val partner = friendId?.takeIf { id -> friends.any { it.friend_id == id && it.accepted } }?.let { id ->
+            Pages.fetchAll(PAGE_SIZE) { offset, limit -> Social.api.entriesOf("eq.$id", limit = limit, offset = offset) }
+                .map { it.toEntry() }.filter { !it.isEmpty }.distinctBy { it.movieId }
+        }
+        return AccountPull(friends, partner)
     }
+
+    /** La lista completa de las demás personas de la sala (modo anterior), por páginas. */
+    suspend fun pullRoom(room: String, userId: String): List<Entry> =
+        Pages.fetchAll(PAGE_SIZE) { offset, limit ->
+            Remote.api.others(room, "eq.$room", "neq.$userId", limit = limit, offset = offset)
+        }.map { it.toEntry() }.filter { !it.isEmpty }.distinctBy { it.movieId }
 
     suspend fun myProfile(): Profile? = Social.api.myProfile().firstOrNull()
     suspend fun createProfile(username: String): Profile =

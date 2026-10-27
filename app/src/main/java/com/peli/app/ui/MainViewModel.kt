@@ -9,10 +9,12 @@ import com.peli.app.BuildConfig
 import com.peli.app.CrashReporter
 import com.peli.app.PeliApp
 import com.peli.app.auth.GoogleToken
+import com.peli.app.data.ContextGuard
 import com.peli.app.data.Friend
 import com.peli.app.data.CandMeta
 import com.peli.app.data.ExposureRules
 import com.peli.app.data.Recommender
+import com.peli.app.data.Scopes
 import com.peli.app.data.FriendRequestResult
 import com.peli.app.data.Profile
 import com.peli.app.data.Social
@@ -60,6 +62,9 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
+/** Hay películas guardadas sin cuenta y alguien acaba de iniciar sesión: ¿pasan a esa cuenta? */
+data class PendingClaim(val scope: String, val count: Int)
+
 /** Ofrece deshacer la última respuesta de "Descubrir". */
 data class UndoOffer(val message: String, val card: Entry, val previous: Entry?)
 
@@ -73,6 +78,14 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
     private val pairing = peli.pairing
     private val sourcePrefs = peli.sourcePrefs
     private val account = peli.account
+    private val scopes = peli.scopes
+
+    /** Cambia cuando cambia el contexto (cuenta, amigo, sala): lo que llegue tarde de otro contexto se descarta. */
+    private val ctx = ContextGuard()
+    private val drainLock = Mutex()
+
+    /** De quién es la lista que hay ahora en la tabla de "la otra persona" (para no anunciar matches con datos de otro). */
+    private val partnerSource = MutableStateFlow<String?>(null)
 
     val mine = repo.mine.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     val partner = repo.partner.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
@@ -231,7 +244,15 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         launch(Dispatchers.IO) { Updater.cleanupDownloads(getApplication()) }
         whatsNew.value = Changelog.takeUnseen(getApplication())
         launch(Dispatchers.IO) { crashReport.value = CrashReporter.pending(getApplication()) }
-        if (account.session != null) launch { if (account.profile == null) loadProfile() else syncAccount() }
+        scopes.ensureInitialized(account.session?.userId)
+        partnerSource.value = matchContext()
+        if (account.session != null) launch {
+            // Si la sesión ya estaba pero la colección activa no es la de esa cuenta (p. ej. se cerró la app
+            // sin responder si las películas del teléfono pasaban a la cuenta), se vuelve a preguntar.
+            val uid = account.session?.userId
+            if (uid != null && scopes.current(uid) != Scopes.account(uid)) applyLoginPlan(scopes.current(uid), uid)
+            if (account.profile == null) loadProfile() else sync()
+        }
         checkForUpdate(manual = false)
         refillQueue()
 
@@ -249,11 +270,14 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         // Tinder: cada vez que aparece una película que a los dos nos interesa, se avisa una sola vez.
         launch {
             matches.collect { list ->
-                val announced = pairing.announced
+                // Solo se anuncia si la lista de la otra persona es realmente la del contexto actual.
+                val c = matchContext() ?: return@collect
+                if (partnerSource.value != c) return@collect
+                val announced = pairing.announced(c)
                 val fresh = list.filter { it.both && it.entry.movieId !in announced }
                 if (fresh.isNotEmpty()) {
                     AppLog.i("Match", "nuevos: ${fresh.joinToString { it.entry.title }}")
-                    pairing.announced = announced + fresh.map { it.entry.movieId }
+                    pairing.addAnnounced(c, fresh.map { it.entry.movieId })
                     pendingMatches.update { it + fresh.map { m -> m.entry } }
                 }
             }
@@ -366,7 +390,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         AppLog.i("Marca", "antes: ${describe(e)}")
         val next = repo.update(e, change)
         AppLog.i("Marca", "después: ${describe(next)}")
-        push(next)
+        requestDrain()   // la marca ya está guardada y encolada; la red no bloquea nada
         return next
     }
 
@@ -392,29 +416,6 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         ratePrompt.value = null
     }
 
-    private suspend fun push(next: Entry) {
-        val s = account.session
-        if (s != null && account.profile != null) {
-            try {
-                repo.pushAccount(s.userId, next)
-            } catch (ex: CancellationException) {
-                throw ex
-            } catch (ex: Exception) {
-                AppLog.w("Cuenta", "no se pudo subir el cambio (se reintenta en el próximo sync)", ex)
-            }
-            return
-        }
-        val r = room.value ?: return
-        try {
-            repo.push(r, pairing.userId, next)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (ex: Exception) {
-            // el siguiente sync vuelve a subir lo marcado
-            AppLog.w("Sala", "no se pudo subir el cambio (se reintenta en el próximo sync)", ex)
-        }
-    }
-
     /** La película con ese id desde cualquier lista conocida (para reabrir el detalle tras rotar). */
     fun lookup(id: Int): Entry? =
         mine.value.firstOrNull { it.movieId == id }
@@ -434,6 +435,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
             return
         }
         AppLog.i("Descubrir", "$answer → «${e.title}» (${e.movieId}); cola=${discoverQueue.value.size}")
+        val seq = ++answerSeq
         if (answer == Answer.Skip) {
             skipped += e.movieId
             peli.exposure.markSkipped(e.movieId, System.currentTimeMillis())
@@ -450,7 +452,8 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
                     Answer.NotInterested -> applyAndPush(e) { it.copy(disliked = true, liked = false, watchlist = false) }
                     Answer.Skip -> Unit
                 }
-                undo.value = UndoOffer(
+                // Con varias respuestas seguidas, solo la última manda la oferta de deshacer.
+                if (seq == answerSeq) undo.value = UndoOffer(
                     message = when (answer) {
                         Answer.Want -> "Guardada en «Quiero verla»"
                         Answer.SeenLiked -> "Guardada como «La vi y me gustó»"
@@ -488,8 +491,11 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         val offer = undo.value ?: return
         AppLog.i("Descubrir", "deshacer «${offer.card.title}»")
         undo.value = null
+        // Una nota pedida para la acción que se deshace ya no corresponde.
+        if (ratePrompt.value?.movieId == offer.card.movieId) ratePrompt.value = null
         launch {
-            push(repo.restore(offer.card, offer.previous))
+            repo.restore(offer.card, offer.previous)
+            requestDrain()
             skipped -= offer.card.movieId
             queue.update { listOf(offer.card) + it.filter { x -> x.movieId != offer.card.movieId } }
         }
@@ -503,6 +509,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         return partner.value
             .filter { it.watchlist && !it.seen && !it.disliked && it.movieId !in known }
             .map { it.copy(owner = com.peli.app.data.OWNER_ME, watchlist = false) }
+            .also { picks -> promoted += picks.map { it.movieId } }
     }
 
     /** Sugerencias: primero las de tu pareja, luego las ordenadas por el recomendador. Una carga a la vez. */
@@ -557,18 +564,27 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
 
     private fun enterRoom(code: String) {
         AppLog.i("Sala", "entrando a una sala (código ${code.take(2)}…)")
+        ctx.invalidate()
         pairing.room = code
-        pairing.lastPush = 0
+        scopes.clearSeeded(Scopes.room(code))   // al entrar se encola todo lo guardado
         room.value = code
-        launch { sync() }
+        launch {
+            repo.clearPartner()
+            partnerSource.value = null
+            sync()
+        }
     }
 
     fun leaveRoom() {
         AppLog.i("Sala", "saliendo de la sala")
+        ctx.invalidate()
         pairing.room = null
         room.value = null
         syncError.value = null
-        launch { repo.clearPartner() }
+        launch {
+            repo.clearPartner()
+            partnerSource.value = null
+        }
     }
 
     fun roomShareText(): String {
@@ -577,21 +593,68 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
             "(Peli → Juntos → Tengo un código)"
     }
 
-    /** Un ciclo de sincronización; se llama cada pocos segundos mientras la app está abierta. */
+    /**
+     * Un ciclo de sincronización (cada pocos segundos mientras la app está visible): primero se envía lo
+     * pendiente (cola durable) y después se trae la lista de la otra persona.
+     */
     suspend fun sync() {
-        if (account.session != null && account.profile != null) return syncAccount()
+        ensureSeeded()
+        drainOutbox()
+        if (account.session != null && account.profile != null) pullAccount() else pullRoom()
+    }
+
+    /** Pide enviar lo pendiente sin bloquear la pantalla (los botones no esperan a la red). */
+    private fun requestDrain() {
+        launch { drainOutbox() }
+    }
+
+    /** Hay UN solo drenador a la vez; ninguna pantalla envía por una vía paralela. */
+    private suspend fun drainOutbox() {
+        if (!Remote.configured) return
+        drainLock.withLock {
+            for (dest in repo.destinations()) {
+                try {
+                    val n = repo.drain(dest, pairing.userId)
+                    if (n > 0) AppLog.d("Envío", "$n cambios enviados a ${dest.substringBefore(':')}")
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    AppLog.w("Envío", "no se pudo enviar lo pendiente (se reintenta): ${repo.pending(dest)} en cola", e)
+                    syncError.value = e.accountMessage()
+                    return
+                }
+            }
+        }
+    }
+
+    /** Al activar un destino por primera vez (o de nuevo) se encola todo lo guardado; así nada depende de lo que la pantalla ya cargó. */
+    private suspend fun ensureSeeded() {
+        for (dest in repo.destinations()) {
+            if (!scopes.isSeeded(dest)) {
+                repo.enqueueAll(dest)
+                scopes.markSeeded(dest)
+                AppLog.i("Envío", "se encoló todo lo guardado para ${dest.substringBefore(':')}")
+            }
+        }
+    }
+
+    /** Sala del modo anterior (solo sin cuenta con usuario): trae la lista completa de las demás personas. */
+    private suspend fun pullRoom() {
         val r = room.value ?: return
         if (!Remote.configured) return
+        val token = ctx.token()
         syncLock.withLock {
-            val started = System.currentTimeMillis()
             try {
-                repo.sync(r, pairing.userId, mine.value, pairing.lastPush)
+                val others = repo.pullRoom(r, pairing.userId)
+                if (!ctx.valid(token) || room.value != r) {
+                    AppLog.d("Sala", "respuesta descartada: la sala cambió mientras se pedía")
+                    return
+                }
+                repo.setPartner(others)
+                partnerSource.value = Scopes.room(r)
                 if (syncError.value != null) AppLog.i("Sala", "sincronización recuperada")
-                pairing.lastPush = started
                 syncError.value = null
-                // Lo que tu pareja guardó pasa al frente de tus sugerencias.
-                val picks = partnerPicks()
-                if (picks.isNotEmpty()) queue.update { (picks.filter { p -> p.movieId !in skipped } + it).distinctBy { x -> x.movieId } }
+                picksToFront()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -612,6 +675,9 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
     val friends = MutableStateFlow<List<Friend>>(emptyList())
     val activeFriend = MutableStateFlow(account.activeFriend)
     val accountBusy = MutableStateFlow(false)
+    val claim = MutableStateFlow<PendingClaim?>(null)
+    private var answerSeq = 0
+    private val promoted = HashSet<Int>()
 
     /** Hay algo que sincronizar en segundo plano: una sala (modo anterior) o mi cuenta con usuario. */
     val syncActive: StateFlow<Boolean> = combine(room, profile) { r, p -> r != null || p != null }
@@ -625,10 +691,14 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
             accountBusy.value = true
             try {
                 val session = withContext(Dispatchers.IO) { SupabaseAuth.signInWithGoogle(token.idToken, token.rawNonce) }
+                // Qué colección de películas queda activa se decide ANTES de guardar la sesión.
+                val from = scopes.current(account.session?.userId)
+                ctx.invalidate()
                 account.save(session)
                 signedIn.value = true
                 accountEmail.value = session.email
                 AppLog.i("Cuenta", "sesión iniciada")
+                applyLoginPlan(from, session.userId)
                 loadProfile()
             } catch (e: CancellationException) {
                 throw e
@@ -646,7 +716,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         account.profile = p
         profile.value = p
         AppLog.i("Cuenta", if (p == null) "sin nombre de usuario todavía" else "perfil: @${p.username}")
-        if (p != null) syncAccount()
+        if (p != null) sync()
     }
 
     fun createProfile(username: String) {
@@ -663,7 +733,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
                 profile.value = p
                 AppLog.i("Cuenta", "perfil creado: @${p.username}")
                 message.value = "Listo, @${p.username}. Tu ID de amigo es ${com.peli.app.data.FriendCodes.format(p.friend_code)}."
-                syncAccount()
+                sync()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -693,7 +763,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
                     null -> "Respuesta inesperada del servidor."
                 }
                 AppLog.i("Amigos", "agregar «$q» → ${message.value}")
-                syncAccount()
+                pullAccount()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -707,12 +777,12 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
 
     fun acceptFriend(f: Friend) = friendAction("aceptar a @${f.username}") {
         repo.acceptFriend(f.friend_id)
-        if (account.activeFriend == null) selectFriend(f.friend_id, sync = false)
+        if (account.activeFriend == null) switchFriend(f.friend_id)
     }
 
     fun removeFriend(f: Friend) = friendAction("quitar a @${f.username}") {
         repo.removeFriend(f.friend_id)
-        if (account.activeFriend == f.friend_id) clearActiveFriend()
+        if (account.activeFriend == f.friend_id) switchFriend(null)
     }
 
     private fun friendAction(what: String, block: suspend () -> Unit) {
@@ -721,7 +791,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
             try {
                 AppLog.i("Amigos", what)
                 block()
-                syncAccount()
+                pullAccount()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -734,74 +804,141 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
     }
 
     /** Elige con qué amigo se comparan las listas (matches, "Descubrir" y nota de tu pareja). */
-    fun selectFriend(id: String, sync: Boolean = true) {
+    fun selectFriend(id: String) {
         if (account.activeFriend == id) return
-        account.activeFriend = id
-        account.baselineFriend = null
-        activeFriend.value = id
         AppLog.i("Amigos", "se compara con el amigo $id")
         launch {
-            repo.clearPartner()
-            if (sync) syncAccount()
+            switchFriend(id)
+            pullAccount()
         }
     }
 
-    private suspend fun clearActiveFriend() {
-        account.activeFriend = null
-        account.baselineFriend = null
-        activeFriend.value = null
+    /**
+     * Cambia el amigo activo (o ninguno). Invalida lo que estaba en vuelo, vacía la lista del amigo anterior
+     * y retira de las sugerencias lo que venía de él.
+     */
+    private suspend fun switchFriend(id: String?) {
+        ctx.invalidate()
         repo.clearPartner()
+        partnerSource.value = null
+        account.activeFriend = id
+        account.baselineFriend = null
+        activeFriend.value = id
+        queue.update { q -> q.filter { it.movieId !in promoted } }
+        promoted.clear()
     }
 
     fun signOut() {
         AppLog.i("Cuenta", "cerrar sesión")
+        ctx.invalidate()
+        val s = account.session
+        val scope = scopes.scope
         account.clear()
         signedIn.value = false
         accountEmail.value = null
         profile.value = null
         friends.value = emptyList()
         activeFriend.value = null
-        launch { repo.clearPartner() }
+        claim.value = null
+        launch {
+            // Las películas de la cuenta quedan guardadas aparte y vuelve la colección sin cuenta del teléfono.
+            if (s != null && scope == Scopes.account(s.userId)) {
+                repo.switchScope(scope, Scopes.GUEST)
+                scopes.scope = Scopes.GUEST
+            }
+            repo.clearPartner()
+            partnerSource.value = null
+            queue.update { q -> q.filter { it.movieId !in promoted } }
+            promoted.clear()
+        }
     }
 
-    /** Un ciclo con mi cuenta: sube mis marcas, trae amigos y las marcas del amigo elegido. */
-    private suspend fun syncAccount() {
+    /** Trae mis amigos y la lista COMPLETA del amigo elegido; si el contexto cambió mientras tanto, se descarta. */
+    private suspend fun pullAccount() {
         val s = account.session ?: return
         if (account.profile == null) return
+        val token = ctx.token()
+        val friendId = account.activeFriend
         syncLock.withLock {
-            val started = System.currentTimeMillis()
             try {
-                val result = repo.syncAccount(s.userId, mine.value, account.lastPush, account.activeFriend)
-                account.lastPush = started
+                val result = repo.pullAccount(friendId)
+                if (!ctx.valid(token) || account.session?.userId != s.userId || account.activeFriend != friendId) {
+                    AppLog.d("Cuenta", "respuesta descartada: el contexto cambió mientras se pedía")
+                    return
+                }
                 friends.value = result.friends
-
-                // Sin amigo elegido: si hay uno aceptado, se elige solo; si el elegido ya no es amigo, se quita.
                 val accepted = result.friends.filter { it.accepted }
-                val active = account.activeFriend
-                if (active != null && accepted.none { it.friend_id == active }) {
-                    clearActiveFriend()
-                } else if (active == null && accepted.size == 1) {
-                    selectFriend(accepted.first().friend_id, sync = false)
-                }
-
-                val partner = result.partner
-                if (partner != null && active != null) {
-                    // Los matches que ya existían al elegir al amigo no se "estrenan" todos de golpe.
-                    if (account.baselineFriend != active) {
-                        val existing = computeMatches(mine.value, partner).filter { it.both }.map { it.entry.movieId }
-                        pairing.announced = pairing.announced + existing
-                        account.baselineFriend = active
+                when {
+                    // El amigo elegido ya no es amigo: se deja de comparar.
+                    friendId != null && accepted.none { it.friend_id == friendId } -> {
+                        switchFriend(null)
+                        syncError.value = null
                     }
-                    repo.setPartner(partner)
-                    picksToFront()
+                    // Sin amigo elegido: si hay exactamente uno aceptado, se elige solo (la lista llega en el próximo ciclo).
+                    friendId == null -> {
+                        if (accepted.size == 1) switchFriend(accepted.first().friend_id)
+                        syncError.value = null
+                    }
+                    else -> {
+                        val partner = result.partner ?: return
+                        val c = "friend:$friendId"
+                        // Los matches que ya existían al elegir al amigo no se "estrenan" todos de golpe.
+                        if (account.baselineFriend != friendId) {
+                            val existing = computeMatches(repo.mine.first(), partner).filter { it.both }.map { it.entry.movieId }
+                            pairing.addAnnounced(c, existing)
+                            account.baselineFriend = friendId
+                        }
+                        repo.setPartner(partner)
+                        partnerSource.value = c
+                        picksToFront()
+                        syncError.value = null
+                    }
                 }
-                syncError.value = null
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 if (syncError.value == null) AppLog.w("Cuenta", "falló la sincronización de la cuenta", e)
                 syncError.value = e.accountMessage()
             }
+        }
+    }
+
+    /** Contexto de los matches: el amigo elegido (con cuenta) o la sala (modo anterior). */
+    private fun matchContext(): String? =
+        if (account.session != null && account.profile != null) account.activeFriend?.let { "friend:$it" }
+        else room.value?.let { Scopes.room(it) }
+
+    /** Colección de películas del teléfono según la sesión (ver [Scopes.loginPlan]); nunca mezcla en silencio. */
+    private suspend fun applyLoginPlan(from: String, userId: String) {
+        val to = Scopes.account(userId)
+        val plan = Scopes.loginPlan(from, to, hasStash = repo.stashCount(to) > 0, meCount = repo.meCount())
+        AppLog.i("Cuenta", "colección local al iniciar sesión: $plan")
+        when (plan) {
+            Scopes.LoginPlan.Same -> scopes.scope = to
+            Scopes.LoginPlan.Restore -> {
+                repo.switchScope(from, to)
+                scopes.scope = to
+                scopes.clearSeeded(to)
+            }
+            Scopes.LoginPlan.Adopt -> {
+                scopes.scope = to
+                scopes.clearSeeded(to)
+            }
+            // Hay películas guardadas sin cuenta: el usuario decide si pasan a esta cuenta.
+            Scopes.LoginPlan.AskClaim -> claim.value = PendingClaim(to, repo.meCount())
+        }
+    }
+
+    /** Respuesta del usuario: usar (true) o no las películas de este teléfono con la cuenta que acaba de entrar. */
+    fun claimGuestCollection(use: Boolean) {
+        val c = claim.value ?: return
+        claim.value = null
+        launch {
+            if (!use) repo.switchScope(Scopes.GUEST, c.scope)   // quedan guardadas aparte; la cuenta empieza vacía
+            scopes.scope = c.scope
+            scopes.clearSeeded(c.scope)
+            AppLog.i("Cuenta", if (use) "las películas de este teléfono pasan a la cuenta" else "las películas de este teléfono se guardan aparte")
+            sync()
         }
     }
 

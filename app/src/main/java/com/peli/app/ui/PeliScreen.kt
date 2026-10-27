@@ -410,6 +410,8 @@ private fun Home(vm: MainViewModel, tab: Tab, onTabChange: (Tab) -> Unit, onOpen
 
     val ratePrompt by vm.ratePrompt.collectAsState()
     ratePrompt?.let { RatePromptSheet(it, onRate = vm::rateFromPrompt, onSkip = vm::dismissRatePrompt) }
+    val claim by vm.claim.collectAsState()
+    claim?.let { ClaimGuestDialog(it, onChoose = vm::claimGuestCollection) }
 
     if (whatsNew.isNotEmpty()) WhatsNewSheet(whatsNew, onDismiss = vm::dismissWhatsNew)
     if (showSettings) {

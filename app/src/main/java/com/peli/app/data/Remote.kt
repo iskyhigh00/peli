@@ -53,6 +53,9 @@ interface SupabaseApi {
         @Query("room") room: String,
         @Query("user_id") userId: String,
         @Query("select") select: String = "*",
+        @Query("order") order: String = "user_id.asc,movie_id.asc",
+        @Query("limit") limit: Int = 500,
+        @Query("offset") offset: Int = 0,
     ): List<RemoteEntry>
 }
 

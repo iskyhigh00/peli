@@ -135,6 +135,18 @@ class AccountStore(context: Context) {
             .putLong("expires", s.expiresAt).putString("uid", s.userId).putString("email", s.email).apply()
     }
 
+    /**
+     * Guarda una sesión renovada SOLO si la sesión actual sigue siendo la que se renovó. Si mientras tanto
+     * se cerró la sesión (o cambió de cuenta), la renovada se descarta y no revive una sesión cerrada.
+     */
+    @Synchronized
+    fun replaceIfCurrent(expected: Session, next: Session): Boolean {
+        val cur = cached ?: return false
+        if (cur.userId != expected.userId || cur.refreshToken != expected.refreshToken) return false
+        save(next)
+        return true
+    }
+
     @Synchronized
     fun clear() {
         cached = null
@@ -258,7 +270,13 @@ interface SocialApi {
 
     /** Filas de una persona: la base solo las entrega si soy yo o un amigo aceptado. */
     @GET("rest/v1/user_entries")
-    suspend fun entriesOf(@Query("user_id") userId: String, @Query("select") select: String = "*"): List<UserEntry>
+    suspend fun entriesOf(
+        @Query("user_id") userId: String,
+        @Query("select") select: String = "*",
+        @Query("order") order: String = "movie_id.asc",
+        @Query("limit") limit: Int = 500,
+        @Query("offset") offset: Int = 0,
+    ): List<UserEntry>
 }
 
 object Social {
@@ -268,6 +286,9 @@ object Social {
     /** La asigna PeliApp al iniciar. */
     lateinit var store: AccountStore
 
+    /** Cuenta con la sesión activa ahora (null = sin sesión). */
+    fun currentUserId(): String? = store.session?.userId
+
     private val refreshLock = Any()
 
     /** accessToken vigente; lo renueva si está por caducar. null = sin sesión. */
@@ -276,7 +297,10 @@ object Social {
         if (!force && !s.expiresSoon()) return s.accessToken
         try {
             val next = SupabaseAuth.refresh(s.refreshToken)
-            store.save(next)
+            if (!store.replaceIfCurrent(s, next)) {
+                AppLog.i("Cuenta", "renovación descartada: la sesión cambió mientras se renovaba")
+                return null
+            }
             AppLog.i("Cuenta", "sesión renovada")
             next.accessToken
         } catch (e: AccountException) {
@@ -313,4 +337,28 @@ object Social {
             .build()
             .create(SocialApi::class.java)
     }
+}
+
+/**
+ * Qué colección de películas del teléfono está activa (invitado o una cuenta) y a qué destinos ya se les
+ * subió todo lo guardado. Las colecciones de otras cuentas quedan apartadas, sin borrarse ni mezclarse.
+ */
+class ScopeStore(context: Context) {
+    private val prefs = context.getSharedPreferences("peli_scope", Context.MODE_PRIVATE)
+
+    var scope: String?
+        get() = prefs.getString("scope", null)
+        set(v) = prefs.edit().putString("scope", v).apply()
+
+    /** Instalaciones anteriores: lo guardado pertenece a la cuenta con sesión, o al invitado si no hay. */
+    fun current(userId: String?): String = scope ?: (userId?.let { Scopes.account(it) } ?: Scopes.GUEST)
+
+    fun ensureInitialized(userId: String?) {
+        if (scope == null) scope = current(userId)
+    }
+
+    private fun seeded(): Set<String> = prefs.getStringSet("seeded", emptySet()).orEmpty()
+    fun isSeeded(dest: String) = dest in seeded()
+    fun markSeeded(dest: String) = prefs.edit().putStringSet("seeded", seeded() + dest).apply()
+    fun clearSeeded(dest: String) = prefs.edit().putStringSet("seeded", seeded() - dest).apply()
 }

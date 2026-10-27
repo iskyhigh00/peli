@@ -15,14 +15,30 @@ class PairingStore(context: Context) {
         get() = prefs.getString("room", null)
         set(v) = prefs.edit().putString("room", v).apply()
 
-    /** Hora (ms) de la última sincronización completa; lo marcado después se vuelve a subir. */
-    var lastPush: Long
-        get() = prefs.getLong("last_push", 0L)
-        set(v) = prefs.edit().putLong("last_push", v).apply()
+    /**
+     * Matches ya avisados, por contexto (un amigo o una sala): la misma película puede ser un match nuevo con
+     * otra persona. Lo guardado por versiones anteriores (solo ids) se asigna al primer contexto que lo consulte.
+     */
+    fun announced(ctx: String): Set<Int> {
+        migrateLegacy(ctx)
+        return prefs.getStringSet("announced2", emptySet()).orEmpty()
+            .filter { it.substringBeforeLast('|') == ctx }
+            .mapNotNull { it.substringAfterLast('|').toIntOrNull() }
+            .toSet()
+    }
 
-    var announced: Set<Int>
-        get() = prefs.getStringSet("announced", emptySet()).orEmpty().mapNotNull { it.toIntOrNull() }.toSet()
-        set(v) = prefs.edit().putStringSet("announced", v.map { it.toString() }.toSet()).apply()
+    fun addAnnounced(ctx: String, ids: Collection<Int>) {
+        migrateLegacy(ctx)
+        val current = prefs.getStringSet("announced2", emptySet()).orEmpty()
+        prefs.edit().putStringSet("announced2", current + ids.map { "$ctx|$it" }).apply()
+    }
+
+    private fun migrateLegacy(ctx: String) {
+        if (prefs.getBoolean("announced_migrated", false)) return
+        val legacy = prefs.getStringSet("announced", emptySet()).orEmpty().mapNotNull { it.toIntOrNull() }
+        val current = prefs.getStringSet("announced2", emptySet()).orEmpty()
+        prefs.edit().putStringSet("announced2", current + legacy.map { "$ctx|$it" }).putBoolean("announced_migrated", true).apply()
+    }
 }
 
 /** Códigos de sala de 10 caracteres sin letras ambiguas (0/O, 1/I): ~50 bits de azar. */

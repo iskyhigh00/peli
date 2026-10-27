@@ -255,3 +255,24 @@ private fun FriendsPanel(vm: MainViewModel, username: String, code: String, busy
         )
     }
 }
+
+/** Al iniciar sesión con películas guardadas sin cuenta: nunca se suben en silencio, el usuario decide. */
+@Composable
+fun ClaimGuestDialog(claim: PendingClaim, onChoose: (Boolean) -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    AlertDialog(
+        onDismissRequest = {},
+        title = { Text("¿Usar las películas de este teléfono con tu cuenta?") },
+        text = {
+            Text(
+                "Hay ${claim.count} películas guardadas en este teléfono sin cuenta. Si las usas, se suben a tu cuenta " +
+                    "y tus amigos podrán verlas. Si no, quedan guardadas aparte (no se borran) y tu cuenta empieza vacía.",
+            )
+        },
+        confirmButton = { TextButton(onClick = { onChoose(true) }) { Text("Usarlas") } },
+        dismissButton = { TextButton(onClick = { onChoose(false) }) { Text("Empezar vacía") } },
+        containerColor = scheme.surface,
+        titleContentColor = scheme.onSurface,
+        textContentColor = scheme.onSurfaceVariant,
+    )
+}
