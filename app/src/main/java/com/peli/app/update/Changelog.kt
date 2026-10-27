@@ -73,6 +73,9 @@ object Changelog {
             "Registro completo de la app: Ajustes → Registro (ver, copiar, compartir o borrar).",
             "Anota pantallas, marcas, búsquedas, red, memoria y errores, sin claves ni códigos de sala.",
         ),
+        "1.1.8" to listOf(
+            "Activada la clave de OMDb: ahora se ven las notas de IMDb, Rotten Tomatoes y Metacritic.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"
