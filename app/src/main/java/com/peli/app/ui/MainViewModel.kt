@@ -20,7 +20,9 @@ import com.peli.app.data.toggleDisliked
 import com.peli.app.data.toggleLiked
 import com.peli.app.data.toggleSeen
 import com.peli.app.data.toggleWatch
+import com.peli.app.data.stateLabel
 import com.peli.app.data.withRating
+import com.peli.app.log.AppLog
 import com.peli.app.update.Changelog
 import com.peli.app.update.Updater
 import kotlinx.coroutines.CancellationException
@@ -81,11 +83,11 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         .map { MineSort.valueOf(it) }.stateIn(viewModelScope, SharingStarted.Eagerly, MineSort.Recent)
 
     fun setSearchQuery(q: String) { saved[KEY_QUERY] = q }
-    fun setSearchFilter(f: SearchFilter) { saved[KEY_SEARCH_FILTER] = f.name }
-    fun setMineFilter(f: MineFilter) { saved[KEY_MINE_FILTER] = f.name }
-    fun setMineSort(s: MineSort) { saved[KEY_MINE_SORT] = s.name }
-    fun setSearchYears(r: YearRange?) { saved[KEY_SEARCH_YEARS] = r?.encode() ?: "" }
-    fun setMineYears(r: YearRange?) { saved[KEY_MINE_YEARS] = r?.encode() ?: "" }
+    fun setSearchFilter(f: SearchFilter) { AppLog.d("Filtro", "buscar: ${f.name}"); saved[KEY_SEARCH_FILTER] = f.name }
+    fun setMineFilter(f: MineFilter) { AppLog.d("Filtro", "mi lista: ${f.name}"); saved[KEY_MINE_FILTER] = f.name }
+    fun setMineSort(s: MineSort) { AppLog.d("Filtro", "orden de mi lista: ${s.name}"); saved[KEY_MINE_SORT] = s.name }
+    fun setSearchYears(r: YearRange?) { AppLog.d("Filtro", "años (buscar): ${r?.encode() ?: "todos"}"); saved[KEY_SEARCH_YEARS] = r?.encode() ?: "" }
+    fun setMineYears(r: YearRange?) { AppLog.d("Filtro", "años (mi lista): ${r?.encode() ?: "todos"}"); saved[KEY_MINE_YEARS] = r?.encode() ?: "" }
 
     // ---- Buscar --------------------------------------------------------------
 
@@ -135,6 +137,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         val next = sources.value.let { if (source in it) it - source else it + source }
         sources.value = next
         sourcePrefs.save(next)
+        AppLog.i("Ajustes", "fuentes de valoraciones: ${next.joinToString { it.name }.ifEmpty { "ninguna" }}")
     }
 
     /** Valoraciones por película, cargadas al abrir su detalle y guardadas mientras la app siga abierta. */
@@ -144,12 +147,14 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         val current = insights.value[movieId]
         if (!force && (current is InsightsState.Ready || current is InsightsState.Loading)) return
         insights.update { it + (movieId to InsightsState.Loading) }
+        AppLog.d("Valoraciones", "cargando película $movieId")
         launch {
             val state = try {
                 InsightsState.Ready(repo.insights(movieId))
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                AppLog.w("Valoraciones", "falló la carga de la película $movieId", e)
                 InsightsState.Failed(e.message ?: e.javaClass.simpleName)
             }
             insights.update { it + (movieId to state) }
@@ -197,7 +202,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
      */
     private val errorHandler = CoroutineExceptionHandler { _, e ->
         if (e !is CancellationException) {
-            CrashReporter.record(getApplication(), "corrutina", e)
+            CrashReporter.record(getApplication(), "corrutina", e)  // también lo deja en el registro
             message.value = "Algo falló: ${e.message ?: e.javaClass.simpleName}"
         }
     }
@@ -231,6 +236,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
                 val announced = pairing.announced
                 val fresh = list.filter { it.both && it.entry.movieId !in announced }
                 if (fresh.isNotEmpty()) {
+                    AppLog.i("Match", "nuevos: ${fresh.joinToString { it.entry.title }}")
                     pairing.announced = announced + fresh.map { it.entry.movieId }
                     pendingMatches.update { it + fresh.map { m -> m.entry } }
                 }
@@ -249,12 +255,20 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         }
         searchLoading.value = true
         searchError.value = null
+        val t0 = System.currentTimeMillis()
         try {
             val years = searchYears.value
             results.value = if (q.isBlank()) loadFeed(refresh = pull, years = years) else repo.search(q.trim(), years)
+            AppLog.i(
+                "Buscar",
+                "${if (q.isBlank()) "sugerencias${if (pull) " (actualizadas)" else ""}" else "«${q.trim()}»"} " +
+                    "años=${years?.encode() ?: "todos"} → ${results.value.size} resultados (${System.currentTimeMillis() - t0} ms)",
+            )
         } catch (e: CancellationException) {
+            AppLog.d("Buscar", "búsqueda «$q» cancelada (llegó otra)")
             throw e
         } catch (e: Exception) {
+            AppLog.w("Buscar", "falló la búsqueda «$q»", e)
             if (pull && results.value.isNotEmpty()) {
                 message.value = "No se pudo actualizar: ${e.message}"
             } else {
@@ -310,9 +324,14 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         launch { applyAndPush(e, change) }
     }
 
+    private fun describe(e: Entry) = "«${e.title}» (${e.movieId}) [${e.stateLabel()}${if (e.myRating > 0) ", nota ${e.myRating}" else ""}]"
+
     /** Guarda localmente y sube el cambio a la sala (si falla, el próximo sync lo reintenta). */
     private suspend fun applyAndPush(e: Entry, change: (Entry) -> Entry) {
-        push(repo.update(e, change))
+        AppLog.i("Marca", "antes: ${describe(e)}")
+        val next = repo.update(e, change)
+        AppLog.i("Marca", "después: ${describe(next)}")
+        push(next)
     }
 
     private suspend fun push(next: Entry) {
@@ -321,8 +340,9 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
             repo.push(r, pairing.userId, next)
         } catch (e: CancellationException) {
             throw e
-        } catch (_: Exception) {
+        } catch (ex: Exception) {
             // el siguiente sync vuelve a subir lo marcado
+            AppLog.w("Sala", "no se pudo subir el cambio (se reintenta en el próximo sync)", ex)
         }
     }
 
@@ -340,7 +360,11 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
 
     fun answer(e: Entry, answer: Answer) {
         // Toques rápidos: solo cuenta la tarjeta que realmente está arriba.
-        if (discoverQueue.value.firstOrNull()?.movieId != e.movieId) return
+        if (discoverQueue.value.firstOrNull()?.movieId != e.movieId) {
+            AppLog.d("Descubrir", "respuesta ignorada: «${e.title}» ya no es la tarjeta de arriba")
+            return
+        }
+        AppLog.i("Descubrir", "$answer → «${e.title}» (${e.movieId}); cola=${discoverQueue.value.size}")
         if (answer == Answer.Skip) skipped += e.movieId
         queue.update { it.filter { x -> x.movieId != e.movieId } }
         launch {
@@ -369,6 +393,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
     /** Deshace la última respuesta: restaura la marca anterior y devuelve la tarjeta al frente. */
     fun undoAnswer() {
         val offer = undo.value ?: return
+        AppLog.i("Descubrir", "deshacer «${offer.card.title}»")
         undo.value = null
         launch {
             push(repo.restore(offer.card, offer.previous))
@@ -397,6 +422,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         refillJob = launch {
             queueLoading.value = true
             queueError.value = null
+            val t0 = System.currentTimeMillis()
             try {
                 val marked = repo.mine.first()
                 val ranked = repo.recommend(marked)
@@ -404,9 +430,11 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
                 queue.value = (partnerPicks() + queue.value + ranked)
                     .filter { it.movieId !in known && it.movieId !in skipped }
                     .distinctBy { it.movieId }
+                AppLog.i("Descubrir", "cola rellenada: ${queue.value.size} sugerencias (${System.currentTimeMillis() - t0} ms)")
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                AppLog.w("Descubrir", "falló al rellenar la cola", e)
                 queueError.value = "Error de red: ${e.message}"
             } finally {
                 queueLoading.value = false
@@ -424,6 +452,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
     }
 
     private fun enterRoom(code: String) {
+        AppLog.i("Sala", "entrando a una sala (código ${code.take(2)}…)")
         pairing.room = code
         pairing.lastPush = 0
         room.value = code
@@ -431,6 +460,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
     }
 
     fun leaveRoom() {
+        AppLog.i("Sala", "saliendo de la sala")
         pairing.room = null
         room.value = null
         syncError.value = null
@@ -451,6 +481,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
             val started = System.currentTimeMillis()
             try {
                 repo.sync(r, pairing.userId, mine.value, pairing.lastPush)
+                if (syncError.value != null) AppLog.i("Sala", "sincronización recuperada")
                 pairing.lastPush = started
                 syncError.value = null
                 // Lo que tu pareja guardó pasa al frente de tus sugerencias.
@@ -459,6 +490,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                if (syncError.value == null) AppLog.w("Sala", "falló la sincronización", e)
                 syncError.value = e.message ?: e.javaClass.simpleName
             }
         }
@@ -484,6 +516,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
     /** Al abrir la app es silencioso; manual (botón) informa también si está al día o falló. */
     fun checkForUpdate(manual: Boolean) {
         launch {
+            AppLog.d("Actualizador", "consultando actualización (${if (manual) "manual" else "automática"})")
             val res = withContext(Dispatchers.IO) { Updater.checkLatest() }
             val v = res.version
             when {
@@ -503,6 +536,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
     fun installUpdate() {
         if (progress.value != -2) return   // ya se está descargando
         val v = newVersion.value ?: return
+        AppLog.i("Actualizador", "el usuario pidió instalar v$v")
         launch {
             progress.value = -1
             try {
@@ -512,6 +546,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                AppLog.w("Actualizador", "no se pudo instalar v$v", e)
                 message.value = "No se pudo actualizar: ${e.message}"
             } finally {
                 progress.value = -2

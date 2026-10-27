@@ -6,6 +6,7 @@ import android.app.Application
 import android.app.ApplicationExitInfo
 import android.content.Context
 import android.os.Build
+import com.peli.app.log.AppLog
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -34,6 +35,8 @@ object CrashReporter {
 
     /** Guarda el error (también los no fatales capturados por la app) para mostrarlo al próximo arranque. */
     fun record(context: Context, source: String, error: Throwable, thread: Thread = Thread.currentThread()) {
+        if (source == "fatal") AppLog.fatal("Crash", "excepción no controlada en el hilo ${thread.name}", error)
+        else AppLog.e("Error", "excepción capturada ($source)", error)
         runCatching {
             File(context.filesDir, FILE).writeText(
                 buildString {
@@ -52,7 +55,10 @@ object CrashReporter {
         val parts = mutableListOf<String>()
         runCatching { File(context.filesDir, FILE).takeIf { it.exists() }?.readText() }.getOrNull()
             ?.takeIf { it.isNotBlank() }?.let { parts += it }
-        systemExit(context)?.let { parts += it }
+        systemExit(context)?.let {
+            parts += it
+            AppLog.w("Cierre previo", it)
+        }
         return parts.takeIf { it.isNotEmpty() }?.joinToString("\n\n— — —\n\n")
     }
 

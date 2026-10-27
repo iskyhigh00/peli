@@ -67,6 +67,7 @@ import com.peli.app.data.Entry
 import com.peli.app.data.OWNER_ME
 import com.peli.app.data.Ratings
 import com.peli.app.data.TmdbApi
+import com.peli.app.log.AppLog
 import com.peli.app.data.stateLabel
 import com.peli.app.ui.theme.PeliTheme
 
@@ -106,7 +107,10 @@ fun PosterImage(
                 contentDescription = contentDescription,
                 contentScale = contentScale,
                 onSuccess = { loaded = true },
-                onError = { failed = true },
+                onError = {
+                    failed = true
+                    AppLog.w("Imagen", "no se pudo cargar la carátula $path: ${it.result.throwable.message}")
+                },
                 modifier = Modifier.fillMaxSize(),
             )
         }

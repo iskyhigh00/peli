@@ -7,6 +7,7 @@ import android.os.Build
 import androidx.core.content.FileProvider
 import com.peli.app.APP_VERSION
 import com.peli.app.BuildConfig
+import com.peli.app.log.AppLog
 import org.json.JSONObject
 import java.io.File
 import java.io.IOException
@@ -42,8 +43,10 @@ object Updater {
             val id = assetMap()[VERSION_NAME]?.id
                 ?: return CheckResult(null, "el release no tiene $VERSION_NAME")
             val txt = readAssetText(id).trim().removePrefix("v").trim()
-            if (txt.isEmpty()) CheckResult(null, "version.txt vacío") else CheckResult(txt, null)
+            if (txt.isEmpty()) CheckResult(null, "version.txt vacío").also { AppLog.w("Actualizador", "version.txt vacío") }
+            else CheckResult(txt, null).also { AppLog.i("Actualizador", "última versión publicada: v$txt (instalada v$APP_VERSION)") }
         } catch (e: Exception) {
+            AppLog.w("Actualizador", "no se pudo consultar la última versión", e)
             CheckResult(null, e.message ?: e.javaClass.simpleName)
         }
     }
@@ -69,7 +72,9 @@ object Updater {
     fun downloadAndInstall(context: Context, version: String, onProgress: (Int) -> Unit): Boolean {
         val asset = assetMap()[APK_NAME] ?: throw IOException("el release no tiene $APK_NAME")
         val apk = File(context.cacheDir, "update-$version.apk")
+        AppLog.i("Actualizador", "actualizar a v$version (APK de ${asset.size} bytes)")
         if (apk.exists() && asset.size > 0 && apk.length() == asset.size) {
+            AppLog.i("Actualizador", "descarga completa ya guardada: se reutiliza")
             onProgress(100)
             installApk(context, apk)
             return true
@@ -94,12 +99,14 @@ object Updater {
                 }
             }
         } catch (e: Exception) {
+            AppLog.w("Actualizador", "la descarga falló", e)
             part.delete()
             throw e
         } finally {
             conn.disconnect()
         }
         if (asset.size > 0 && part.length() != asset.size) {
+            AppLog.w("Actualizador", "descarga incompleta: ${part.length()} de ${asset.size} bytes")
             part.delete()
             throw IOException("descarga incompleta")
         }
@@ -128,6 +135,7 @@ object Updater {
             val intent = Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES)
                 .setData(Uri.parse("package:${context.packageName}"))
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            AppLog.w("Actualizador", "falta el permiso «instalar apps desconocidas»: se abre su ajuste")
             context.startActivity(intent)
             return
         }
@@ -137,6 +145,7 @@ object Updater {
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
+        AppLog.i("Actualizador", "se abre el instalador del sistema")
         context.startActivity(intent)
     }
 

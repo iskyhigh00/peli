@@ -2,6 +2,7 @@ package com.peli.app.data
 
 import com.google.gson.GsonBuilder
 import com.peli.app.BuildConfig
+import com.peli.app.log.LogInterceptor
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -69,6 +70,7 @@ object Remote {
                         .build(),
                 )
             }
+            .addInterceptor(LogInterceptor("Supabase"))
             .build()
         Retrofit.Builder()
             .baseUrl(BuildConfig.SUPABASE_URL.trimEnd('/') + "/")

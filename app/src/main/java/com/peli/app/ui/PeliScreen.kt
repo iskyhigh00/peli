@@ -71,6 +71,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.peli.app.data.Entry
+import com.peli.app.log.AppLog
 import com.peli.app.ui.components.AnimatedNavigationBar
 import com.peli.app.ui.components.BrandBackground
 import com.peli.app.ui.components.CrashReportDialog
@@ -132,8 +133,16 @@ fun PeliScreen(vm: MainViewModel = viewModel()) {
             }
         }
 
+        LaunchedEffect(tab) { AppLog.i("Navegación", "pestaña: ${tab.name}") }
+        LaunchedEffect(selectedId) {
+            AppLog.i("Navegación", if (selectedId == null) "detalle cerrado" else "detalle abierto: película $selectedId")
+        }
+
         // Atrás desde otra pestaña vuelve a la primera; recién ahí sale de la app.
-        BackHandler(enabled = tab != Tab.Search && selected == null && pendingMatches.isEmpty()) { tab = Tab.Search }
+        BackHandler(enabled = tab != Tab.Search && selected == null && pendingMatches.isEmpty()) {
+            AppLog.d("Navegación", "Atrás: de ${tab.name} a Search")
+            tab = Tab.Search
+        }
 
         BrandBackground {
             SharedTransitionLayout {
@@ -404,6 +413,7 @@ private fun Home(vm: MainViewModel, tab: Tab, onTabChange: (Tab) -> Unit, onOpen
             omdbAvailable = vm.omdbAvailable,
             onToggle = vm::toggleSource,
             onCheckUpdate = { vm.checkForUpdate(manual = true) },
+            onMessage = { vm.message.value = it },
             onDismiss = { showSettings = false },
         )
     }

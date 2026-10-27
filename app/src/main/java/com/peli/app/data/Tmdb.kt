@@ -1,6 +1,7 @@
 package com.peli.app.data
 
 import com.peli.app.BuildConfig
+import com.peli.app.log.LogInterceptor
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -85,6 +86,7 @@ interface TmdbApi {
                         .build()
                     chain.proceed(chain.request().newBuilder().url(url).build())
                 }
+                .addInterceptor(LogInterceptor("TMDB"))
                 .build()
             return Retrofit.Builder()
                 .baseUrl("https://api.themoviedb.org/3/")

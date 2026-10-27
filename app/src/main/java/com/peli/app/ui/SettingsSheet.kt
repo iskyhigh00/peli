@@ -61,6 +61,7 @@ fun SettingsSheet(
     omdbAvailable: Boolean,
     onToggle: (RatingSource) -> Unit,
     onCheckUpdate: () -> Unit,
+    onMessage: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -99,6 +100,8 @@ fun SettingsSheet(
             HorizontalDivider(Modifier.padding(vertical = ItemSpacing))
             Text("Versión $APP_VERSION", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             TonalButton("Buscar actualización", onCheckUpdate, Modifier.fillMaxWidth().padding(top = 8.dp))
+            HorizontalDivider(Modifier.padding(vertical = ItemSpacing))
+            LogSection(onMessage)
         }
     }
 }

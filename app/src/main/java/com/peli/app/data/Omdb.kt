@@ -2,6 +2,8 @@ package com.peli.app.data
 
 import com.google.gson.annotations.SerializedName
 import com.peli.app.BuildConfig
+import com.peli.app.log.LogInterceptor
+import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.GET
@@ -33,6 +35,7 @@ object Omdb {
     val api: OmdbApi by lazy {
         Retrofit.Builder()
             .baseUrl("https://www.omdbapi.com/")
+            .client(OkHttpClient.Builder().addInterceptor(LogInterceptor("OMDb")).build())
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(OmdbApi::class.java)

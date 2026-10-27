@@ -11,6 +11,7 @@ import androidx.room.RoomDatabase
 import androidx.room.Transaction
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.peli.app.log.AppLog
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -42,6 +43,7 @@ abstract class EntryDao {
 
 private val MIGRATION_1_2 = object : Migration(1, 2) {
     override fun migrate(db: SupportSQLiteDatabase) {
+        AppLog.i("DB", "migración 1→2")
         db.execSQL("ALTER TABLE entries ADD COLUMN releaseDate TEXT")
     }
 }
@@ -49,6 +51,7 @@ private val MIGRATION_1_2 = object : Migration(1, 2) {
 /** "favorite" pasa a significar "la vi y me gustó"; las que solo me interesaban pasan a "quiero verla". */
 private val MIGRATION_2_3 = object : Migration(2, 3) {
     override fun migrate(db: SupportSQLiteDatabase) {
+        AppLog.i("DB", "migración 2→3")
         db.execSQL("ALTER TABLE entries ADD COLUMN watchlist INTEGER NOT NULL DEFAULT 0")
         db.execSQL("ALTER TABLE entries ADD COLUMN genres TEXT")
         db.execSQL("ALTER TABLE entries ADD COLUMN rating REAL")
@@ -59,6 +62,7 @@ private val MIGRATION_2_3 = object : Migration(2, 3) {
 
 private val MIGRATION_3_4 = object : Migration(3, 4) {
     override fun migrate(db: SupportSQLiteDatabase) {
+        AppLog.i("DB", "migración 3→4")
         db.execSQL("ALTER TABLE entries ADD COLUMN myRating INTEGER NOT NULL DEFAULT 0")
     }
 }
@@ -71,6 +75,11 @@ abstract class AppDb : RoomDatabase() {
         fun create(context: Context) =
             Room.databaseBuilder(context, AppDb::class.java, "peli.db")
                 .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                .addCallback(object : RoomDatabase.Callback() {
+                    override fun onOpen(db: SupportSQLiteDatabase) {
+                        AppLog.i("DB", "base de datos abierta (versión ${db.version})")
+                    }
+                })
                 .build()
     }
 }

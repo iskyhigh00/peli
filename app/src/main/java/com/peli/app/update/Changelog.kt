@@ -69,6 +69,10 @@ object Changelog {
             "Tu nota de 1 a 10 (también mejora tus recomendaciones) y la nota de tu pareja.",
             "Ajustes: elige de qué fuentes quieres ver valoraciones y reseñas.",
         ),
+        "1.1.7" to listOf(
+            "Registro completo de la app: Ajustes → Registro (ver, copiar, compartir o borrar).",
+            "Anota pantallas, marcas, búsquedas, red, memoria y errores, sin claves ni códigos de sala.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"
