@@ -65,6 +65,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.peli.app.data.Entry
 import com.peli.app.data.OWNER_ME
+import com.peli.app.data.Ratings
 import com.peli.app.data.TmdbApi
 import com.peli.app.data.stateLabel
 import com.peli.app.ui.theme.PeliTheme
@@ -255,8 +256,13 @@ fun MovieCard(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.sharedTitle(entry.movieId),
                 )
-                if (entry.dateLabel.isNotBlank()) {
-                    Text(entry.dateLabel, style = MaterialTheme.typography.labelMedium, color = scheme.onSurfaceVariant)
+                val meta = listOfNotNull(
+                    entry.dateLabel.takeIf { it.isNotBlank() },
+                    entry.rating?.takeIf { it > 0 }?.let { "★ ${Ratings.formatScore(it)}" },
+                    mine?.myRating?.takeIf { it > 0 }?.let { "Mi nota $it" },
+                ).joinToString(" · ")
+                if (meta.isNotBlank()) {
+                    Text(meta, style = MaterialTheme.typography.labelMedium, color = scheme.onSurfaceVariant)
                 }
                 if (entry.isUpcoming || badge != null || state != null) {
                     Spacer(Modifier.height(4.dp))

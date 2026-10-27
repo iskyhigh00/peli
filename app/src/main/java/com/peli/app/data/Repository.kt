@@ -42,6 +42,42 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
         return next
     }
 
+    /**
+     * Valoraciones de una película: TMDB (nota + reseñas) y, con clave de OMDb, IMDb / Rotten Tomatoes /
+     * Metacritic. Si falla algo opcional (reseñas, OMDb) se muestra lo que sí llegó; si fallan los
+     * detalles de TMDB, el error se propaga para poder reintentar.
+     */
+    suspend fun insights(movieId: Int): MovieInsights = coroutineScope {
+        val details = async { api.details(movieId) }
+        val reviews = async { runCatching { api.reviews(movieId).results }.getOrDefault(emptyList()) }
+        val d = details.await()
+        val imdbId = d.external_ids?.imdb_id?.takeIf { it.isNotBlank() }
+        val omdb = if (Omdb.configured && imdbId != null) {
+            runCatching { Omdb.api.byImdb(imdbId, com.peli.app.BuildConfig.OMDB_API_KEY) }
+                .getOrNull()?.takeIf { it.response == "True" }
+        } else null
+        MovieInsights(
+            tmdbRating = d.vote_average?.takeIf { it > 0 },
+            tmdbVotes = d.vote_count ?: 0,
+            imdbRating = omdb?.imdbRating?.toDoubleOrNull(),
+            imdbVotes = Ratings.parseVotes(omdb?.imdbVotes),
+            rottenTomatoes = Ratings.parsePercent(omdb?.ratings?.firstOrNull { it.source == "Rotten Tomatoes" }?.value),
+            metacritic = Ratings.parseMetascore(omdb?.metascore)
+                ?: Ratings.parseMetascore(omdb?.ratings?.firstOrNull { it.source == "Metacritic" }?.value),
+            reviews = reviews.await()
+                .filter { !it.content.isNullOrBlank() }
+                .map { r ->
+                    Review(
+                        author = r.author?.takeIf { it.isNotBlank() } ?: "Anónimo",
+                        rating = r.author_details?.rating?.toInt()?.takeIf { it in 1..10 },
+                        text = Ratings.cleanReview(r.content.orEmpty()),
+                        date = r.created_at.orEmpty().take(10),
+                    )
+                }
+                .take(5),
+        )
+    }
+
     /** Mi marca actual de una película (null si no la marqué). */
     suspend fun snapshot(id: Int): Entry? = dao.get(OWNER_ME, id)
 

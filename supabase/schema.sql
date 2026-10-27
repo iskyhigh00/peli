@@ -15,8 +15,12 @@ create table if not exists public.entries (
   genres       text,
   rating       double precision,
   updated_at   bigint  not null default 0,
+  my_rating    integer not null default 0,
   primary key (room, user_id, movie_id)
 );
+
+-- Si la tabla ya existía de una versión anterior, agrega la columna de la nota propia.
+alter table public.entries add column if not exists my_rating integer not null default 0;
 
 alter table public.entries enable row level security;
 grant select, insert, update, delete on public.entries to anon;

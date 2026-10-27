@@ -15,8 +15,9 @@ fun entry(
     liked: Boolean = false,
     seen: Boolean = false,
     disliked: Boolean = false,
+    myRating: Int = 0,
 ) = Entry(
     movieId = id, owner = owner, title = title, overview = "o", posterPath = null, year = year,
     liked = liked, seen = seen, disliked = disliked, watchlist = watchlist,
-    genres = genres, rating = rating, updatedAt = updatedAt,
+    genres = genres, rating = rating, updatedAt = updatedAt, myRating = myRating,
 )

@@ -9,6 +9,8 @@ import com.peli.app.BuildConfig
 import com.peli.app.CrashReporter
 import com.peli.app.PeliApp
 import com.peli.app.data.Entry
+import com.peli.app.data.InsightsState
+import com.peli.app.data.RatingSource
 import com.peli.app.data.Remote
 import com.peli.app.data.RoomCodes
 import com.peli.app.data.YearRange
@@ -18,6 +20,7 @@ import com.peli.app.data.toggleDisliked
 import com.peli.app.data.toggleLiked
 import com.peli.app.data.toggleSeen
 import com.peli.app.data.toggleWatch
+import com.peli.app.data.withRating
 import com.peli.app.update.Changelog
 import com.peli.app.update.Updater
 import kotlinx.coroutines.CancellationException
@@ -55,6 +58,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
     private val peli = app as PeliApp
     private val repo = peli.repository
     private val pairing = peli.pairing
+    private val sourcePrefs = peli.sourcePrefs
 
     val mine = repo.mine.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     val partner = repo.partner.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
@@ -118,6 +122,42 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
     val queueError = MutableStateFlow<String?>(null)
     val undo = MutableStateFlow<UndoOffer?>(null)
     private var refillJob: Job? = null
+
+    // ---- Valoraciones y reseñas ------------------------------------------------
+
+    /** ¿Hay clave de OMDb? Sin ella no hay IMDb, Rotten Tomatoes ni Metacritic. */
+    val omdbAvailable = com.peli.app.data.Omdb.configured
+
+    /** Fuentes de valoraciones que el usuario quiere ver (se eligen en Ajustes). */
+    val sources = MutableStateFlow(sourcePrefs.load())
+
+    fun toggleSource(source: RatingSource) {
+        val next = sources.value.let { if (source in it) it - source else it + source }
+        sources.value = next
+        sourcePrefs.save(next)
+    }
+
+    /** Valoraciones por película, cargadas al abrir su detalle y guardadas mientras la app siga abierta. */
+    val insights = MutableStateFlow<Map<Int, InsightsState>>(emptyMap())
+
+    fun loadInsights(movieId: Int, force: Boolean = false) {
+        val current = insights.value[movieId]
+        if (!force && (current is InsightsState.Ready || current is InsightsState.Loading)) return
+        insights.update { it + (movieId to InsightsState.Loading) }
+        launch {
+            val state = try {
+                InsightsState.Ready(repo.insights(movieId))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                InsightsState.Failed(e.message ?: e.javaClass.simpleName)
+            }
+            insights.update { it + (movieId to state) }
+        }
+    }
+
+    /** Mi nota (1..10, 0 la quita). Calificar implica que ya la vi; se sincroniza con la sala. */
+    fun setMyRating(e: Entry, score: Int) = update(e) { it.withRating(score) }
 
     // ---- Avisos y actualizaciones --------------------------------------------
 

@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -214,6 +215,8 @@ private fun Home(vm: MainViewModel, tab: Tab, onTabChange: (Tab) -> Unit, onOpen
     val newVersion by vm.newVersion.collectAsState()
     val progress by vm.progress.collectAsState()
     val whatsNew by vm.whatsNew.collectAsState()
+    val sources by vm.sources.collectAsState()
+    var showSettings by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(message) {
         message?.let { snack.showSnackbar(it); vm.message.value = null }
@@ -280,6 +283,9 @@ private fun Home(vm: MainViewModel, tab: Tab, onTabChange: (Tab) -> Unit, onOpen
                         }
                     },
                     actions = {
+                        IconButton(onClick = { showSettings = true }) {
+                            Icon(Icons.Default.Settings, contentDescription = "Ajustes")
+                        }
                         IconButton(onClick = { vm.checkForUpdate(manual = true) }) {
                             Icon(Icons.Default.SystemUpdate, contentDescription = "Buscar actualización")
                         }
@@ -392,4 +398,13 @@ private fun Home(vm: MainViewModel, tab: Tab, onTabChange: (Tab) -> Unit, onOpen
     }
 
     if (whatsNew.isNotEmpty()) WhatsNewSheet(whatsNew, onDismiss = vm::dismissWhatsNew)
+    if (showSettings) {
+        SettingsSheet(
+            sources = sources,
+            omdbAvailable = vm.omdbAvailable,
+            onToggle = vm::toggleSource,
+            onCheckUpdate = { vm.checkForUpdate(manual = true) },
+            onDismiss = { showSettings = false },
+        )
+    }
 }

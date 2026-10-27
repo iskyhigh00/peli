@@ -64,6 +64,11 @@ object Changelog {
             "Si la app se cierra, al abrirla muestra el informe del error para poder corregirlo.",
             "El detalle de una película ya no se cierra solo al quitarle la marca.",
         ),
+        "1.1.6" to listOf(
+            "Valoraciones en el detalle: TMDB, IMDb, Rotten Tomatoes y Metacritic, más reseñas de usuarios.",
+            "Tu nota de 1 a 10 (también mejora tus recomendaciones) y la nota de tu pareja.",
+            "Ajustes: elige de qué fuentes quieres ver valoraciones y reseñas.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

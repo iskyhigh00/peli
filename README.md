@@ -29,6 +29,13 @@ Las candidatas salen de las recomendaciones de TMDB para tus últimas películas
 géneros favoritos y de algunas populares (exploración). Los datos viven en Room (base local);
 `Repository` es el punto donde se conectaría una base remota para sincronizar la pareja.
 
+## Valoraciones y reseñas
+En el detalle de cada película: nota de **TMDB** (con reseñas de usuarios), y con una clave gratuita de OMDb también
+**IMDb**, **Rotten Tomatoes** (crítica) y **Metacritic**. Tu nota (1–10) se guarda, mejora el recomendador y, con una
+sala, tu pareja ve la suya. En Ajustes (engranaje) eliges qué fuentes mostrar.
+Clave de OMDb: https://www.omdbapi.com/apikey.aspx → secreto `OMDB_API_KEY` (o `local.properties`).
+Si la tabla de Supabase ya existía, correr de nuevo `supabase/schema.sql` (agrega la columna `my_rating`).
+
 ## Salas con tu pareja (Supabase)
 Cada teléfono tiene un id anónimo; uno crea una sala (código de 10 caracteres) y el otro se une. Cada cambio
 (quiero verla / me gustó / no me gusta) se sube a la tabla `entries` y cada 6 s se descarga lo de la pareja.

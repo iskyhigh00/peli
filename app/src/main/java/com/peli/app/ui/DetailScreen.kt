@@ -28,6 +28,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -59,6 +61,11 @@ fun DetailScreen(entry: Entry, mine: Entry?, vm: MainViewModel, onBack: () -> Un
     val seen = mine?.seen == true
     val disliked = mine?.disliked == true
     var zoomed by remember { mutableStateOf(false) }
+    val sources by vm.sources.collectAsState()
+    val insights by vm.insights.collectAsState()
+    val partner by vm.partner.collectAsState()
+    val partnerRating = remember(partner, entry.movieId) { partner.firstOrNull { it.movieId == entry.movieId }?.myRating ?: 0 }
+    LaunchedEffect(entry.movieId) { vm.loadInsights(entry.movieId) }
 
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
@@ -86,6 +93,17 @@ fun DetailScreen(entry: Entry, mine: Entry?, vm: MainViewModel, onBack: () -> Un
                         modifier = Modifier.padding(top = ItemSpacing),
                     )
                 }
+                RatingsSection(
+                    state = insights[entry.movieId],
+                    sources = sources,
+                    tmdbFallback = entry.rating?.takeIf { it > 0 },
+                    myRating = mine?.myRating ?: 0,
+                    partnerRating = partnerRating,
+                    omdbAvailable = vm.omdbAvailable,
+                    onRate = { vm.setMyRating(mine ?: entry, it) },
+                    onRetry = { vm.loadInsights(entry.movieId, force = true) },
+                )
+                ReviewsSection(insights[entry.movieId], sources)
                 Column(verticalArrangement = Arrangement.spacedBy(ItemSpacing)) {
                     GradientButton(
                         if (want) "En mi lista para ver" else "Quiero verla",

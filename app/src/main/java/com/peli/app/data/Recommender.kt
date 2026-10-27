@@ -8,7 +8,7 @@ import kotlin.random.Random
  * Recomendador basado en contenido + señal colaborativa de TMDB.
  *
  * 1. Perfil de gustos: cada género acumula peso según lo que marqué
- *    (me gustó +1, quiero verla +0.5, la vi sin opinión +0.15, no me gusta -0.8 / -1 si la vi),
+ *    (mi nota 1..10 mapeada a -1..+1; si no hay nota: me gustó +1, quiero verla +0.5, la vi sin opinión +0.15, no me gusta -0.8 / -1 si la vi),
  *    con más peso a lo reciente. Se normaliza a -1..1.
  * 2. Cada candidata se puntúa: 50% afinidad de géneros, 30% calidad (nota TMDB),
  *    20% cuántas de mis "me gustó" la recomiendan.
@@ -26,6 +26,8 @@ object Recommender {
         val raw = HashMap<Int, Double>()
         for (e in entries) {
             val base = when {
+                // Mi nota (1..10) manda: 10 -> +1, 6 -> +0.11, 1 -> -1.
+                e.myRating > 0 -> (e.myRating - 5.5) / 4.5
                 e.liked -> 1.0
                 e.disliked && e.seen -> -1.0
                 e.disliked -> -0.8

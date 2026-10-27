@@ -20,6 +20,26 @@ data class TmdbMovie(
 
 data class TmdbPage(val results: List<TmdbMovie> = emptyList())
 
+data class TmdbExternalIds(val imdb_id: String? = null)
+
+data class TmdbDetails(
+    val id: Int,
+    val vote_average: Double? = null,
+    val vote_count: Int? = null,
+    val external_ids: TmdbExternalIds? = null,
+)
+
+data class TmdbAuthorDetails(val rating: Double? = null)
+
+data class TmdbReview(
+    val author: String? = null,
+    val content: String? = null,
+    val created_at: String? = null,
+    val author_details: TmdbAuthorDetails? = null,
+)
+
+data class TmdbReviewsPage(val results: List<TmdbReview> = emptyList())
+
 interface TmdbApi {
     @GET("movie/popular")
     suspend fun popular(@Query("page") page: Int = 1): TmdbPage
@@ -41,6 +61,13 @@ interface TmdbApi {
         @Query("primary_release_date.lte") releasedTo: String? = null,
     ): TmdbPage
 
+    @GET("movie/{id}")
+    suspend fun details(@Path("id") id: Int, @Query("append_to_response") append: String = "external_ids"): TmdbDetails
+
+    /** Las reseñas de TMDB casi siempre están en inglés: se piden sin forzar el idioma. */
+    @GET("movie/{id}/reviews")
+    suspend fun reviews(@Path("id") id: Int, @Query("language") language: String = "en-US"): TmdbReviewsPage
+
     @GET("movie/{id}/recommendations")
     suspend fun recommendations(@Path("id") id: Int): TmdbPage
 
@@ -51,9 +78,10 @@ interface TmdbApi {
         fun create(): TmdbApi {
             val client = OkHttpClient.Builder()
                 .addInterceptor { chain ->
-                    val url = chain.request().url.newBuilder()
+                    val original = chain.request().url
+                    val url = original.newBuilder()
                         .addQueryParameter("api_key", BuildConfig.TMDB_API_KEY)
-                        .addQueryParameter("language", "es-ES")
+                        .apply { if (original.queryParameter("language") == null) addQueryParameter("language", "es-ES") }
                         .build()
                     chain.proceed(chain.request().newBuilder().url(url).build())
                 }

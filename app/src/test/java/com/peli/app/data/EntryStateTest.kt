@@ -51,6 +51,28 @@ class EntryStateTest {
         assertTrue(entry().toggleSeen().toggleSeen().isEmpty)
     }
 
+    @Test fun ratingImpliesSeenAndLeavesTheWatchlist() {
+        val s = entry(watchlist = true).withRating(8)
+        assertEquals(8, s.myRating)
+        assertTrue(s.seen)
+        assertFalse(s.watchlist)
+    }
+
+    @Test fun ratingIsClampedToZeroToTen() {
+        assertEquals(10, entry().withRating(15).myRating)
+        assertEquals(0, entry().withRating(-3).myRating)
+    }
+
+    @Test fun removingTheRatingKeepsTheOtherStates() {
+        val s = entry(liked = true, seen = true, myRating = 7).withRating(0)
+        assertEquals(0, s.myRating)
+        assertTrue(s.liked && s.seen)
+    }
+
+    @Test fun unmarkingSeenAlsoClearsTheRating() {
+        assertEquals(0, entry(seen = true, myRating = 9).toggleSeen().myRating)
+    }
+
     @Test fun stateLabels() {
         assertEquals("Quiero verla", entry(watchlist = true).stateLabel())
         assertEquals("La vi · me gustó", entry(liked = true, seen = true).stateLabel())

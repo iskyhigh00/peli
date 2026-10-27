@@ -29,6 +29,7 @@ data class RemoteEntry(
     val genres: String?,
     val rating: Double?,
     val updated_at: Long,
+    val my_rating: Int = 0,
 )
 
 /**
@@ -82,10 +83,11 @@ fun Entry.toRemote(room: String, userId: String) = RemoteEntry(
     room = room, user_id = userId, movie_id = movieId, title = title, overview = overview,
     poster_path = posterPath, year = year, release_date = releaseDate, liked = liked, seen = seen,
     disliked = disliked, watchlist = watchlist, genres = genres, rating = rating, updated_at = updatedAt,
+    my_rating = myRating,
 )
 
 fun RemoteEntry.toEntry() = Entry(
     movieId = movie_id, owner = OWNER_PARTNER, title = title, overview = overview, posterPath = poster_path,
     year = year, liked = liked, seen = seen, disliked = disliked, releaseDate = release_date,
-    watchlist = watchlist, genres = genres, rating = rating, updatedAt = updated_at,
+    watchlist = watchlist, genres = genres, rating = rating, updatedAt = updated_at, myRating = my_rating,
 )

@@ -36,6 +36,8 @@ data class Entry(
     val rating: Double? = null,
     /** Última vez que la marqué (ms); los gustos recientes pesan más. */
     val updatedAt: Long = 0,
+    /** Mi nota de 1 a 10 (0 = sin calificar). Calificar implica que ya la vi. */
+    val myRating: Int = 0,
 ) {
     val isEmpty get() = !liked && !seen && !disliked && !watchlist
 
@@ -56,7 +58,13 @@ fun Entry.toggleLiked() =
     if (liked) copy(liked = false) else copy(liked = true, seen = true, watchlist = false, disliked = false)
 
 fun Entry.toggleSeen() =
-    if (seen) copy(seen = false, liked = false) else copy(seen = true, watchlist = false)
+    if (seen) copy(seen = false, liked = false, myRating = 0) else copy(seen = true, watchlist = false)
+
+/** Califica con 1..10 (0 quita la nota). Calificar implica que ya la vi y la saca de "quiero verla". */
+fun Entry.withRating(score: Int): Entry {
+    val n = score.coerceIn(0, 10)
+    return if (n == 0) copy(myRating = 0) else copy(myRating = n, seen = true, watchlist = false)
+}
 
 fun Entry.toggleDisliked() =
     if (disliked) copy(disliked = false) else copy(disliked = true, liked = false, watchlist = false)

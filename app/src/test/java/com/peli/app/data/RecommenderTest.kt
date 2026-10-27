@@ -25,6 +25,22 @@ class RecommenderTest {
         assertTrue(Recommender.buildProfile(emptyList()).genreWeights.isEmpty())
     }
 
+    @Test fun myRatingMapsToTheProfileAndOverridesTheOtherStates() {
+        val p = Recommender.buildProfile(
+            listOf(
+                entry(1, seen = true, myRating = 10, genres = "1"),
+                entry(2, seen = true, myRating = 1, genres = "2"),
+                entry(3, seen = true, myRating = 6, genres = "3"),
+                entry(4, liked = true, seen = true, myRating = 10, genres = "9"),
+            ),
+            now = 1_000L,
+        )
+        assertEquals(1.0, p.genreWeights[1]!!, 1e-9)
+        assertEquals(-1.0, p.genreWeights[2]!!, 1e-9)
+        assertEquals(0.5 / 4.5, p.genreWeights[3]!!, 1e-9)
+        assertEquals(1.0, p.genreWeights[9]!!, 1e-9)
+    }
+
     @Test fun seenWithoutOpinionCountsLittle() {
         val p = Recommender.buildProfile(
             listOf(entry(1, liked = true, seen = true, genres = "28"), entry(2, seen = true, genres = "18")),
