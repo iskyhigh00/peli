@@ -63,10 +63,12 @@ object Remote {
     val api: SupabaseApi by lazy {
         val client = OkHttpClient.Builder()
             .addInterceptor { chain ->
+                val key = BuildConfig.SUPABASE_ANON_KEY
                 chain.proceed(
                     chain.request().newBuilder()
-                        .header("apikey", BuildConfig.SUPABASE_ANON_KEY)
-                        .header("Authorization", "Bearer ${BuildConfig.SUPABASE_ANON_KEY}")
+                        .header("apikey", key)
+                        // Las claves nuevas (sb_publishable_…) no son JWT: solo van en apikey.
+                        .apply { if (key.startsWith("eyJ")) header("Authorization", "Bearer $key") }
                         .build(),
                 )
             }

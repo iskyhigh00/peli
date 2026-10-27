@@ -76,6 +76,9 @@ object Changelog {
         "1.1.8" to listOf(
             "Activada la clave de OMDb: ahora se ven las notas de IMDb, Rotten Tomatoes y Metacritic.",
         ),
+        "1.1.9" to listOf(
+            "Compatible con las claves nuevas de Supabase (sb_publishable_…) para sincronizar con tu pareja.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"
