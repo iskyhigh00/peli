@@ -10,6 +10,7 @@ import com.peli.app.CrashReporter
 import com.peli.app.PeliApp
 import com.peli.app.auth.GoogleToken
 import com.peli.app.data.Friend
+import com.peli.app.data.FeedAvoid
 import com.peli.app.data.FriendRequestResult
 import com.peli.app.data.Profile
 import com.peli.app.data.Social
@@ -298,9 +299,12 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
     private suspend fun loadFeed(refresh: Boolean, years: YearRange?): List<Entry> {
         // El lote guardado solo sirve si se pidió con el mismo rango de años.
         if (!refresh && feed.isNotEmpty() && feedYears == years) return feed
-        val avoid = if (refresh) feed.map { it.movieId }.toSet() else emptySet()
+        // Se evita todo lo ya mostrado (también en sesiones anteriores); solo si no alcanza el material nuevo
+        // se vuelve a permitir lo más antiguo. Así lo repetido tarda muchas actualizaciones en volver.
+        val levels = FeedAvoid.levels(peli.feedHistory.ids() + feed.map { it.movieId })
         // Se lee de la base (no del StateFlow, que al arrancar aún puede estar vacío) para personalizar de verdad.
-        val next = repo.recommend(repo.mine.first(), avoid = avoid, noise = FEED_NOISE, years = years).take(FEED_SIZE)
+        val next = repo.recommend(repo.mine.first(), avoidLevels = levels, noise = FEED_NOISE, years = years).take(FEED_SIZE)
+        peli.feedHistory.record(next.map { it.movieId })
         feed = next
         feedYears = years
         return next

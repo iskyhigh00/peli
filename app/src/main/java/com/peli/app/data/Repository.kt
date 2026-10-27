@@ -142,13 +142,14 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
      */
     suspend fun recommend(
         marked: List<Entry>,
-        avoid: Set<Int> = emptySet(),
+        avoidLevels: List<Set<Int>> = listOf(emptySet()),
         noise: Double = 0.08,
         years: YearRange? = null,
     ): List<Entry> = coroutineScope {
         val known = marked.map { it.movieId }.toSet()
         val profile = Recommender.buildProfile(marked)
-        val seeds = marked.filter { it.liked }.sortedByDescending { it.updatedAt }.take(5)
+        // Semillas: entre mis últimas 20 que me gustaron se sortean 6, así cada vez salen recomendaciones distintas.
+        val seeds = marked.filter { it.liked }.sortedByDescending { it.updatedAt }.take(20).shuffled().take(6)
 
         val pool = LinkedHashMap<Int, Entry>()
         val hits = HashMap<Int, Int>()
@@ -160,7 +161,8 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
         val seedJobs = seeds.map { s ->
             async { runCatching { api.recommendations(s.movieId).results }.getOrDefault(emptyList()) }
         }
-        val topGenres = profile.topGenres(2)
+        // De mis 3 géneros favoritos se sortean 2 para variar el material en cada actualización.
+        val topGenres = profile.topGenres(3).shuffled().take(2)
         val genreList = topGenres.joinToString("|")
 
         // Con rango de años, TMDB filtra por fecha de estreno: así hay candidatas de sobra en ese rango.
@@ -183,17 +185,23 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
         }
         val byGenre = async {
             if (years != null || topGenres.isEmpty()) emptyList()
-            else runCatching { api.discover(genreList, page = (1..3).random()).results }.getOrDefault(emptyList())
+            else runCatching { api.discover(genreList, page = (1..10).random()).results }.getOrDefault(emptyList())
+        }
+        val byGenrePopular = async {
+            if (years != null || topGenres.isEmpty()) emptyList()
+            else runCatching { api.discover(genreList, page = (1..8).random(), sortBy = "popularity.desc").results }
+                .getOrDefault(emptyList())
         }
         val popular = async {
             if (years != null) emptyList()
-            else runCatching { api.popular((1..5).random()).results }.getOrDefault(emptyList())
+            else runCatching { api.popular((1..15).random()).results }.getOrDefault(emptyList())
         }
 
         seedJobs.awaitAll().forEach { add(it, countHit = true) }
         byYears.awaitAll().forEach { add(it, countHit = false) }
         add(byGenreYears.await(), countHit = false)
         add(byGenre.await(), countHit = false)
+        add(byGenrePopular.await(), countHit = false)
         add(popular.await(), countHit = false)
 
         val seedCount = seeds.size
@@ -207,9 +215,11 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
             seedCount = seedCount,
             noise = noise,
         )
-        // Prefiere lo que aún no se mostró; si casi no queda, no se descarta nada.
-        val fresh = ranked.filter { it.movieId !in avoid }
-        if (fresh.size >= MIN_FRESH) fresh else ranked
+        // Prefiere lo que aún no se mostró: se prueba el nivel más estricto que deje material nuevo suficiente;
+        // si ninguno alcanza, se usa todo.
+        avoidLevels.firstNotNullOfOrNull { avoid ->
+            ranked.filter { it.movieId !in avoid }.takeIf { it.size >= MIN_FRESH }
+        } ?: ranked
     }
 
     suspend fun importPartner(entries: List<Entry>) = dao.replaceAll(OWNER_PARTNER, entries)
