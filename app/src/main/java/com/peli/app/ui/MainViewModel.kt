@@ -316,7 +316,12 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
     // ---- Marcar películas ----------------------------------------------------
 
     fun toggleWant(e: Entry) = update(e) { it.toggleWatch() }
-    fun toggleLiked(e: Entry) = update(e) { it.toggleLiked() }
+    fun toggleLiked(e: Entry) {
+        launch {
+            val next = applyAndPush(e) { it.toggleLiked() }
+            askRating(next)
+        }
+    }
     fun toggleSeen(e: Entry) = update(e) { it.toggleSeen() }
     fun toggleDislike(e: Entry) = update(e) { it.toggleDisliked() }
 
@@ -327,11 +332,34 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
     private fun describe(e: Entry) = "«${e.title}» (${e.movieId}) [${e.stateLabel()}${if (e.myRating > 0) ", nota ${e.myRating}" else ""}]"
 
     /** Guarda localmente y sube el cambio a la sala (si falla, el próximo sync lo reintenta). */
-    private suspend fun applyAndPush(e: Entry, change: (Entry) -> Entry) {
+    private suspend fun applyAndPush(e: Entry, change: (Entry) -> Entry): Entry {
         AppLog.i("Marca", "antes: ${describe(e)}")
         val next = repo.update(e, change)
         AppLog.i("Marca", "después: ${describe(next)}")
         push(next)
+        return next
+    }
+
+    /** Película recién marcada «La vi y me gustó» sin nota: se le pide una de 1 a 10 para afinar las recomendaciones. */
+    val ratePrompt = MutableStateFlow<Entry?>(null)
+
+    private fun askRating(e: Entry) {
+        if (e.liked && e.myRating == 0) {
+            AppLog.d("Nota", "se pide nota para «${e.title}»")
+            ratePrompt.value = e
+        }
+    }
+
+    fun rateFromPrompt(score: Int) {
+        val e = ratePrompt.value ?: return
+        ratePrompt.value = null
+        AppLog.i("Nota", "«${e.title}» → $score")
+        setMyRating(e, score)
+    }
+
+    fun dismissRatePrompt() {
+        ratePrompt.value?.let { AppLog.d("Nota", "omitida para «${it.title}»") }
+        ratePrompt.value = null
     }
 
     private suspend fun push(next: Entry) {
@@ -372,7 +400,9 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
                 val previous = repo.snapshot(e.movieId)
                 when (answer) {
                     Answer.Want -> applyAndPush(e) { it.copy(watchlist = true, seen = false, liked = false, disliked = false) }
-                    Answer.SeenLiked -> applyAndPush(e) { it.copy(liked = true, seen = true, watchlist = false, disliked = false) }
+                    Answer.SeenLiked -> askRating(
+                        applyAndPush(e) { it.copy(liked = true, seen = true, watchlist = false, disliked = false) },
+                    )
                     Answer.NotInterested -> applyAndPush(e) { it.copy(disliked = true, liked = false, watchlist = false) }
                     Answer.Skip -> Unit
                 }

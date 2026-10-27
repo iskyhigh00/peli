@@ -79,6 +79,10 @@ object Changelog {
         "1.1.9" to listOf(
             "Compatible con las claves nuevas de Supabase (sb_publishable_…) para sincronizar con tu pareja.",
         ),
+        "1.2.0" to listOf(
+            "Al marcar «La vi y me gustó» te pide al tiro una nota de 1 a 10 para afinar tus recomendaciones (puedes omitirla).",
+            "Sincronización con tu pareja activada (Supabase).",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

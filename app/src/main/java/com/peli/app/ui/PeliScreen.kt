@@ -406,6 +406,9 @@ private fun Home(vm: MainViewModel, tab: Tab, onTabChange: (Tab) -> Unit, onOpen
         )
     }
 
+    val ratePrompt by vm.ratePrompt.collectAsState()
+    ratePrompt?.let { RatePromptSheet(it, onRate = vm::rateFromPrompt, onSkip = vm::dismissRatePrompt) }
+
     if (whatsNew.isNotEmpty()) WhatsNewSheet(whatsNew, onDismiss = vm::dismissWhatsNew)
     if (showSettings) {
         SettingsSheet(
