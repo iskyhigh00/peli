@@ -59,6 +59,11 @@ object Changelog {
         "1.1.4" to listOf(
             "Filtro por años en Buscar y en Mis pelis: rango, décadas, clásicas y próximos estrenos.",
         ),
+        "1.1.5" to listOf(
+            "Se quitó el desenfoque de las tarjetas, que en algunos teléfonos cerraba la app al marcar «Quiero verla».",
+            "Si la app se cierra, al abrirla muestra el informe del error para poder corregirlo.",
+            "El detalle de una película ya no se cierra solo al quitarle la marca.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

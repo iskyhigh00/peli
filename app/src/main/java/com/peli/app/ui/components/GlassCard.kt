@@ -20,7 +20,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
@@ -31,9 +30,9 @@ import com.peli.app.ui.theme.PeliTheme
 import com.peli.app.ui.theme.isDark
 
 /**
- * Tarjeta de vidrio: capa difuminada (blur 20dp, efectivo en Android 12+) con surface al 80%,
- * velo blanco al 8%, gradiente primary→transparente, borde degradado y sombra teñida de primary.
- * El blur se aplica solo a la capa de fondo para no desenfocar el contenido.
+ * Tarjeta de vidrio: surface al 80%, velo blanco al 8%, gradiente primary→transparente, borde degradado
+ * y sombra teñida de primary. No usa Modifier.blur: desenfocar un fondo plano no cambia nada y crea una
+ * capa de GPU por tarjeta, que en algunos teléfonos cerraba la app al animar tarjetas grandes.
  */
 @Composable
 fun GlassCard(
@@ -77,7 +76,7 @@ fun GlassCard(
             )
             .then(clickable),
     ) {
-        Box(Modifier.matchParentSize().blur(20.dp).background(scheme.surface.copy(alpha = 0.8f)))
+        Box(Modifier.matchParentSize().background(scheme.surface.copy(alpha = 0.8f)))
         Box(Modifier.matchParentSize().background(veil.copy(alpha = 0.08f)))
         Box(
             Modifier.matchParentSize().background(

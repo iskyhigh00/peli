@@ -72,6 +72,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.peli.app.data.Entry
 import com.peli.app.ui.components.AnimatedNavigationBar
 import com.peli.app.ui.components.BrandBackground
+import com.peli.app.ui.components.CrashReportDialog
 import com.peli.app.ui.components.LocalShared
 import com.peli.app.ui.components.MatchOverlay
 import com.peli.app.ui.components.NavItem
@@ -107,7 +108,14 @@ fun PeliScreen(vm: MainViewModel = viewModel()) {
         val queue by vm.queue.collectAsState()
         val pendingMatches by vm.pendingMatches.collectAsState()
         val saveableStateHolder = rememberSaveableStateHolder()
-        val selected = remember(selectedId, mine, partner, results, queue) { selectedId?.let(vm::lookup) }
+        val found = remember(selectedId, mine, partner, results, queue) { selectedId?.let(vm::lookup) }
+        // Si la película deja de estar en la lista de la que se abrió (p. ej. le quitas la marca desde "Mis pelis"),
+        // el detalle sigue mostrando la última copia en vez de cerrarse solo.
+        val lastSelected = remember { arrayOfNulls<Entry>(1) }
+        if (found != null) lastSelected[0] = found
+        val selected = found ?: lastSelected[0]?.takeIf { it.movieId == selectedId }
+        val crashReport by vm.crashReport.collectAsState()
+        val context = LocalContext.current
 
         // Sincroniza con la sala cada 6 s, solo mientras la app está visible.
         val room by vm.room.collectAsState()
@@ -158,6 +166,20 @@ fun PeliScreen(vm: MainViewModel = viewModel()) {
                         }
                     }
                 }
+            }
+
+            crashReport?.let { report ->
+                CrashReportDialog(
+                    report = report,
+                    onShare = {
+                        val send = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, report)
+                        }
+                        context.startActivity(Intent.createChooser(send, "Enviar informe del cierre"))
+                    },
+                    onDismiss = vm::dismissCrashReport,
+                )
             }
 
             // Por encima de todo (también del detalle). Atrás lo cierra primero.

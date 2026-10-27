@@ -6,6 +6,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.peli.app.APP_VERSION
 import com.peli.app.BuildConfig
+import com.peli.app.CrashReporter
 import com.peli.app.PeliApp
 import com.peli.app.data.Entry
 import com.peli.app.data.Remote
@@ -20,6 +21,8 @@ import com.peli.app.data.toggleWatch
 import com.peli.app.update.Changelog
 import com.peli.app.update.Updater
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -145,15 +148,35 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
 
     private val syncLock = Mutex()
 
+    /** Informe del último cierre inesperado (null = no hubo). Se muestra una vez al abrir la app. */
+    val crashReport = MutableStateFlow<String?>(null)
+
+    /**
+     * Cualquier error no controlado dentro de una corrutina se muestra como aviso y se registra,
+     * en vez de cerrar la app.
+     */
+    private val errorHandler = CoroutineExceptionHandler { _, e ->
+        if (e !is CancellationException) {
+            CrashReporter.record(getApplication(), "corrutina", e)
+            message.value = "Algo falló: ${e.message ?: e.javaClass.simpleName}"
+        }
+    }
+
+    private fun launch(
+        context: kotlin.coroutines.CoroutineContext = kotlin.coroutines.EmptyCoroutineContext,
+        block: suspend CoroutineScope.() -> Unit,
+    ): Job = viewModelScope.launch(context + errorHandler, block = block)
+
     init {
-        viewModelScope.launch(Dispatchers.IO) { Updater.cleanupDownloads(getApplication()) }
+        launch(Dispatchers.IO) { Updater.cleanupDownloads(getApplication()) }
         whatsNew.value = Changelog.takeUnseen(getApplication())
+        launch(Dispatchers.IO) { crashReport.value = CrashReporter.pending(getApplication()) }
         checkForUpdate(manual = false)
         refillQueue()
 
         // Búsqueda: espera a que dejes de escribir; si llega otra consulta, la anterior se cancela
         // (así nunca se muestra una respuesta vieja). "Buscar" del teclado o deslizar la lanza al instante.
-        viewModelScope.launch {
+        launch {
             // El rango se aplica al instante (sin la espera de escritura); su valor inicial no cuenta como cambio.
             merge(searchQuery.map { false }, searchYears.drop(1).map { true }, searchNow.map { true }).collectLatest { immediate ->
                 if (!immediate && !firstSearch) delay(SEARCH_DEBOUNCE_MS)
@@ -163,7 +186,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         }
 
         // Tinder: cada vez que aparece una película que a los dos nos interesa, se avisa una sola vez.
-        viewModelScope.launch {
+        launch {
             matches.collect { list ->
                 val announced = pairing.announced
                 val fresh = list.filter { it.both && it.entry.movieId !in announced }
@@ -244,7 +267,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
     fun toggleDislike(e: Entry) = update(e) { it.toggleDisliked() }
 
     private fun update(e: Entry, change: (Entry) -> Entry) {
-        viewModelScope.launch { applyAndPush(e, change) }
+        launch { applyAndPush(e, change) }
     }
 
     /** Guarda localmente y sube el cambio a la sala (si falla, el próximo sync lo reintenta). */
@@ -280,7 +303,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         if (discoverQueue.value.firstOrNull()?.movieId != e.movieId) return
         if (answer == Answer.Skip) skipped += e.movieId
         queue.update { it.filter { x -> x.movieId != e.movieId } }
-        viewModelScope.launch {
+        launch {
             if (answer != Answer.Skip) {
                 val previous = repo.snapshot(e.movieId)
                 when (answer) {
@@ -307,7 +330,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
     fun undoAnswer() {
         val offer = undo.value ?: return
         undo.value = null
-        viewModelScope.launch {
+        launch {
             push(repo.restore(offer.card, offer.previous))
             skipped -= offer.card.movieId
             queue.update { listOf(offer.card) + it.filter { x -> x.movieId != offer.card.movieId } }
@@ -331,7 +354,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
             return
         }
         if (refillJob?.isActive == true) return
-        refillJob = viewModelScope.launch {
+        refillJob = launch {
             queueLoading.value = true
             queueError.value = null
             try {
@@ -364,14 +387,14 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         pairing.room = code
         pairing.lastPush = 0
         room.value = code
-        viewModelScope.launch { sync() }
+        launch { sync() }
     }
 
     fun leaveRoom() {
         pairing.room = null
         room.value = null
         syncError.value = null
-        viewModelScope.launch { repo.clearPartner() }
+        launch { repo.clearPartner() }
     }
 
     fun roomShareText(): String {
@@ -403,7 +426,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
 
     /** Deslizar hacia abajo en "Juntos": sincroniza con la sala ahora mismo. */
     fun refreshSync() {
-        viewModelScope.launch {
+        launch {
             refreshing.value = true
             try { sync() } finally { refreshing.value = false }
         }
@@ -411,11 +434,16 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
 
     fun dismissMatch() = pendingMatches.update { it.drop(1) }
 
+    fun dismissCrashReport() {
+        crashReport.value = null
+        launch(Dispatchers.IO) { CrashReporter.clear(getApplication()) }
+    }
+
     // ---- Actualizaciones -----------------------------------------------------
 
     /** Al abrir la app es silencioso; manual (botón) informa también si está al día o falló. */
     fun checkForUpdate(manual: Boolean) {
-        viewModelScope.launch {
+        launch {
             val res = withContext(Dispatchers.IO) { Updater.checkLatest() }
             val v = res.version
             when {
@@ -435,7 +463,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
     fun installUpdate() {
         if (progress.value != -2) return   // ya se está descargando
         val v = newVersion.value ?: return
-        viewModelScope.launch {
+        launch {
             progress.value = -1
             try {
                 withContext(Dispatchers.IO) {
@@ -461,13 +489,13 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         val list = Sharing.import(text)
         if (list == null) {
             message.value = "Código no válido"
-        } else viewModelScope.launch {
+        } else launch {
             repo.importPartner(list)
             message.value = "Lista de tu pareja importada (${list.size} películas)"
         }
     }
 
-    fun clearPartner() { viewModelScope.launch { repo.clearPartner() } }
+    fun clearPartner() { launch { repo.clearPartner() } }
 
     private companion object {
         const val KEY_QUERY = "search_query"
