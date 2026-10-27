@@ -15,7 +15,6 @@ jobs:
     env:
       APK_PUBLISH_TOKEN: ${{ secrets.APK_PUBLISH_TOKEN }}
       APK_REPO: ${{ secrets.APK_REPO }}
-      APK_READ_TOKEN: ${{ secrets.APK_READ_TOKEN }}
       TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
       OMDB_API_KEY: ${{ secrets.OMDB_API_KEY }}
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}

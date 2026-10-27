@@ -8,7 +8,7 @@ plugins {
 }
 
 /** Única fuente de la versión: x.y.z con un dígito por campo (0.0.0 a 9.9.9). Usar scripts/bump-version.sh. */
-val appVersion = "1.3.1"
+val appVersion = "1.3.2"
 require(Regex("[0-9]\\.[0-9]\\.[0-9]").matches(appVersion)) { "appVersion debe ser x.y.z de un dígito (máx 9.9.9)" }
 val (vMajor, vMinor, vPatch) = appVersion.split(".").map { it.toInt() }
 
@@ -37,8 +37,6 @@ android {
         buildConfigField("String", "OMDB_API_KEY", "\"$omdbKey\"")
         val googleWebClientId = System.getenv("GOOGLE_WEB_CLIENT_ID") ?: localProps.getProperty("GOOGLE_WEB_CLIENT_ID", "")
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$googleWebClientId\"")
-        val updateToken = System.getenv("APK_READ_TOKEN") ?: ""
-        buildConfigField("String", "UPDATE_TOKEN", "\"$updateToken\"")
     }
 
     signingConfigs {

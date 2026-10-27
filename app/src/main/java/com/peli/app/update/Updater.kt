@@ -6,7 +6,6 @@ import android.net.Uri
 import android.os.Build
 import androidx.core.content.FileProvider
 import com.peli.app.APP_VERSION
-import com.peli.app.BuildConfig
 import com.peli.app.log.AppLog
 import org.json.JSONObject
 import java.io.File
@@ -20,18 +19,17 @@ import java.net.URL
  *  - version.txt -> versionName de la última build (lo publica CI).
  *  - Peli.apk    -> el instalador.
  *
- * Si CI inyecta un token de SOLO LECTURA (BuildConfig.UPDATE_TOKEN, no está en el código fuente)
- * se usa ese repo privado; sin token se usa el último release público de este repo.
+ * Se usan releases PÚBLICOS: el APK no lleva ningún token de GitHub dentro (un token embebido en un binario
+ * que se distribuye no es secreto). La versión que se descarga es EXACTAMENTE la que se anunció: se pide el
+ * release por su etiqueta (vX.Y.Z), no "el último" otra vez.
  *
  * Con la MISMA firma en todas las versiones, el APK nuevo se instala encima del anterior
  * conservando la base de datos; Android pide confirmar la instalación.
  */
 object Updater {
-    // Sin token (repo público): último release de este repo. Con token (repo privado): release fijo de peli-apk.
-    private val publicMode get() = BuildConfig.UPDATE_TOKEN.isEmpty()
-    private val REPO get() = if (publicMode) "iskyhigh00/peli" else "iskyhigh00/peli-apk"
-    private val RELEASE_API
-        get() = "https://api.github.com/repos/$REPO/releases/" + if (publicMode) "latest" else "tags/peli-apk"
+    private const val REPO = "iskyhigh00/peli"
+    private fun releaseApi(version: String?) =
+        "https://api.github.com/repos/$REPO/releases/" + if (version == null) "latest" else "tags/v$version"
     private const val APK_NAME = "Peli.apk"
     private const val VERSION_NAME = "version.txt"
 
@@ -40,7 +38,7 @@ object Updater {
 
     fun checkLatest(): CheckResult {
         return try {
-            val id = assetMap()[VERSION_NAME]?.id
+            val id = assetMap(null)[VERSION_NAME]?.id
                 ?: return CheckResult(null, "el release no tiene $VERSION_NAME")
             val txt = readAssetText(id).trim().removePrefix("v").trim()
             if (txt.isEmpty()) CheckResult(null, "version.txt vacío").also { AppLog.w("Actualizador", "version.txt vacío") }
@@ -70,7 +68,8 @@ object Updater {
      * el tamaño). Devuelve true si se reutilizó la descarga guardada.
      */
     fun downloadAndInstall(context: Context, version: String, onProgress: (Int) -> Unit): Boolean {
-        val asset = assetMap()[APK_NAME] ?: throw IOException("el release no tiene $APK_NAME")
+        // Se baja el release de ESA versión (la anunciada), aunque mientras tanto haya salido otra más nueva.
+        val asset = assetMap(version)[APK_NAME] ?: throw IOException("el release v$version no tiene $APK_NAME")
         val apk = File(context.cacheDir, "update-$version.apk")
         AppLog.i("Actualizador", "actualizar a v$version (APK de ${asset.size} bytes)")
         if (apk.exists() && asset.size > 0 && apk.length() == asset.size) {
@@ -153,8 +152,8 @@ object Updater {
 
     private data class Asset(val id: Long, val size: Long)
 
-    private fun assetMap(): Map<String, Asset> {
-        val conn = open(RELEASE_API, "application/vnd.github+json", withAuth = true)
+    private fun assetMap(version: String?): Map<String, Asset> {
+        val conn = open(releaseApi(version), "application/vnd.github+json")
         try {
             val json = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
             val arr = json.getJSONArray("assets")
@@ -179,21 +178,18 @@ object Updater {
     }
 
     /**
-     * GitHub responde 302 a una URL firmada de otro host; esa NO debe llevar el header
-     * Authorization (el almacenamiento la rechaza), así que la redirección se sigue a mano.
+     * GitHub responde 302 a una URL firmada de otro host; la redirección se sigue a mano (sin cabeceras extra).
      */
     private fun openAsset(id: Long): HttpURLConnection {
         var url = "https://api.github.com/repos/$REPO/releases/assets/$id"
-        var auth = true
         repeat(5) {
-            val c = open(url, "application/octet-stream", withAuth = auth, checkOk = false)
+            val c = open(url, "application/octet-stream", checkOk = false)
             val code = c.responseCode
             if (code in 300..399) {
                 val loc = c.getHeaderField("Location")
                 c.disconnect()
                 if (loc.isNullOrEmpty()) throw IOException("redirección sin destino")
                 url = loc
-                auth = false
             } else {
                 if (code !in 200..299) { c.disconnect(); throw IOException("HTTP $code") }
                 return c
@@ -202,17 +198,14 @@ object Updater {
         throw IOException("demasiadas redirecciones")
     }
 
-    private fun open(urlStr: String, accept: String, withAuth: Boolean, checkOk: Boolean = true): HttpURLConnection {
+    private fun open(urlStr: String, accept: String, checkOk: Boolean = true): HttpURLConnection {
         val c = (URL(urlStr).openConnection() as HttpURLConnection).apply {
             instanceFollowRedirects = false
             connectTimeout = 15000
             readTimeout = 30000
             setRequestProperty("User-Agent", "Peli")
             setRequestProperty("Accept", accept)
-            if (withAuth && BuildConfig.UPDATE_TOKEN.isNotEmpty()) {
-                setRequestProperty("Authorization", "Bearer ${BuildConfig.UPDATE_TOKEN}")
-                setRequestProperty("X-GitHub-Api-Version", "2022-11-28")
-            }
+            if (urlStr.startsWith("https://api.github.com/")) setRequestProperty("X-GitHub-Api-Version", "2022-11-28")
         }
         c.connect()
         if (checkOk) {

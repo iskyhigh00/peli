@@ -129,6 +129,12 @@ object Changelog {
             "Las películas sin carátula o sin sinopsis ya no se descartan: solo bajan un poco en la lista.",
             "Descubrir usa la misma selección con diversidad que la lista principal y los próximos estrenos tienen un tope estricto (salvo que filtres años futuros).",
         ),
+        "1.3.2" to listOf(
+            "La app ya no lleva ninguna credencial de actualización: descarga solo desde el repositorio público.",
+            "El actualizador baja exactamente la versión anunciada, no la última que aparezca.",
+            "Los datos de sesión y vinculación quedan fuera de las copias de seguridad del teléfono.",
+            "Al importar una lista se validan tamaño, identificadores y campos antes de guardar.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

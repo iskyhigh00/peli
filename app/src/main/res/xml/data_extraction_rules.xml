@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Las credenciales (sesión de la cuenta y código de sala) no viajan en copias de seguridad ni al cambiar de teléfono. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="peli_account.xml" />
+        <exclude domain="sharedpref" path="peli_pairing.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="peli_account.xml" />
+        <exclude domain="sharedpref" path="peli_pairing.xml" />
+    </device-transfer>
+</data-extraction-rules>
