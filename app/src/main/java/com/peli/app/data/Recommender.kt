@@ -194,11 +194,13 @@ object Recommender {
         else r * (1.0 - profile.positives.maxOf { similarity(c, it) })
         val rejected = if (profile.negatives.isEmpty()) 0.0
         else 0.15 * max(0.0, profile.negatives.maxOf { similarity(c, it) } - 0.4)
+        // Sin carátula o sin sinopsis no se descarta la película: solo baja un poco.
+        val missing = (if (c.posterPath == null) 0.03 else 0.0) + (if (c.overview.isBlank()) 0.02 else 0.0)
         return (0.40 + 0.15 * z) * r +
             0.20 * (meta?.collab ?: 0.0) +
             (0.30 - 0.15 * z) * quality(c, meta?.votes) +
             0.10 * serendipity -
-            rejected
+            rejected - missing
     }
 
     /**
@@ -219,9 +221,16 @@ object Recommender {
         .sortedWith(compareByDescending<Pair<Entry, Double>> { it.second }.thenBy { it.first.movieId })
         .map { it.first }
 
+    enum class Surface { MAIN, DISCOVER }
+
     /**
      * Elige [k] películas: puntaje + diversidad (MMR) + cupo de exploración fuera de mis géneros principales
-     * + tope de próximos estrenos (10%). El azar solo interviene en los cupos de exploración.
+     * + tope de próximos estrenos. El azar solo interviene en los cupos de exploración.
+     *
+     * @param recent lo que ya se vio justo antes (p. ej. las últimas tarjetas de Descubrir): cuenta para la
+     *  diversidad pero no se devuelve.
+     * @param maxUpcoming tope ESTRICTO de próximos estrenos (por defecto 10% de [k]); con un filtro explícito
+     *  de años futuros se pasa [k] y los estrenos pueden ser toda la lista.
      */
     fun select(
         candidates: Collection<Entry>,
@@ -229,32 +238,42 @@ object Recommender {
         meta: Map<Int, CandMeta>,
         k: Int,
         random: Random = Random.Default,
+        recent: List<Entry> = emptyList(),
+        surface: Surface = Surface.MAIN,
+        maxUpcoming: Int? = null,
     ): List<Entry> {
         val pool = candidates.distinctBy { it.movieId }.sortedBy { it.movieId }
         if (pool.isEmpty() || k <= 0) return emptyList()
-        val base = pool.associate { it.movieId to baseScore(it, profile, meta[it.movieId]) }
+        val n = pool.size
+        val base = DoubleArray(n) { baseScore(pool[it], profile, meta[pool[it].movieId]) }
         val lambdaD = 0.10 + 0.15 * profile.entropy
-        val epsilon = 0.10 + 0.20 * exp(-profile.effectiveEvidence / 20.0)
+        val (eps0, epsRange) = if (surface == Surface.MAIN) 0.10 to 0.20 else 0.15 to 0.30
+        val epsilon = eps0 + epsRange * exp(-profile.effectiveEvidence / 20.0)
         val period = max(2, (1.0 / epsilon).roundToInt())
         val top = profile.topGenres(3).toSet()
-        val maxUpcoming = max(1, k / 10)
+        val upcomingCap = maxUpcoming ?: max(1, k / 10)
 
-        val remaining = pool.toMutableList()
-        val chosen = ArrayList<Entry>(min(k, pool.size))
+        // Parecido máximo de cada candidata con lo ya elegido o visto: se actualiza solo contra la última elegida.
+        val maxSim = DoubleArray(n) { i -> recent.maxOfOrNull { similarity(pool[i], it) } ?: 0.0 }
+        val taken = BooleanArray(n)
+        val chosen = ArrayList<Entry>(min(k, n))
         var upcoming = 0
-        while (chosen.size < k && remaining.isNotEmpty()) {
-            val allowed = remaining.filter { upcoming < maxUpcoming || !it.isUpcoming }.ifEmpty { remaining }
+        while (chosen.size < k) {
+            val allowed = (0 until n).filter { !taken[it] && (upcoming < upcomingCap || !pool[it].isUpcoming) }
+            if (allowed.isEmpty()) break
             val explore = top.isNotEmpty() && chosen.size % period == period - 1
+            // "Fuera de lo que me gusta": ninguno de sus géneros está entre mis principales (no solo el primero).
             val options = if (explore) {
-                allowed.filter { it.genreIds.isNotEmpty() && it.genreIds.first() !in top }.ifEmpty { allowed }
+                allowed.filter { pool[it].genreIds.isNotEmpty() && pool[it].genreIds.none { g -> g in top } }.ifEmpty { allowed }
             } else allowed
-            val ranked = options
-                .map { e -> e to base.getValue(e.movieId) - lambdaD * (chosen.maxOfOrNull { similarity(e, it) } ?: 0.0) }
-                .sortedWith(compareByDescending<Pair<Entry, Double>> { it.second }.thenBy { it.first.movieId })
-            val pick = if (explore) ranked.take(3).let { it[random.nextInt(it.size)] }.first else ranked.first().first
-            chosen += pick
-            remaining.removeAll { it.movieId == pick.movieId }
-            if (pick.isUpcoming) upcoming++
+            val ranked = options.sortedWith(
+                compareByDescending<Int> { base[it] - lambdaD * maxSim[it] }.thenBy { pool[it].movieId },
+            )
+            val pick = if (explore) ranked.take(3).let { it[random.nextInt(it.size)] } else ranked.first()
+            taken[pick] = true
+            chosen += pool[pick]
+            if (pool[pick].isUpcoming) upcoming++
+            for (j in 0 until n) if (!taken[j]) maxSim[j] = max(maxSim[j], similarity(pool[j], pool[pick]))
         }
         return chosen
     }

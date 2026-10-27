@@ -195,6 +195,50 @@ class RecommenderTest {
         assertTrue(picked.count { it.isUpcoming } <= 2)
     }
 
+    @Test fun theUpcomingCapIsStrictAndAnExplicitFutureFilterLiftsIt() {
+        val p = profileOf(entry(1, liked = true, seen = true, genres = "28", updatedAt = now))
+        val upcoming = (100..129).map { entry(it, genres = "28", rating = 8.0).copy(releaseDate = "2999-01-01", year = "2999") }
+        // solo hay estrenos: con el tope normal la lista queda corta (no se rellena violando el tope)
+        val capped = Recommender.select(upcoming, p, emptyMap(), 20, Random(1))
+        assertEquals(2, capped.size)
+        // con un filtro de años futuros el tope se levanta
+        val lifted = Recommender.select(upcoming, p, emptyMap(), 20, Random(1), maxUpcoming = 20)
+        assertEquals(20, lifted.size)
+    }
+
+    @Test fun recentCardsCountForDiversityButAreNotReturned() {
+        val p = profileOf(entry(1, liked = true, seen = true, genres = "28", updatedAt = now))
+        val sameAsRecent = (100..104).map { entry(it, genres = "28", rating = 8.0) }
+        val different = (200..204).map { entry(it, genres = "35", rating = 7.0) }
+        val recent = listOf(entry(900, genres = "28", rating = 9.0))
+        val picked = Recommender.select(sameAsRecent + different, p, emptyMap(), 3, Random(2), recent = recent, surface = Recommender.Surface.DISCOVER)
+        assertTrue(picked.none { it.movieId == 900 })
+        assertTrue("debería evitar repetir lo que acaba de verse", picked.first().genres == "35")
+    }
+
+    @Test fun explorationLooksAtAllGenresNotJustTheFirstOne() {
+        // "28" es favorito; una película con géneros [35, 28] NO está fuera de lo que me gusta aunque su primero sea 35
+        val p = profileOf(
+            entry(1, liked = true, seen = true, genres = "28", updatedAt = now),
+            entry(2, liked = true, seen = true, genres = "28", updatedAt = now),
+        )
+        val inside = (100..110).map { entry(it, genres = "35,28", rating = 9.0) }
+        val outside = listOf(entry(200, genres = "99", rating = 5.0))
+        val picked = Recommender.select(inside + outside, p, emptyMap(), 6, Random(5))
+        // el cupo de exploración existe y escoge la que realmente está fuera
+        assertTrue(picked.any { it.movieId == 200 })
+    }
+
+    @Test fun missingPosterOrOverviewOnlyLowersTheScore() {
+        val p = profileOf(entry(1, liked = true, seen = true, genres = "28", updatedAt = now))
+        val full = entry(10, genres = "28", rating = 8.0).copy(posterPath = "/p.jpg")
+        val noPoster = full.copy(movieId = 11, posterPath = null)
+        val noOverview = full.copy(movieId = 12, overview = "")
+        assertTrue(Recommender.baseScore(full, p, null) > Recommender.baseScore(noPoster, p, null))
+        assertTrue(Recommender.baseScore(noPoster, p, null) > Recommender.baseScore(noOverview, p, null) - 0.1)
+        assertEquals(3, Recommender.select(listOf(full, noPoster, noOverview), p, emptyMap(), 3).size)
+    }
+
     @Test fun selectNeverFailsOnEmptyPoolsOrZeroK() {
         val p = Recommender.buildProfile(emptyList(), now)
         assertTrue(Recommender.select(emptyList(), p, emptyMap(), 10).isEmpty())

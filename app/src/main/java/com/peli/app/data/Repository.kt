@@ -2,16 +2,20 @@ package com.peli.app.data
 
 import androidx.room.withTransaction
 import com.google.gson.Gson
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.sync.withLock
 
 class Repository(private val db: AppDb, private val api: TmdbApi) {
     private companion object {
-        const val MIN_FRESH = 12
         const val PAGE_SIZE = 500
+        const val MAX_PASSES = 2
+        const val MAX_CONCURRENT_CALLS = 4
         const val SEARCH_PAGES_WITH_YEARS = 3
     }
 
@@ -181,83 +185,133 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
     /** Candidatas ya buscadas en TMDB, sin lo que ya marqué, con su perfil y datos extra para puntuarlas. */
     class Pool(val candidates: List<Entry>, val meta: Map<Int, CandMeta>, val profile: Recommender.Profile)
 
+    /** Páginas ya recorridas de cada consulta de TMDB (se guardan en el teléfono); lo asigna PeliApp. */
+    var cursors: PageCursors = MemoryCursors()
+
+    private val poolMutex = Mutex()
+    private val stashLock = Any()
+    private val stash = CandidateStash()
+    private var stashKey: String? = null
+    private val gate = Semaphore(MAX_CONCURRENT_CALLS)
+
+    /** Lo que ya se entregó sale del depósito compartido. */
+    fun consume(ids: Collection<Int>) = synchronized(stashLock) { stash.remove(ids) }
+
     /**
-     * Busca candidatas en varias fuentes de TMDB, rotando semillas, géneros y páginas para que no sean siempre
-     * las mismas:
-     *  - recomendaciones de TMDB para películas que me gustaron (o quiero ver), con semillas de distintos géneros,
-     *  - mejores y más populares de 2 de mis 3 géneros favoritos (páginas al azar),
-     *  - algo popular (exploración).
-     * Con rango de años se usa discover por fecha de estreno. Elegir y ordenar lo hace [Recommender].
+     * Candidatas para la lista principal y para Descubrir. Comparten un depósito de sobrantes: solo se pide a
+     * TMDB cuando faltan al menos [needed] candidatas utilizables ([isUsable] aplica la memoria de lo mostrado).
+     * Cada pasada recorre varias fuentes con cursores de página (no repite páginas), rotando orden de TMDB,
+     * décadas y semillas; como mucho [MAX_PASSES] pasadas por llamada. Un máximo de [MAX_CONCURRENT_CALLS]
+     * peticiones a la vez. Si ninguna fuente responde y no hay nada guardado, falla (no es "sin resultados").
      */
-    suspend fun candidatePool(marked: List<Entry>, years: YearRange? = null): Pool = coroutineScope {
+    suspend fun candidatePool(
+        marked: List<Entry>,
+        years: YearRange? = null,
+        needed: Int = 0,
+        isUsable: (Int) -> Boolean = { true },
+        random: kotlin.random.Random = kotlin.random.Random.Default,
+    ): Pool = poolMutex.withLock {
+        val key = years?.encode().orEmpty()
         val known = marked.map { it.movieId }.toSet()
         val profile = Recommender.buildProfile(marked)
-        val seeds = Recommender.pickSeeds(marked, 6, kotlin.random.Random.Default)
+        synchronized(stashLock) {
+            if (stashKey != key) {
+                stash.clear()
+                stashKey = key
+            }
+        }
+        fun usableCount() = synchronized(stashLock) { stash.usable(known, isUsable).size }
+        var passes = 0
+        while (usableCount() < needed && passes < MAX_PASSES) {
+            val tally = fetchPass(marked, profile, years, random)
+            passes++
+            if (tally.allFailed) {
+                if (usableCount() == 0) tally.requireAny()
+                break
+            }
+        }
+        val usable = synchronized(stashLock) { stash.usable(known) }
+        Pool(usable.map { it.first }, usable.associate { it.first.movieId to it.second }, profile)
+    }
 
-        val pool = LinkedHashMap<Int, Entry>()
+    /** Una pasada por todas las fuentes; lo encontrado va al depósito. Los cursores avanzan solo si la llamada salió bien. */
+    private suspend fun fetchPass(
+        marked: List<Entry>,
+        profile: Recommender.Profile,
+        years: YearRange?,
+        random: kotlin.random.Random,
+    ): SourceTally = coroutineScope {
+        val tally = SourceTally()
+        val rotation = cursors.get("rotation")
+        cursors.set("rotation", rotation + 1)
+        val seeds = Recommender.pickSeeds(marked, 6, random)
+        // De mis 3 géneros favoritos se sortean 2: así cada vez salen cosas distintas.
+        val topGenres = profile.topGenres(3).shuffled(random).take(2)
+        val genreList = topGenres.joinToString("|")
+        val sort = listOf("vote_average.desc", "popularity.desc", "vote_count.desc")[rotation % 3]
+        val votesFloor = listOf(500, 100, 50)[rotation % 3]
+        val decade = listOf(1970, 1980, 1990, 2000, 2010, 2020)[rotation % 6]
+        // Con rango que llega al año actual o futuro casi no hay votos todavía: se baja el mínimo (hasta 0).
+        val future = years != null && years.to >= ReleaseInfo.currentYear()
+        val yearVotes = if (future) 0 else 100
+
+        /** Pide la página que toca de una consulta; el cursor solo avanza si salió bien. */
+        fun call(key: String, start: Int? = null, fetch: suspend (Int) -> TmdbPage) = async {
+            gate.withPermit {
+                attempt {
+                    val saved = cursors.get(key)
+                    val page = if (start != null && saved == 1) start else saved
+                    val r = fetch(page)
+                    cursors.set(key, Cursors.next(page, r.total_pages))
+                    r.results
+                }
+            }
+        }
+
+        val seedCalls = seeds.map { s -> s to call("rec:${s.movieId}") { api.recommendations(s.movieId, it) } }
+        val others = ArrayList<Deferred<Result<List<TmdbMovie>>>>()
+        if (years != null) {
+            val y = years.encode()
+            others += call("yr:$y") { api.discover(null, it, "popularity.desc", yearVotes, years.startDate, years.endDate) }
+            if (topGenres.isNotEmpty()) {
+                others += call("gy:$genreList:$y") { api.discover(genreList, it, "popularity.desc", yearVotes, years.startDate, years.endDate) }
+            }
+        } else {
+            if (topGenres.isNotEmpty()) {
+                others += call("g:$genreList:$sort") { api.discover(genreList, it, sort, votesFloor) }
+                others += call("gp:$genreList") { api.discover(genreList, it, "popularity.desc", votesFloor) }
+            }
+            // Una década rotativa (con mis géneros si los hay): material que no sale en las listas de siempre.
+            others += call("dec:$decade:$genreList") {
+                api.discover(genreList.ifBlank { null }, it, "popularity.desc", 100, "$decade-01-01", "${decade + 9}-12-31")
+            }
+            others += call("popular") { api.popular(it) }
+            // Sin gustos aún se piden dos páginas distintas (la segunda arranca lejos de la primera).
+            if (profile.isEmpty) others += call("popular:b", start = 9) { api.popular(it) }
+        }
+
+        val found = LinkedHashMap<Int, Entry>()
         val votes = HashMap<Int, Int>()
         val contributions = HashMap<Int, MutableList<Pair<Double, Int>>>()
-        val tally = SourceTally()
-        fun add(result: Result<List<TmdbMovie>>?, seed: Entry? = null) {
-            if (result == null) return   // fuente que no aplicaba: no cuenta como éxito ni como fallo
+        fun add(result: Result<List<TmdbMovie>>, seed: Entry? = null) {
             tally.record(result)?.forEachIndexed { pos, m ->
-                pool.putIfAbsent(m.id, m.toEntry(OWNER_ME))
+                found.putIfAbsent(m.id, m.toEntry(OWNER_ME))
                 m.vote_count?.let { votes[m.id] = it }
                 if (seed != null) contributions.getOrPut(m.id) { ArrayList() }.add(Recommender.seedStrength(seed) to pos)
             }
         }
+        seedCalls.forEach { (seed, d) -> add(d.await(), seed) }
+        others.forEach { add(it.await()) }
 
-        val seedJobs = seeds.map { s -> async { s to attempt { api.recommendations(s.movieId).results } } }
-        // De mis 3 géneros favoritos se sortean 2: así cada vez salen cosas distintas.
-        val topGenres = profile.topGenres(3).shuffled().take(2)
-        val genreList = topGenres.joinToString("|")
-
-        // Con rango de años, TMDB filtra por fecha de estreno. Si el rango llega al año actual o futuro,
-        // casi no hay votos todavía: se baja el mínimo.
-        val minVotes = if (years != null && years.to >= ReleaseInfo.currentYear()) 10 else 100
-        val byYears = years?.let { r ->
-            listOf(1, (2..4).random()).map { p ->
-                async { attempt { api.discover(null, p, "popularity.desc", minVotes, r.startDate, r.endDate).results } }
-            }
-        }.orEmpty()
-        val byGenreYears = async {
-            if (years == null || topGenres.isEmpty()) null
-            else attempt {
-                api.discover(genreList, (1..2).random(), "popularity.desc", minVotes, years.startDate, years.endDate).results
+        // Si NINGUNA fuente respondió, es un fallo de red o de servicio (lo decide quien llama).
+        if (tally.failed > 0 && tally.ok > 0) com.peli.app.log.AppLog.w("Candidatas", "${tally.failed} fuentes fallaron y ${tally.ok} respondieron")
+        synchronized(stashLock) {
+            for ((id, e) in found) {
+                if (years != null && e !in years) continue
+                stash.add(e, CandMeta(votes[id], contributions[id]?.let { c -> Recommender.collab(c) } ?: 0.0))
             }
         }
-        val byGenre = async {
-            if (years != null || topGenres.isEmpty()) null
-            else attempt { api.discover(genreList, page = (1..10).random()).results }
-        }
-        val byGenrePopular = async {
-            if (years != null || topGenres.isEmpty()) null
-            else attempt { api.discover(genreList, page = (1..8).random(), sortBy = "popularity.desc").results }
-        }
-        // Sin gustos aún se piden dos páginas populares distintas; con gustos, una (exploración).
-        val popularPages = if (profile.isEmpty) (1..15).shuffled().take(2) else listOf((1..15).random())
-        val popular = if (years != null) emptyList() else popularPages.map { page ->
-            async { attempt { api.popular(page).results } }
-        }
-
-        seedJobs.awaitAll().forEach { (seed, result) -> add(result, seed) }
-        byYears.awaitAll().forEach { add(it) }
-        add(byGenreYears.await())
-        add(byGenre.await())
-        add(byGenrePopular.await())
-        popular.awaitAll().forEach { add(it) }
-
-        // Si NINGUNA fuente respondió es un fallo de red o de servicio, no "no hay películas".
-        tally.requireAny()
-        if (tally.failed > 0) com.peli.app.log.AppLog.w("Candidatas", "${tally.failed} fuentes fallaron y ${tally.ok} respondieron")
-
-        val candidates = pool.values.filter {
-            it.movieId !in known && it.posterPath != null && it.overview.isNotBlank() && (years == null || it in years)
-        }
-        val meta = candidates.associate {
-            it.movieId to CandMeta(votes[it.movieId], contributions[it.movieId]?.let { c -> Recommender.collab(c) } ?: 0.0)
-        }
-        Pool(candidates, meta, profile)
+        tally
     }
 
     suspend fun importPartner(entries: List<Entry>) = dao.replaceAll(OWNER_PARTNER, entries)

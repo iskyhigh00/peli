@@ -20,7 +20,7 @@ data class TmdbMovie(
     val vote_count: Int? = null,
 )
 
-data class TmdbPage(val results: List<TmdbMovie> = emptyList())
+data class TmdbPage(val results: List<TmdbMovie> = emptyList(), val page: Int = 1, val total_pages: Int = 1)
 
 data class TmdbExternalIds(val imdb_id: String? = null)
 
@@ -71,7 +71,7 @@ interface TmdbApi {
     suspend fun reviews(@Path("id") id: Int, @Query("language") language: String = "en-US"): TmdbReviewsPage
 
     @GET("movie/{id}/recommendations")
-    suspend fun recommendations(@Path("id") id: Int): TmdbPage
+    suspend fun recommendations(@Path("id") id: Int, @Query("page") page: Int = 1): TmdbPage
 
     companion object {
         const val POSTER_BASE = "https://image.tmdb.org/t/p/w342"

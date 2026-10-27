@@ -4,58 +4,99 @@ import android.content.Context
 
 /**
  * Qué se le entregó al usuario y cuándo, para no repetir películas hasta que pase tiempo y rondas.
- * [round]/[at]: última entrega; [visible]: si llegó a verse en pantalla desde entonces; [skips]: veces omitida.
+ * Tres eventos independientes: entrega ([deliveredRound]/[deliveredAt]), visibilidad ([visibleRound]/[visibleAt],
+ * -1 = nunca se vio desde esa entrega) y omisión ([skipRound]/[skipAt], [skips] veces). Un evento tardío no
+ * acorta el plazo de otro: para volver a ofrecerla deben haber vencido TODOS los que existan.
  */
-data class Exposure(val id: Int, val round: Long, val at: Long, val visible: Boolean, val skips: Int)
+data class Exposure(
+    val id: Int,
+    val deliveredRound: Long,
+    val deliveredAt: Long,
+    val visibleRound: Long = -1,
+    val visibleAt: Long = -1,
+    val skipRound: Long = -1,
+    val skipAt: Long = -1,
+    val skips: Int = 0,
+) {
+    val hasVisible get() = visibleRound >= 0
+}
 
 object ExposureRules {
-    /** Nada entregado en las últimas rondas vuelve a salir, aunque falte material. */
+    /** Nada entregado en las últimas rondas vuelve a salir. */
     const val HARD_FLOOR_ROUNDS = 5
     private const val DAY_MS = 86_400_000.0
 
-    /** De lo más estricto a lo más permisivo: se usa el primero que deja suficiente material nuevo. */
-    val RELAX_LEVELS = listOf(1.0, 0.5, 0.25, 0.1)
+    private fun due(round: Long, now: Long, atRound: Long, atTime: Long, rounds: Int, days: Int) =
+        round - atRound >= rounds && (now - atTime) / DAY_MS >= days
 
-    /** Rondas y días que deben pasar (ambos) antes de volver a ofrecerla. */
-    fun waits(x: Exposure): Pair<Int, Int> = when {
-        x.skips >= 2 -> 200 to 180
-        x.skips == 1 -> 150 to 60
-        x.visible -> 100 to 30
-        else -> 60 to 14
-    }
-
-    /** [round] es la ronda de la entrega que se está armando. */
-    fun eligible(x: Exposure?, round: Long, now: Long, relax: Double = 1.0): Boolean {
+    /**
+     * [round] es la ronda de la entrega que se está armando. Plazos (rondas Y días, desde cada evento):
+     * entregada y nunca vista 60/14; vista 100/30; omitida una vez 150/60; omitida dos o más 200/180.
+     * No hay relajación automática: si falta material nuevo se buscan otras fuentes o la lista queda más corta.
+     */
+    fun eligible(x: Exposure?, round: Long, now: Long): Boolean {
         if (x == null) return true
-        val since = round - x.round
-        if (since < HARD_FLOOR_ROUNDS) return false
-        val (rounds, days) = waits(x)
-        return since >= rounds * relax && (now - x.at) / DAY_MS >= days * relax
+        if (round - x.deliveredRound < HARD_FLOOR_ROUNDS) return false
+        if (!x.hasVisible && !due(round, now, x.deliveredRound, x.deliveredAt, 60, 14)) return false
+        if (x.hasVisible && !due(round, now, x.visibleRound, x.visibleAt, 100, 30)) return false
+        if (x.skips >= 2 && !due(round, now, x.skipRound, x.skipAt, 200, 180)) return false
+        if (x.skips == 1 && !due(round, now, x.skipRound, x.skipAt, 150, 60)) return false
+        return true
     }
 
-    fun encode(items: Collection<Exposure>): String =
-        items.joinToString(";") { "${it.id},${it.round},${it.at},${if (it.visible) 1 else 0},${it.skips}" }
+    /** Nivel de prioridad entre las elegibles: 0 nunca entregadas, 1 entregadas sin respuesta, 2 omitidas. */
+    fun tier(x: Exposure?): Int = when {
+        x == null -> 0
+        x.skips > 0 -> 2
+        else -> 1
+    }
 
+    fun encode(items: Collection<Exposure>): String = items.joinToString(";") {
+        "${it.id},${it.deliveredRound},${it.deliveredAt},${it.visibleRound},${it.visibleAt},${it.skipRound},${it.skipAt},${it.skips}"
+    }
+
+    /** Lee el formato nuevo (8 campos) y el anterior (5 campos: id, ronda, hora, visible, omisiones). */
     fun decode(text: String): Map<Int, Exposure> {
         val out = LinkedHashMap<Int, Exposure>()
         for (part in text.split(';')) {
             val f = part.split(',')
-            if (f.size != 5) continue
-            val id = f[0].toIntOrNull() ?: continue
-            val round = f[1].toLongOrNull() ?: continue
-            val at = f[2].toLongOrNull() ?: continue
-            out[id] = Exposure(id, round, at, f[3] == "1", f[4].toIntOrNull() ?: 0)
+            val id = f.getOrNull(0)?.toIntOrNull() ?: continue
+            when (f.size) {
+                8 -> {
+                    val nums = f.drop(1).take(6).map { it.toLongOrNull() ?: return@map null }
+                    if (nums.any { it == null }) continue
+                    out[id] = Exposure(id, nums[0]!!, nums[1]!!, nums[2]!!, nums[3]!!, nums[4]!!, nums[5]!!, f[7].toIntOrNull() ?: 0)
+                }
+                5 -> {
+                    val round = f[1].toLongOrNull() ?: continue
+                    val at = f[2].toLongOrNull() ?: continue
+                    val skips = f[4].toIntOrNull() ?: 0
+                    out[id] = Exposure(
+                        id, round, at,
+                        visibleRound = if (f[3] == "1") round else -1, visibleAt = if (f[3] == "1") at else -1,
+                        skipRound = if (skips > 0) round else -1, skipAt = if (skips > 0) at else -1, skips = skips,
+                    )
+                }
+            }
         }
         return out
     }
 
-    /** Si hay más de [capacity], se olvidan primero las entregas más antiguas (conservando las omitidas). */
-    fun trim(items: Map<Int, Exposure>, capacity: Int = 4000): Map<Int, Exposure> {
+    /**
+     * Limpia solo lo que YA no protege nada (todos sus plazos vencieron: equivale a no haberla mostrado nunca).
+     * Si pasa de [capacity] pero todo sigue protegido, no se olvida nada: el límite es blando.
+     */
+    fun trim(items: Map<Int, Exposure>, round: Long, now: Long, capacity: Int = 4000): Map<Int, Exposure> {
         if (items.size <= capacity) return items
-        val keep = items.values.sortedWith(
-            compareByDescending<Exposure> { it.skips > 0 }.thenByDescending { it.at }.thenBy { it.id },
-        ).take(capacity)
-        return keep.associateBy { it.id }
+        val expired = items.values.filter { eligible(it, round, now) }.sortedWith(compareBy({ it.deliveredAt }, { it.id }))
+        var excess = items.size - capacity
+        val drop = HashSet<Int>()
+        for (e in expired) {
+            if (excess <= 0) break
+            drop += e.id
+            excess--
+        }
+        return if (drop.isEmpty()) items else items.filterKeys { it !in drop }
     }
 
     /** Convierte el historial anterior (solo ids, de más antiguo a más reciente) en entregas de hace unos días. */
@@ -63,7 +104,30 @@ object ExposureRules {
         val out = LinkedHashMap<Int, Exposure>()
         oldIds.forEachIndexed { index, id ->
             val fromEnd = oldIds.size - 1 - index
-            out[id] = Exposure(id, round - fromEnd / perRound, now - 5L * 86_400_000L, visible = false, skips = 0)
+            out[id] = Exposure(id, round - fromEnd / perRound, now - 5L * 86_400_000L)
+        }
+        return out
+    }
+}
+
+/** Reparto de las elegibles por niveles de prioridad y selección nivel por nivel. */
+object Delivery {
+    /** Elegibles (según su memoria) separadas en niveles: 0 nunca entregadas, 1 entregadas sin respuesta, 2 omitidas. */
+    fun tiers(candidates: List<Entry>, snapshot: Map<Int, Exposure>, round: Long, now: Long): List<List<Entry>> {
+        val eligible = candidates.filter { ExposureRules.eligible(snapshot[it.movieId], round, now) }
+        return (0..2).map { t -> eligible.filter { ExposureRules.tier(snapshot[it.movieId]) == t } }
+    }
+
+    /**
+     * Toma hasta [k] películas: el nivel siguiente solo se usa si el anterior no alcanza. [select] recibe
+     * el nivel, cuántas faltan y lo ya elegido (para que la diversidad lo tenga en cuenta).
+     */
+    fun choose(tiers: List<List<Entry>>, k: Int, select: (List<Entry>, Int, List<Entry>) -> List<Entry>): List<Entry> {
+        val out = ArrayList<Entry>()
+        for (tier in tiers) {
+            if (out.size >= k) break
+            if (tier.isEmpty()) continue
+            out += select(tier, k - out.size, out.toList())
         }
         return out
     }
@@ -89,50 +153,68 @@ class ExposureStore(context: Context) {
     }
 
     private fun save(items: Map<Int, Exposure>, round: Long = round()) {
-        prefs.edit().putString("items", ExposureRules.encode(ExposureRules.trim(items).values)).putLong("round", round).apply()
+        val kept = ExposureRules.trim(items, round + 1, System.currentTimeMillis())
+        prefs.edit().putString("items", ExposureRules.encode(kept.values)).putLong("round", round).apply()
     }
 
-    /** Registra una entrega completada: es una ronda nueva. */
+    /** Registra una entrega completada: es una ronda nueva (la visibilidad vuelve a empezar). */
     @Synchronized fun deliver(ids: List<Int>, round: Long, now: Long) {
         val items = LinkedHashMap(snapshot())
-        for (id in ids) items[id] = Exposure(id, round, now, visible = false, skips = items[id]?.skips ?: 0)
+        for (id in ids) {
+            val old = items[id]
+            items[id] = Exposure(id, round, now, skipRound = old?.skipRound ?: -1, skipAt = old?.skipAt ?: -1, skips = old?.skips ?: 0)
+        }
         save(items, round)
     }
 
     /** Película que llegó a verse en pantalla (solo si ya estaba registrada como entregada). */
-    @Synchronized fun markVisible(ids: Collection<Int>) {
+    @Synchronized fun markVisible(ids: Collection<Int>, now: Long = System.currentTimeMillis()) {
         val items = LinkedHashMap(snapshot())
         var changed = false
         for (id in ids) {
             val x = items[id] ?: continue
-            if (!x.visible) {
-                items[id] = x.copy(visible = true)
+            if (!x.hasVisible) {
+                items[id] = x.copy(visibleRound = round(), visibleAt = now)
                 changed = true
             }
         }
         if (changed) save(items)
     }
 
+    /** Descubrir mostró esta tarjeta (entregada y vista a la vez); se anota una sola vez por presentación. */
+    @Synchronized fun markShown(id: Int, now: Long) {
+        val items = LinkedHashMap(snapshot())
+        val old = items[id]
+        items[id] = Exposure(
+            id, round(), now, visibleRound = round(), visibleAt = now,
+            skipRound = old?.skipRound ?: -1, skipAt = old?.skipAt ?: -1, skips = old?.skips ?: 0,
+        )
+        save(items)
+    }
+
     /** "Omitir" en Descubrir: no es rechazo, pero tarda mucho en volver. */
     @Synchronized fun markSkipped(id: Int, now: Long) {
         val items = LinkedHashMap(snapshot())
-        val x = items[id]
-        items[id] = Exposure(id, round(), now, visible = true, skips = (x?.skips ?: 0) + 1)
+        val old = items[id]
+        items[id] = Exposure(
+            id, old?.deliveredRound ?: round(), old?.deliveredAt ?: now,
+            visibleRound = old?.visibleRound ?: round(), visibleAt = old?.visibleAt ?: now,
+            skipRound = round(), skipAt = now, skips = (old?.skips ?: 0) + 1,
+        )
         save(items)
     }
 
-    /** Descubrir muestra una tarjeta: queda registrada para no repetirse pronto. */
-    @Synchronized fun markShown(id: Int, now: Long) {
-        val items = LinkedHashMap(snapshot())
-        val x = items[id]
-        items[id] = Exposure(id, round(), now, visible = true, skips = x?.skips ?: 0)
-        save(items)
-    }
-
-    /** Cada 20 tarjetas respondidas en Descubrir cuenta como una ronda. */
+    /** Cada 20 tarjetas respondidas en Descubrir cuenta como una ronda; la precarga no avanza rondas. */
     @Synchronized fun countDiscoverAnswer() {
         val n = prefs.getInt("discover_answers", 0) + 1
         if (n >= 20) prefs.edit().putInt("discover_answers", 0).putLong("round", round() + 1).apply()
         else prefs.edit().putInt("discover_answers", n).apply()
     }
+}
+
+/** Cursores de página guardados en el teléfono (ver [PageCursors]). */
+class PrefsCursors(context: Context) : PageCursors {
+    private val prefs = context.getSharedPreferences("peli_cursors", Context.MODE_PRIVATE)
+    @Synchronized override fun get(key: String): Int = prefs.getInt(key, 1)
+    @Synchronized override fun set(key: String, page: Int) = prefs.edit().putInt(key, page).apply()
 }

@@ -8,6 +8,7 @@ import android.os.Bundle
 import com.peli.app.data.AccountStore
 import com.peli.app.data.AppDb
 import com.peli.app.data.ExposureStore
+import com.peli.app.data.PrefsCursors
 import com.peli.app.data.PairingStore
 import com.peli.app.data.Repository
 import com.peli.app.data.ScopeStore
@@ -70,6 +71,7 @@ class PeliApp : Application() {
     val scopes by lazy { ScopeStore(this) }
     val repository by lazy {
         Repository(AppDb.create(this), TmdbApi.create()).also { repo ->
+            repo.cursors = PrefsCursors(this)
             // A dónde se envían mis marcas AHORA (se evalúa al escribir cada marca).
             repo.destinations = {
                 val userId = account.session?.userId

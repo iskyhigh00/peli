@@ -122,6 +122,13 @@ object Changelog {
             "Las listas largas de tus amigos se descargan completas por páginas antes de reemplazar la anterior.",
             "Deshacer y el aprendizaje de Descubrir ya no esperan a la red.",
         ),
+        "1.3.1" to listOf(
+            "Descubrir anota cada tarjeta que de verdad se ve y vuelve a validar la cola contra lo entregado en la lista principal.",
+            "Los plazos para repetir una película ya no se relajan solos: primero salen las nunca mostradas y, si no alcanzan, se buscan más fuentes o la lista queda más corta con un aviso.",
+            "Más cobertura: cada consulta a TMDB recuerda su página (no repite), rota orden y décadas, comparte sobrantes entre pantallas y limita las peticiones a la vez.",
+            "Las películas sin carátula o sin sinopsis ya no se descartan: solo bajan un poco en la lista.",
+            "Descubrir usa la misma selección con diversidad que la lista principal y los próximos estrenos tienen un tope estricto (salvo que filtres años futuros).",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

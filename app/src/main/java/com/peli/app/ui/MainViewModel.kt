@@ -12,7 +12,9 @@ import com.peli.app.auth.GoogleToken
 import com.peli.app.data.ContextGuard
 import com.peli.app.data.Friend
 import com.peli.app.data.CandMeta
+import com.peli.app.data.Delivery
 import com.peli.app.data.ExposureRules
+import com.peli.app.data.ReleaseInfo
 import com.peli.app.data.Recommender
 import com.peli.app.data.Scopes
 import com.peli.app.data.FriendRequestResult
@@ -145,6 +147,14 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
 
     /** Las que omitiste en esta sesión no vuelven a aparecer. */
     private val skipped = HashSet<Int>()
+
+    /** Entrega = elegir + reservar. La lista principal y Descubrir la hacen de una en una. */
+    private val deliveryMutex = Mutex()
+
+    /** La tarjeta de Descubrir que se ve ahora, las últimas vistas (para la diversidad) y las devueltas por «deshacer». */
+    private var shownCardId: Int? = null
+    private val shownCards = ArrayDeque<Entry>()
+    private val undoReturned = HashSet<Int>()
 
     /** Votos y señal de TMDB de las tarjetas de la cola, para volver a ordenarla al aprender. */
     private val queueMeta = HashMap<Int, CandMeta>()
@@ -330,24 +340,41 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         // El lote guardado solo sirve si se pidió con el mismo rango de años.
         if (!refresh && feed.isNotEmpty() && feedYears == years) return feed
         // Se lee de la base (no del StateFlow, que al arrancar aún puede estar vacío) para personalizar de verdad.
-        val pool = repo.candidatePool(repo.mine.first(), years)
-        val store = peli.exposure
-        val round = store.round() + 1
-        val now = System.currentTimeMillis()
-        val snapshot = store.snapshot()
-        // Se usa el nivel más estricto que deje suficiente material nuevo; nada entregado en las últimas
-        // rondas vuelve a salir, y lo demás tarda días y muchas rondas en volver.
-        var eligible = emptyList<Entry>()
-        for (relax in ExposureRules.RELAX_LEVELS) {
-            eligible = pool.candidates.filter { ExposureRules.eligible(snapshot[it.movieId], round, now, relax) }
-            if (eligible.size >= FEED_SIZE) break
+        val marked = repo.mine.first()
+        // Elegir, reservar y entregar es una sola operación: la lista principal y Descubrir no se pisan.
+        return deliveryMutex.withLock {
+            val store = peli.exposure
+            val round = store.round() + 1
+            val now = System.currentTimeMillis()
+            val before = store.snapshot()
+            val pool = repo.candidatePool(
+                marked, years, needed = FEED_SIZE,
+                isUsable = { ExposureRules.eligible(before[it], round, now) },
+            )
+            // La red tarda: se vuelve a leer la memoria por si Descubrir entregó algo mientras tanto.
+            val tiers = Delivery.tiers(pool.candidates, store.snapshot(), round, now)
+            // Con un filtro explícito de años futuros los próximos estrenos pueden ser toda la lista.
+            val upcomingCap = if (years != null && years.to >= ReleaseInfo.currentYear()) FEED_SIZE else null
+            val next = Delivery.choose(tiers, FEED_SIZE) { list, need, chosen ->
+                Recommender.select(list, pool.profile, pool.meta, need, recent = chosen, maxUpcoming = upcomingCap)
+            }
+            if (next.isNotEmpty()) {
+                val ids = next.map { it.movieId }
+                store.deliver(ids, round, now)
+                repo.consume(ids)
+            }
+            AppLog.i(
+                "Feed",
+                "ronda $round: ${next.size} películas (candidatas ${pool.candidates.size}, " +
+                    "nuevas ${tiers[0].size}, repetibles ${tiers[1].size + tiers[2].size})",
+            )
+            if (next.size < FEED_SIZE / 2) {
+                message.value = "Hay pocas películas nuevas por ahora. Prueba más tarde o cambia los filtros."
+            }
+            feed = next
+            feedYears = years
+            next
         }
-        val next = Recommender.select(eligible, pool.profile, pool.meta, FEED_SIZE)
-        if (next.isNotEmpty()) store.deliver(next.map { it.movieId }, round, now)
-        AppLog.i("Feed", "ronda $round: ${next.size} películas (candidatas ${pool.candidates.size}, elegibles ${eligible.size})")
-        feed = next
-        feedYears = years
-        return next
     }
 
     private fun endPull() {
@@ -440,7 +467,9 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
             skipped += e.movieId
             peli.exposure.markSkipped(e.movieId, System.currentTimeMillis())
         }
+        undoReturned -= e.movieId
         queue.update { it.filter { x -> x.movieId != e.movieId } }
+        revalidateQueue()
         launch {
             if (answer != Answer.Skip) {
                 val previous = repo.snapshot(e.movieId)
@@ -476,8 +505,55 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
     private suspend fun rerankQueue() {
         val profile = Recommender.buildProfile(repo.mine.first())
         queue.update { q ->
-            if (q.size <= 2) q else listOf(q.first()) + Recommender.rank(q.drop(1), profile, queueMeta, 0.0)
+            if (q.size <= 2) q else {
+                val head = q.first()
+                val tail = q.drop(1)
+                // Se reordena solo lo que aún no se vio, con diversidad respecto de las últimas tarjetas vistas.
+                listOf(head) + Recommender.select(
+                    tail, profile, queueMeta, tail.size,
+                    recent = listOf(head) + shownCards.toList(),
+                    surface = Recommender.Surface.DISCOVER, maxUpcoming = tail.size,
+                )
+            }
         }
+    }
+
+    /** Quita de la cola lo que otra pantalla entregó después de armarla (la siguiente tarjeta incluida). */
+    private fun revalidateQueue() {
+        val store = peli.exposure
+        val snapshot = store.snapshot()
+        val round = store.round() + 1
+        val now = System.currentTimeMillis()
+        queue.update { q ->
+            q.filter {
+                stillValid(it, snapshot, round, now) ||
+                    (it.movieId in promoted && (snapshot[it.movieId]?.skips ?: 0) == 0)
+            }
+        }
+    }
+
+    /**
+     * ¿Sigue sirviendo una tarjeta de la cola? No si, mientras tanto, se entregó en otra pantalla o ya se
+     * respondió. Excepciones: la que se está viendo ahora y la que volvió por "deshacer".
+     */
+    private fun stillValid(e: Entry, snapshot: Map<Int, com.peli.app.data.Exposure>, round: Long, now: Long): Boolean =
+        e.movieId == shownCardId || e.movieId in undoReturned || ExposureRules.eligible(snapshot[e.movieId], round, now)
+
+    /**
+     * Lo que le interesa a la otra persona pasa por la misma memoria, con UNA excepción documentada: no se
+     * esconde por haberse mostrado y no respondido (se cerró la app antes de contestar); solo por haberla omitido.
+     */
+    private fun partnerPicksAllowed(snapshot: Map<Int, com.peli.app.data.Exposure>, round: Long, now: Long): List<Entry> =
+        partnerPicks().filter { (snapshot[it.movieId]?.skips ?: 0) == 0 || ExposureRules.eligible(snapshot[it.movieId], round, now) }
+
+    /** Descubrir muestra esta tarjeta: se anota UNA vez por presentación (no la precargada ni una recomposición). */
+    fun onDiscoverCardShown(e: Entry) {
+        if (shownCardId == e.movieId) return
+        shownCardId = e.movieId
+        shownCards.addLast(e)
+        while (shownCards.size > 5) shownCards.removeFirst()
+        undoReturned -= e.movieId
+        launch(Dispatchers.IO) { peli.exposure.markShown(e.movieId, System.currentTimeMillis()) }
     }
 
     /** Películas de la lista principal que llegaron a verse en pantalla (para la memoria de lo mostrado). */
@@ -496,6 +572,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         launch {
             repo.restore(offer.card, offer.previous)
             requestDrain()
+            undoReturned += offer.card.movieId
             skipped -= offer.card.movieId
             queue.update { listOf(offer.card) + it.filter { x -> x.movieId != offer.card.movieId } }
         }
@@ -525,22 +602,32 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
             val t0 = System.currentTimeMillis()
             try {
                 val marked = repo.mine.first()
-                val pool = repo.candidatePool(marked)
-                val store = peli.exposure
-                val round = store.round() + 1
-                val now = System.currentTimeMillis()
-                val snapshot = store.snapshot()
-                var eligible = emptyList<Entry>()
-                for (relax in ExposureRules.RELAX_LEVELS) {
-                    eligible = pool.candidates.filter { ExposureRules.eligible(snapshot[it.movieId], round, now, relax) }
-                    if (eligible.size >= REFILL_TARGET) break
+                deliveryMutex.withLock {
+                    val store = peli.exposure
+                    val round = store.round() + 1
+                    val now = System.currentTimeMillis()
+                    val before = store.snapshot()
+                    val pool = repo.candidatePool(
+                        marked, null, needed = REFILL_TARGET,
+                        isUsable = { ExposureRules.eligible(before[it], round, now) },
+                    )
+                    val snapshot = store.snapshot()
+                    val tiers = Delivery.tiers(pool.candidates, snapshot, round, now)
+                    val recent = shownCards.toList()
+                    val chosen = Delivery.choose(tiers, REFILL_TARGET) { list, need, already ->
+                        Recommender.select(
+                            list, pool.profile, pool.meta, need,
+                            recent = recent + already, surface = Recommender.Surface.DISCOVER,
+                        )
+                    }
+                    queueMeta.putAll(pool.meta)
+                    val known = repo.mine.first().map { it.movieId }.toSet()
+                    // Lo que ya estaba en la cola se vuelve a validar contra lo entregado después de armarla.
+                    val keep = queue.value.filter { stillValid(it, snapshot, round, now) }
+                    queue.value = (partnerPicksAllowed(snapshot, round, now) + keep + chosen)
+                        .filter { it.movieId !in known && it.movieId !in skipped }
+                        .distinctBy { it.movieId }
                 }
-                val ranked = Recommender.rank(eligible, pool.profile, pool.meta, noise = 0.03)
-                queueMeta.putAll(pool.meta)
-                val known = repo.mine.first().map { it.movieId }.toSet()
-                queue.value = (partnerPicks() + queue.value + ranked)
-                    .filter { it.movieId !in known && it.movieId !in skipped }
-                    .distinctBy { it.movieId }
                 AppLog.i("Descubrir", "cola rellenada: ${queue.value.size} sugerencias (${System.currentTimeMillis() - t0} ms)")
             } catch (e: CancellationException) {
                 throw e
@@ -943,7 +1030,8 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
     }
 
     private fun picksToFront() {
-        val picks = partnerPicks()
+        val store = peli.exposure
+        val picks = partnerPicksAllowed(store.snapshot(), store.round() + 1, System.currentTimeMillis())
         if (picks.isNotEmpty()) queue.update { (picks.filter { p -> p.movieId !in skipped } + it).distinctBy { x -> x.movieId } }
     }
 

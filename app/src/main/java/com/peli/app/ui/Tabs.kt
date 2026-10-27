@@ -277,6 +277,9 @@ fun DiscoverTab(vm: MainViewModel) {
     val navInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val scroll = rememberScrollState()
 
+    // La tarjeta de arriba cuenta como mostrada una vez por presentación (no la precargada ni una recomposición).
+    LaunchedEffect(current?.movieId) { current?.let(vm::onDiscoverCardShown) }
+
     if (current != null) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
             // En horizontal o con poca altura la tarjeta no cabe junto a los botones: pasa a ser desplazable.
