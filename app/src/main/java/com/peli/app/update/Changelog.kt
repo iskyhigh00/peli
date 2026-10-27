@@ -107,6 +107,9 @@ object Changelog {
             "Memoria de lo mostrado por rondas y días: lo que viste tarda semanas en volver, lo que omites mucho más.",
             "Descubrir aprende con cada respuesta y recuerda lo omitido aunque cierres la app.",
         ),
+        "1.2.8" to listOf(
+            "Arreglado un cierre inesperado de la app (error de Compose «Placement happened before lookahead»): se quitó la animación compartida de la carátula al abrir el detalle, que lo provocaba.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

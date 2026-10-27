@@ -145,7 +145,9 @@ fun PeliScreen(vm: MainViewModel = viewModel()) {
         }
 
         BrandBackground {
-            SharedTransitionLayout {
+            // Sin SharedTransitionLayout: su "lookahead" provoca el cierre "Placement happened before lookahead"
+            // (Compose 1.7) al mezclarse con imágenes de Coil y listas que cambian. Se queda un fundido simple.
+            run {
                 AnimatedContent(
                     targetState = selected,
                     contentKey = { it?.movieId },
@@ -153,7 +155,7 @@ fun PeliScreen(vm: MainViewModel = viewModel()) {
                     label = "detailTransition",
                 ) { entry ->
                     CompositionLocalProvider(
-                        LocalShared provides SharedScopes(this@SharedTransitionLayout, this@AnimatedContent),
+                        LocalShared provides null,
                     ) {
                         if (entry == null) {
                             // Conserva pestañas, scroll y barra superior mientras se mira una película.
