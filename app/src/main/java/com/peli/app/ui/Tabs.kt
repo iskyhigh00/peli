@@ -62,6 +62,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -103,6 +104,7 @@ import com.peli.app.ui.components.UpcomingChip
 import com.peli.app.ui.components.entrance
 import com.peli.app.ui.components.screenContentPadding
 import com.peli.app.ui.theme.SheetShape
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 
@@ -167,6 +169,15 @@ fun SearchTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Un
     // Al empezar a desplazar la lista se oculta el teclado.
     LaunchedEffect(listState) {
         snapshotFlow { listState.isScrollInProgress }.filter { it }.collect { dismissKeyboard() }
+    }
+
+    // Lo que llega a verse en pantalla se anota: sirve para decidir cuándo puede volver a salir.
+    val shownIds by rememberUpdatedState(shown.map { it.movieId }.toSet())
+    LaunchedEffect(listState, feedMode) {
+        if (!feedMode) return@LaunchedEffect
+        snapshotFlow { listState.layoutInfo.visibleItemsInfo.mapNotNull { it.key as? Int } }
+            .distinctUntilChanged()
+            .collect { keys -> vm.markVisible(keys.filter { it in shownIds }) }
     }
 
     PullToRefreshBox(

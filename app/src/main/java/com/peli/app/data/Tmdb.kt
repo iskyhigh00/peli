@@ -17,6 +17,7 @@ data class TmdbMovie(
     val release_date: String?,
     val genre_ids: List<Int>? = null,
     val vote_average: Double? = null,
+    val vote_count: Int? = null,
 )
 
 data class TmdbPage(val results: List<TmdbMovie> = emptyList())

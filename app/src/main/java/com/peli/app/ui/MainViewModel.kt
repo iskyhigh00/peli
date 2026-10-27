@@ -10,7 +10,9 @@ import com.peli.app.CrashReporter
 import com.peli.app.PeliApp
 import com.peli.app.auth.GoogleToken
 import com.peli.app.data.Friend
-import com.peli.app.data.FeedAvoid
+import com.peli.app.data.CandMeta
+import com.peli.app.data.ExposureRules
+import com.peli.app.data.Recommender
 import com.peli.app.data.FriendRequestResult
 import com.peli.app.data.Profile
 import com.peli.app.data.Social
@@ -130,6 +132,9 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
 
     /** Las que omitiste en esta sesión no vuelven a aparecer. */
     private val skipped = HashSet<Int>()
+
+    /** Votos y señal de TMDB de las tarjetas de la cola, para volver a ordenarla al aprender. */
+    private val queueMeta = HashMap<Int, CandMeta>()
     val queueLoading = MutableStateFlow(false)
     val queueError = MutableStateFlow<String?>(null)
     val undo = MutableStateFlow<UndoOffer?>(null)
@@ -299,12 +304,22 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
     private suspend fun loadFeed(refresh: Boolean, years: YearRange?): List<Entry> {
         // El lote guardado solo sirve si se pidió con el mismo rango de años.
         if (!refresh && feed.isNotEmpty() && feedYears == years) return feed
-        // Se evita todo lo ya mostrado (también en sesiones anteriores); solo si no alcanza el material nuevo
-        // se vuelve a permitir lo más antiguo. Así lo repetido tarda muchas actualizaciones en volver.
-        val levels = FeedAvoid.levels(peli.feedHistory.ids() + feed.map { it.movieId })
         // Se lee de la base (no del StateFlow, que al arrancar aún puede estar vacío) para personalizar de verdad.
-        val next = repo.recommend(repo.mine.first(), avoidLevels = levels, noise = FEED_NOISE, years = years).take(FEED_SIZE)
-        peli.feedHistory.record(next.map { it.movieId })
+        val pool = repo.candidatePool(repo.mine.first(), years)
+        val store = peli.exposure
+        val round = store.round() + 1
+        val now = System.currentTimeMillis()
+        val snapshot = store.snapshot()
+        // Se usa el nivel más estricto que deje suficiente material nuevo; nada entregado en las últimas
+        // rondas vuelve a salir, y lo demás tarda días y muchas rondas en volver.
+        var eligible = emptyList<Entry>()
+        for (relax in ExposureRules.RELAX_LEVELS) {
+            eligible = pool.candidates.filter { ExposureRules.eligible(snapshot[it.movieId], round, now, relax) }
+            if (eligible.size >= FEED_SIZE) break
+        }
+        val next = Recommender.select(eligible, pool.profile, pool.meta, FEED_SIZE)
+        if (next.isNotEmpty()) store.deliver(next.map { it.movieId }, round, now)
+        AppLog.i("Feed", "ronda $round: ${next.size} películas (candidatas ${pool.candidates.size}, elegibles ${eligible.size})")
         feed = next
         feedYears = years
         return next
@@ -418,7 +433,10 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
             return
         }
         AppLog.i("Descubrir", "$answer → «${e.title}» (${e.movieId}); cola=${discoverQueue.value.size}")
-        if (answer == Answer.Skip) skipped += e.movieId
+        if (answer == Answer.Skip) {
+            skipped += e.movieId
+            peli.exposure.markSkipped(e.movieId, System.currentTimeMillis())
+        }
         queue.update { it.filter { x -> x.movieId != e.movieId } }
         launch {
             if (answer != Answer.Skip) {
@@ -441,8 +459,27 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
                     previous = previous,
                 )
             }
+            peli.exposure.countDiscoverAnswer()
+            rerankQueue()
             if (discoverQueue.value.size < 4) refillQueue()
         }
+    }
+
+    /**
+     * Descubrir aprende en cada respuesta: se conserva la tarjeta que está arriba y el resto de la cola
+     * se vuelve a ordenar con el perfil actualizado.
+     */
+    private suspend fun rerankQueue() {
+        val profile = Recommender.buildProfile(repo.mine.first())
+        queue.update { q ->
+            if (q.size <= 2) q else listOf(q.first()) + Recommender.rank(q.drop(1), profile, queueMeta, 0.0)
+        }
+    }
+
+    /** Películas de la lista principal que llegaron a verse en pantalla (para la memoria de lo mostrado). */
+    fun markVisible(ids: Collection<Int>) {
+        if (ids.isEmpty()) return
+        launch(Dispatchers.IO) { peli.exposure.markVisible(ids) }
     }
 
     /** Deshace la última respuesta: restaura la marca anterior y devuelve la tarjeta al frente. */
@@ -480,7 +517,18 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
             val t0 = System.currentTimeMillis()
             try {
                 val marked = repo.mine.first()
-                val ranked = repo.recommend(marked)
+                val pool = repo.candidatePool(marked)
+                val store = peli.exposure
+                val round = store.round() + 1
+                val now = System.currentTimeMillis()
+                val snapshot = store.snapshot()
+                var eligible = emptyList<Entry>()
+                for (relax in ExposureRules.RELAX_LEVELS) {
+                    eligible = pool.candidates.filter { ExposureRules.eligible(snapshot[it.movieId], round, now, relax) }
+                    if (eligible.size >= REFILL_TARGET) break
+                }
+                val ranked = Recommender.rank(eligible, pool.profile, pool.meta, noise = 0.03)
+                queueMeta.putAll(pool.meta)
                 val known = repo.mine.first().map { it.movieId }.toSet()
                 queue.value = (partnerPicks() + queue.value + ranked)
                     .filter { it.movieId !in known && it.movieId !in skipped }
@@ -846,6 +894,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         const val KEY_MINE_YEARS = "mine_years"
         const val SEARCH_DEBOUNCE_MS = 350L
         const val FEED_SIZE = 40
+        const val REFILL_TARGET = 40
         const val FEED_NOISE = 0.3
     }
 }

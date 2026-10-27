@@ -7,7 +7,7 @@ import android.content.res.Configuration
 import android.os.Bundle
 import com.peli.app.data.AccountStore
 import com.peli.app.data.AppDb
-import com.peli.app.data.FeedHistory
+import com.peli.app.data.ExposureStore
 import com.peli.app.data.PairingStore
 import com.peli.app.data.Repository
 import com.peli.app.data.SourcePrefs
@@ -61,7 +61,7 @@ class PeliApp : Application() {
         })
     }
 
-    val feedHistory by lazy { FeedHistory(this) }
+    val exposure by lazy { ExposureStore(this) }
     val account by lazy { AccountStore(this) }
     val pairing by lazy { PairingStore(this) }
     val sourcePrefs by lazy { SourcePrefs(this) }

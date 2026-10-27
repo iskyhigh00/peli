@@ -134,39 +134,40 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
     suspend fun removeFriend(id: String) = Social.api.removeFriend(mapOf("p_friend" to id))
     suspend fun friends(): List<Friend> = Social.api.myFriends()
 
+    /** Candidatas ya buscadas en TMDB, sin lo que ya marqué, con su perfil y datos extra para puntuarlas. */
+    class Pool(val candidates: List<Entry>, val meta: Map<Int, CandMeta>, val profile: Recommender.Profile)
+
     /**
-     * Sugerencias para "Descubrir", ordenadas por [Recommender]:
-     *  - candidatas = recomendaciones de TMDB para mis últimas "me gustó"
-     *    + mejor valoradas de mis géneros favoritos + algo popular (exploración).
-     *  - sin historial aún: populares.
+     * Busca candidatas en varias fuentes de TMDB, rotando semillas, géneros y páginas para que no sean siempre
+     * las mismas:
+     *  - recomendaciones de TMDB para películas que me gustaron (o quiero ver), con semillas de distintos géneros,
+     *  - mejores y más populares de 2 de mis 3 géneros favoritos (páginas al azar),
+     *  - algo popular (exploración).
+     * Con rango de años se usa discover por fecha de estreno. Elegir y ordenar lo hace [Recommender].
      */
-    suspend fun recommend(
-        marked: List<Entry>,
-        avoidLevels: List<Set<Int>> = listOf(emptySet()),
-        noise: Double = 0.08,
-        years: YearRange? = null,
-    ): List<Entry> = coroutineScope {
+    suspend fun candidatePool(marked: List<Entry>, years: YearRange? = null): Pool = coroutineScope {
         val known = marked.map { it.movieId }.toSet()
         val profile = Recommender.buildProfile(marked)
-        // Semillas: entre mis últimas 20 que me gustaron se sortean 6, así cada vez salen recomendaciones distintas.
-        val seeds = marked.filter { it.liked }.sortedByDescending { it.updatedAt }.take(20).shuffled().take(6)
+        val seeds = Recommender.pickSeeds(marked, 6, kotlin.random.Random.Default)
 
         val pool = LinkedHashMap<Int, Entry>()
-        val hits = HashMap<Int, Int>()
-        fun add(list: List<TmdbMovie>, countHit: Boolean) = list.forEach { m ->
+        val votes = HashMap<Int, Int>()
+        val contributions = HashMap<Int, MutableList<Pair<Double, Int>>>()
+        fun add(list: List<TmdbMovie>, seed: Entry? = null) = list.forEachIndexed { pos, m ->
             pool.putIfAbsent(m.id, m.toEntry(OWNER_ME))
-            if (countHit) hits[m.id] = (hits[m.id] ?: 0) + 1
+            m.vote_count?.let { votes[m.id] = it }
+            if (seed != null) contributions.getOrPut(m.id) { ArrayList() } += Recommender.seedStrength(seed) to pos
         }
 
         val seedJobs = seeds.map { s ->
-            async { runCatching { api.recommendations(s.movieId).results }.getOrDefault(emptyList()) }
+            async { s to runCatching { api.recommendations(s.movieId).results }.getOrDefault(emptyList()) }
         }
-        // De mis 3 géneros favoritos se sortean 2 para variar el material en cada actualización.
+        // De mis 3 géneros favoritos se sortean 2: así cada vez salen cosas distintas.
         val topGenres = profile.topGenres(3).shuffled().take(2)
         val genreList = topGenres.joinToString("|")
 
-        // Con rango de años, TMDB filtra por fecha de estreno: así hay candidatas de sobra en ese rango.
-        // Si el rango llega al año actual o futuro, casi no hay votos todavía: se baja el mínimo.
+        // Con rango de años, TMDB filtra por fecha de estreno. Si el rango llega al año actual o futuro,
+        // casi no hay votos todavía: se baja el mínimo.
         val minVotes = if (years != null && years.to >= ReleaseInfo.currentYear()) 10 else 100
         val byYears = years?.let { r ->
             listOf(1, (2..4).random()).map { p ->
@@ -192,34 +193,26 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
             else runCatching { api.discover(genreList, page = (1..8).random(), sortBy = "popularity.desc").results }
                 .getOrDefault(emptyList())
         }
-        val popular = async {
-            if (years != null) emptyList()
-            else runCatching { api.popular((1..15).random()).results }.getOrDefault(emptyList())
+        // Sin gustos aún (o como exploración) se pide material popular; sin gustos, dos páginas distintas.
+        val popularPages = if (profile.isEmpty) 2 else 1
+        val popular = if (years != null) emptyList() else (1..popularPages).map {
+            async { runCatching { api.popular((1..15).random()).results }.getOrDefault(emptyList()) }
         }
 
-        seedJobs.awaitAll().forEach { add(it, countHit = true) }
-        byYears.awaitAll().forEach { add(it, countHit = false) }
-        add(byGenreYears.await(), countHit = false)
-        add(byGenre.await(), countHit = false)
-        add(byGenrePopular.await(), countHit = false)
-        add(popular.await(), countHit = false)
+        seedJobs.awaitAll().forEach { (seed, list) -> add(list, seed) }
+        byYears.awaitAll().forEach { add(it) }
+        add(byGenreYears.await())
+        add(byGenre.await())
+        add(byGenrePopular.await())
+        popular.awaitAll().forEach { add(it) }
 
-        val seedCount = seeds.size
-        // Más ruido = más sorpresa en el orden (exploración).
-        val ranked = Recommender.rank(
-            candidates = pool.values.filter {
-                it.movieId !in known && it.posterPath != null && it.overview.isNotBlank() && (years == null || it in years)
-            },
-            profile = profile,
-            hits = hits,
-            seedCount = seedCount,
-            noise = noise,
-        )
-        // Prefiere lo que aún no se mostró: se prueba el nivel más estricto que deje material nuevo suficiente;
-        // si ninguno alcanza, se usa todo.
-        avoidLevels.firstNotNullOfOrNull { avoid ->
-            ranked.filter { it.movieId !in avoid }.takeIf { it.size >= MIN_FRESH }
-        } ?: ranked
+        val candidates = pool.values.filter {
+            it.movieId !in known && it.posterPath != null && it.overview.isNotBlank() && (years == null || it in years)
+        }
+        val meta = candidates.associate {
+            it.movieId to CandMeta(votes[it.movieId], contributions[it.movieId]?.let { c -> Recommender.collab(c) } ?: 0.0)
+        }
+        Pool(candidates, meta, profile)
     }
 
     suspend fun importPartner(entries: List<Entry>) = dao.replaceAll(OWNER_PARTNER, entries)

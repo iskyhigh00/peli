@@ -100,6 +100,13 @@ object Changelog {
             "Al actualizar la lista principal salen películas nuevas: se recuerdan las que ya viste pasar (hasta ~800) y solo después de muchas actualizaciones se repiten.",
             "Más variedad en las sugerencias: se sortean tus películas y géneros favoritos y se exploran más páginas.",
         ),
+        "1.2.7" to listOf(
+            "Recomendador nuevo: cada película cuenta una sola vez (la nota manda), «la vi» sin nota no cambia tu gusto y un «no me interesa» ya no anula lo que te gusta.",
+            "La calidad se pondera por la cantidad de votos y los próximos estrenos no pasan del 10% de la lista.",
+            "Más variedad: se evita juntar películas casi iguales y siempre hay un cupo de exploración fuera de tus géneros favoritos.",
+            "Memoria de lo mostrado por rondas y días: lo que viste tarda semanas en volver, lo que omites mucho más.",
+            "Descubrir aprende con cada respuesta y recuerda lo omitido aunque cierres la app.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"
