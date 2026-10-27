@@ -1,4 +1,4 @@
--- Peli: tabla compartida entre tú y tu pareja. Pegar completo en Supabase > SQL Editor > Run.
+-- Peli: tabla compartida. Pegar completo en Supabase > SQL Editor > Run.
 create table if not exists public.entries (
   room         text    not null check (length(room) >= 8),
   user_id      text    not null,
@@ -26,7 +26,7 @@ alter table public.entries enable row level security;
 grant select, insert, update, delete on public.entries to anon;
 
 -- Cada fila solo se puede leer/escribir si la petición trae el header x-room con el código de esa sala.
--- El código (50 bits al azar) es el "secreto" compartido de la pareja.
+-- El código (50 bits al azar) es el "secreto" compartido de la sala.
 drop policy if exists "acceso por sala" on public.entries;
 create policy "acceso por sala" on public.entries
   for all to anon
