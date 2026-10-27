@@ -93,6 +93,9 @@ object Changelog {
         "1.2.3" to listOf(
             "Arreglado el inicio de sesión con Google (la dirección del servidor se armaba mal).",
         ),
+        "1.2.4" to listOf(
+            "El botón 10 del panel de nota ya no se corta.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

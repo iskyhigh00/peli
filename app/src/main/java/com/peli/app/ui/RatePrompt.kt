@@ -2,7 +2,15 @@ package com.peli.app.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -19,7 +27,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.peli.app.data.Entry
 import com.peli.app.ui.components.ScreenHorizontalPadding
-import com.peli.app.ui.components.TonalButton
 import com.peli.app.ui.theme.SheetShape
 
 /** Al marcar «La vi y me gustó»: pide una nota de 1 a 10 (un toque la guarda). Se puede omitir. */
@@ -45,7 +52,7 @@ fun RatePromptSheet(entry: Entry, onRate: (Int) -> Unit, onSkip: () -> Unit) {
             )
             listOf(1..5, 6..10).forEach { range ->
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    range.forEach { n -> TonalButton("$n", { onRate(n) }, Modifier.weight(1f)) }
+                    range.forEach { n -> ScoreButton(n, { onRate(n) }, Modifier.weight(1f)) }
                 }
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -53,5 +60,28 @@ fun RatePromptSheet(entry: Entry, onRate: (Int) -> Unit, onSkip: () -> Unit) {
                 TextButton(onClick = onSkip) { Text("Omitir") }
             }
         }
+    }
+}
+
+/** Botón numérico sin margen lateral: "10" cabe aunque haya cinco por fila. */
+@Composable
+private fun ScoreButton(n: Int, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Box(
+        modifier
+            .heightIn(min = 56.dp)
+            .clip(MaterialTheme.shapes.medium)
+            .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.3f))
+            .clickable(role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = "Nota $n" },
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            "$n",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            softWrap = false,
+            textAlign = TextAlign.Center,
+        )
     }
 }
