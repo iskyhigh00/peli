@@ -90,6 +90,9 @@ object Changelog {
         "1.2.2" to listOf(
             "Activado el inicio de sesión con Google: entra en «Juntos» y crea tu usuario e ID de amigo.",
         ),
+        "1.2.3" to listOf(
+            "Arreglado el inicio de sesión con Google (la dirección del servidor se armaba mal).",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

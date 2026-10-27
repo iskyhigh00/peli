@@ -56,6 +56,22 @@ interface SupabaseApi {
     ): List<RemoteEntry>
 }
 
+/**
+ * Deja solo "https://proyecto.supabase.co" aunque se haya pegado la dirección de Data API
+ * (…/rest/v1/) o con una barra final: las rutas /rest/v1 y /auth/v1 las agrega la app.
+ */
+object SupabaseUrl {
+    fun normalize(raw: String): String {
+        val s = raw.trim()
+        val scheme = s.substringBefore("://", "https")
+        val rest = s.substringAfter("://", s)
+        val host = rest.substringBefore('/').substringBefore('?').trim()
+        return if (host.isEmpty()) s.trimEnd('/') else "$scheme://$host"
+    }
+
+    val base get() = normalize(BuildConfig.SUPABASE_URL)
+}
+
 object Remote {
     /** Sin URL/clave (secretos de CI o local.properties) la sincronización queda desactivada. */
     val configured get() = BuildConfig.SUPABASE_URL.isNotBlank() && BuildConfig.SUPABASE_ANON_KEY.isNotBlank()
@@ -75,7 +91,7 @@ object Remote {
             .addInterceptor(LogInterceptor("Supabase"))
             .build()
         Retrofit.Builder()
-            .baseUrl(BuildConfig.SUPABASE_URL.trimEnd('/') + "/")
+            .baseUrl(SupabaseUrl.base + "/")
             .client(client)
             .addConverterFactory(GsonConverterFactory.create(GsonBuilder().serializeNulls().create()))
             .build()

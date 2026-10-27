@@ -192,7 +192,7 @@ class AccountException(message: String, cause: Throwable? = null) : Exception(me
 object SupabaseAuth {
     private val client by lazy { OkHttpClient.Builder().addInterceptor(LogInterceptor("Auth")).build() }
     private val JSON = "application/json".toMediaType()
-    private val base get() = BuildConfig.SUPABASE_URL.trimEnd('/') + "/auth/v1/token"
+    private val base get() = SupabaseUrl.base + "/auth/v1/token"
 
     fun signInWithGoogle(idToken: String, rawNonce: String): Session = post(
         "$base?grant_type=id_token",
@@ -307,7 +307,7 @@ object Social {
             .addInterceptor(LogInterceptor("Cuenta"))
             .build()
         Retrofit.Builder()
-            .baseUrl(BuildConfig.SUPABASE_URL.trimEnd('/') + "/")
+            .baseUrl(SupabaseUrl.base + "/")
             .client(client)
             .addConverterFactory(GsonConverterFactory.create(GsonBuilder().serializeNulls().create()))
             .build()
