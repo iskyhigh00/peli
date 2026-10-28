@@ -24,6 +24,7 @@ import com.peli.app.data.Social
 import com.peli.app.data.SupabaseAuth
 import com.peli.app.data.Usernames
 import com.peli.app.data.accountMessage
+import com.peli.app.data.accepts
 import com.peli.app.data.attempt
 import com.peli.app.data.Entry
 import com.peli.app.data.InsightsState
@@ -123,6 +124,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         AppLog.d("Filtro", "años (buscar): ${r?.encode() ?: "todos"}")
         filterStore.searchYears = r?.encode() ?: ""
         saved[KEY_SEARCH_YEARS] = r?.encode() ?: ""
+        resetQueue()
     }
     fun setMineYears(r: YearRange?) {
         AppLog.d("Filtro", "años (mi lista): ${r?.encode() ?: "todos"}")
@@ -137,6 +139,14 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         filterRejected.clear()
         movieFilters.value = f
         searchNow.tryEmit(Unit)
+        resetQueue()
+    }
+
+    /** Cambiaron los filtros: la cola de Descubrir se arma de nuevo con ellos (los filtros valen en las dos pantallas). */
+    private fun resetQueue() {
+        refillJob?.cancel()
+        queue.value = emptyList()
+        refillQueue()
     }
 
     /** "Quitar filtros": años y valoraciones/premios de la lista principal. */
@@ -401,9 +411,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
             // Con un filtro explícito de años futuros los próximos estrenos pueden ser toda la lista.
             val upcomingCap = if (years != null && years.to >= ReleaseInfo.currentYear()) FEED_SIZE else null
             val next = ArrayList<Entry>()
-            var budget = FILTER_FETCH_BUDGET
-            var unknown = 0
-            var limited = false
+            val fb = FilterBudget(FILTER_FETCH_BUDGET)
             var tries = 0
             var candidates = 0
             var fresh = 0
@@ -427,25 +435,10 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
                     fresh = tiers[0].size
                     repeatable = tiers[1].size + tiers[2].size
                 }
-                for (tier in tiers) {
-                    if (next.size >= FEED_SIZE) break
-                    if (tier.isEmpty()) continue
-                    val usable = if (filters.isActive) {
-                        val ranked = Recommender.rank(tier, pool.profile, pool.meta, noise = FILTER_RANK_NOISE)
-                        val pass = repo.applyFilters(ranked, filters, want = (FEED_SIZE - next.size) * 2, maxFetch = budget)
-                        filterRejected += pass.rejected
-                        budget -= pass.fetched
-                        unknown += pass.unknown
-                        limited = limited || pass.limited
-                        pass.kept
-                    } else tier
-                    if (usable.isEmpty()) continue
-                    next += Recommender.select(
-                        usable, pool.profile, pool.meta, FEED_SIZE - next.size,
-                        recent = next.toList(), maxUpcoming = upcomingCap,
-                    )
+                next += pickTiers(tiers, pool, FEED_SIZE - next.size, filters, fb, already = next.toList()) { usable, need, chosen ->
+                    Recommender.select(usable, pool.profile, pool.meta, need, recent = chosen, maxUpcoming = upcomingCap)
                 }
-                if (budget <= 0 || (filters.needsOmdb && repo.omdbBlocked)) break
+                if (fb.fetch <= 0 || (filters.needsOmdb && repo.omdbBlocked)) break
             }
             if (next.isNotEmpty()) {
                 val ids = next.map { it.movieId }
@@ -455,9 +448,9 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
             AppLog.i(
                 "Feed",
                 "ronda $round: ${next.size} películas (candidatas $candidates, nuevas $fresh, repetibles $repeatable" +
-                    (if (filters.isActive) ", filtros: ${filters.summary()}, sin datos $unknown" else "") + ")",
+                    (if (filters.isActive) ", filtros: ${filters.summary()}, sin datos ${fb.unknown}" else "") + ")",
             )
-            if (filters.needsOmdb && (limited || repo.omdbBlocked) && next.size < FEED_SIZE) {
+            if (filters.needsOmdb && (fb.limited || repo.omdbBlocked) && next.size < FEED_SIZE) {
                 message.value = "OMDb llegó a su límite de consultas por hoy: algunas películas no se pudieron revisar con estos filtros."
             } else if (next.size < FEED_SIZE / 2) {
                 message.value = if (filters.isActive) "Pocas películas cumplen estos filtros. Prueba con otros o quítalos."
@@ -469,6 +462,45 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
             feedEnd.value = next.isEmpty()
             feed
         }
+    }
+
+    /** Presupuesto de consultas a OMDb de una carga y lo que se vio en ella. */
+    private class FilterBudget(var fetch: Int) {
+        var unknown = 0
+        var limited = false
+    }
+
+    /**
+     * Toma hasta [k] películas nivel por nivel (el siguiente solo si el anterior no alcanza). Con filtros activos,
+     * cada nivel se ordena por puntaje y se revisa hasta juntar las suficientes; las que no pasan se anotan para no
+     * volver a evaluarlas. [pick] elige entre las que pasaron (recibe cuántas faltan y lo ya elegido).
+     */
+    private suspend fun pickTiers(
+        tiers: List<List<Entry>>,
+        pool: Repository.Pool,
+        k: Int,
+        filters: MovieFilters,
+        fb: FilterBudget,
+        already: List<Entry> = emptyList(),
+        pick: (usable: List<Entry>, need: Int, chosen: List<Entry>) -> List<Entry>,
+    ): List<Entry> {
+        val out = ArrayList<Entry>()
+        for (tier in tiers) {
+            if (out.size >= k) break
+            if (tier.isEmpty()) continue
+            val usable = if (filters.isActive) {
+                val ranked = Recommender.rank(tier, pool.profile, pool.meta, noise = FILTER_RANK_NOISE)
+                val pass = repo.applyFilters(ranked, filters, want = (k - out.size) * 2, maxFetch = fb.fetch)
+                filterRejected += pass.rejected
+                fb.fetch -= pass.fetched
+                fb.unknown += pass.unknown
+                fb.limited = fb.limited || pass.limited
+                pass.kept
+            } else tier
+            if (usable.isEmpty()) continue
+            out += pick(usable, k - out.size, already + out)
+        }
+        return out
     }
 
     /** Búsqueda por título con los filtros de valoraciones y premios (lo que no tiene datos para decidir queda fuera). */
@@ -728,31 +760,51 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
             val t0 = System.currentTimeMillis()
             try {
                 val marked = repo.mine.first()
+                val years = searchYears.value
+                val filters = movieFilters.value
                 deliveryMutex.withLock {
                     val store = peli.exposure
                     val round = store.round() + 1
                     val now = System.currentTimeMillis()
                     val before = store.snapshot()
-                    val pool = repo.candidatePool(
-                        marked, null, needed = REFILL_TARGET,
-                        isUsable = { ExposureRules.eligible(before[it], round, now) },
-                    )
-                    val snapshot = store.snapshot()
-                    val tiers = Delivery.tiers(pool.candidates, snapshot, round, now)
                     val recent = shownCards.toList()
-                    val chosen = Delivery.choose(tiers, REFILL_TARGET) { list, need, already ->
-                        Recommender.select(
-                            list, pool.profile, pool.meta, need,
-                            recent = recent + already, surface = Recommender.Surface.DISCOVER,
+                    val fb = FilterBudget(FILTER_FETCH_BUDGET)
+                    val chosen = ArrayList<Entry>()
+                    var snapshot = before
+                    var tries = 0
+                    val maxTries = if (filters.isActive) FILTER_ROUNDS else 1
+                    while (chosen.size < REFILL_TARGET && tries < maxTries) {
+                        tries++
+                        val taken = chosen.map { it.movieId }.toSet()
+                        val pool = repo.candidatePool(
+                            marked, years, needed = REFILL_TARGET,
+                            isUsable = { it !in taken && it !in filterRejected && ExposureRules.eligible(before[it], round, now) },
                         )
+                        snapshot = store.snapshot()
+                        val tiers = Delivery.tiers(
+                            pool.candidates.filter { it.movieId !in taken && it.movieId !in filterRejected },
+                            snapshot, round, now,
+                        )
+                        queueMeta.putAll(pool.meta)
+                        chosen += pickTiers(tiers, pool, REFILL_TARGET - chosen.size, filters, fb, already = chosen.toList()) { usable, need, already ->
+                            Recommender.select(
+                                usable, pool.profile, pool.meta, need,
+                                recent = recent + already, surface = Recommender.Surface.DISCOVER,
+                            )
+                        }
+                        if (fb.fetch <= 0 || (filters.needsOmdb && repo.omdbBlocked)) break
                     }
-                    queueMeta.putAll(pool.meta)
                     val known = repo.mine.first().map { it.movieId }.toSet()
                     // Lo que ya estaba en la cola se vuelve a validar contra lo entregado después de armarla.
                     val keep = queue.value.filter { stillValid(it, snapshot, round, now) }
-                    queue.value = (partnerPicksAllowed(snapshot, round, now) + keep + chosen)
+                    val picks = repo.applyFilters(partnerPicksAllowed(snapshot, round, now), filters, want = Int.MAX_VALUE, maxFetch = 10).kept
+                        .filter { years.accepts(it.year) }
+                    queue.value = (picks + keep + chosen)
                         .filter { it.movieId !in known && it.movieId !in skipped }
                         .distinctBy { it.movieId }
+                    if (filters.needsOmdb && (fb.limited || repo.omdbBlocked) && chosen.size < REFILL_TARGET) {
+                        message.value = "OMDb llegó a su límite de consultas por hoy: algunas películas no se pudieron revisar con estos filtros."
+                    }
                 }
                 AppLog.i("Descubrir", "cola rellenada: ${queue.value.size} sugerencias (${System.currentTimeMillis() - t0} ms)")
             } catch (e: CancellationException) {
@@ -761,7 +813,8 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
                 AppLog.w("Descubrir", "falló al rellenar la cola", e)
                 queueError.value = "Error de red: ${e.message}"
             } finally {
-                queueLoading.value = false
+                // Si este trabajo fue reemplazado (cambiaron los filtros), el nuevo es quien apaga el "cargando".
+                if (refillJob === coroutineContext[Job]) queueLoading.value = false
             }
         }
     }
@@ -1157,7 +1210,11 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
 
     private fun picksToFront() {
         val store = peli.exposure
+        val years = searchYears.value
+        val filters = movieFilters.value
+        // Aquí solo se revisa lo que no necesita consultar nada (años y nota de TMDB); el resto lo revisa el relleno de la cola.
         val picks = partnerPicksAllowed(store.snapshot(), store.round() + 1, System.currentTimeMillis())
+            .filter { years.accepts(it.year) && filters.acceptsTmdb(it.rating) && !filters.needsOmdb }
         if (picks.isNotEmpty()) queue.update { (picks.filter { p -> p.movieId !in skipped } + it).distinctBy { x -> x.movieId } }
     }
 

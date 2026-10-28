@@ -2,12 +2,15 @@ package com.peli.app.ui
 
 import android.content.Intent
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -61,6 +64,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -70,7 +74,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -84,6 +91,8 @@ import com.peli.app.data.Match
 import com.peli.app.data.OWNER_ME
 import com.peli.app.data.RoomCodes
 import com.peli.app.data.accepts
+import kotlin.math.abs
+import kotlin.math.sign
 import com.peli.app.data.asUnmarked
 import com.peli.app.ui.components.ActionButton
 import com.peli.app.ui.components.CompactSpacing
@@ -326,6 +335,10 @@ fun DiscoverTab(vm: MainViewModel) {
     val error by vm.queueError.collectAsState()
     val partner by vm.partner.collectAsState()
     val partnerWants = remember(partner) { partner.filter { it.watchlist }.map { it.movieId }.toSet() }
+    val years by vm.searchYears.collectAsState()
+    val movieFilters by vm.movieFilters.collectAsState()
+    var showYears by rememberSaveable { mutableStateOf(false) }
+    var showFilters by rememberSaveable { mutableStateOf(false) }
     var zoomed by remember { mutableStateOf<Entry?>(null) }
     val current = queue.firstOrNull()
     val navInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
@@ -334,81 +347,157 @@ fun DiscoverTab(vm: MainViewModel) {
     // La tarjeta de arriba cuenta como mostrada una vez por presentación (no la precargada ni una recomposición).
     LaunchedEffect(current?.movieId) { current?.let(vm::onDiscoverCardShown) }
 
-    if (current != null) {
-        BoxWithConstraints(Modifier.fillMaxSize()) {
-            // En horizontal o con poca altura la tarjeta no cabe junto a los botones: pasa a ser desplazable.
-            val compact = maxHeight < 520.dp
-            Column(
-                Modifier
-                    .fillMaxSize()
-                    .then(if (compact) Modifier.verticalScroll(scroll) else Modifier)
-                    .padding(start = ScreenHorizontalPadding, end = ScreenHorizontalPadding, top = CompactSpacing)
-                    .padding(bottom = 88.dp + navInset),
-                verticalArrangement = Arrangement.spacedBy(ItemSpacing),
+    Column(Modifier.fillMaxSize()) {
+        // Los mismos filtros que en Buscar (años, puntajes y premios): valen en las dos pantallas.
+        Column(
+            Modifier.padding(horizontal = ScreenHorizontalPadding),
+            verticalArrangement = Arrangement.spacedBy(CompactSpacing),
+        ) {
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(CompactSpacing),
             ) {
-                AnimatedContent(
-                    targetState = current,
-                    contentKey = { it.movieId },
-                    modifier = if (compact) Modifier.fillMaxWidth() else Modifier.weight(1f).fillMaxWidth(),
-                    transitionSpec = {
-                        (fadeIn(spring(Spring.DampingRatioMediumBouncy)) +
-                            slideInVertically(spring(Spring.DampingRatioMediumBouncy)) { it / 3 }) togetherWith
-                            fadeOut()
-                    },
-                    label = "discoverCard",
-                ) { e ->
-                    GlassCard(
-                        if (compact) Modifier.fillMaxWidth() else Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp),
-                    ) {
-                        DiscoverCardBody(
-                            e = e,
-                            partnerWants = e.movieId in partnerWants,
-                            poster = if (compact) Modifier.fillMaxWidth().height(260.dp) else Modifier.fillMaxWidth().weight(1f),
-                            onZoom = { zoomed = e },
-                            onSkip = { vm.answer(e, MainViewModel.Answer.Skip) },
-                        )
-                    }
-                }
-                // "Ya la vi y me gustó" enseña tus gustos a la app; "Quiero verla" va a la lista que se comparte.
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(CompactSpacing)) {
-                    ActionButton(
-                        "No me interesa", Icons.Default.ThumbDown,
-                        { vm.answer(current, MainViewModel.Answer.NotInterested) }, Modifier.weight(1f),
-                    )
-                    ActionButton(
-                        "La vi y me gustó", Icons.Default.ThumbUp,
-                        { vm.answer(current, MainViewModel.Answer.SeenLiked) }, Modifier.weight(1f),
-                    )
-                    ActionButton(
-                        "Quiero verla", Icons.Default.Bookmark,
-                        { vm.answer(current, MainViewModel.Answer.Want) }, Modifier.weight(1f), gradient = true,
-                    )
+                YearChip(years) { showYears = true }
+                MovieFiltersChip(movieFilters) { showFilters = true }
+                if (years != null || movieFilters.isActive) {
+                    PeliFilterChip("Quitar filtros", false, vm::clearFilters)
                 }
             }
-        }
-        zoomed?.let { PosterViewer(it.posterPath, it.title) { zoomed = null } }
-    } else {
-        Column(
-            Modifier
-                .fillMaxSize()
-                .verticalScroll(scroll)
-                .padding(screenContentPadding()),
-            verticalArrangement = Arrangement.spacedBy(SectionSpacing),
-        ) {
-            when {
-                loading -> DiscoverSkeleton()
-                error != null -> ErrorState(error!!, onRetry = vm::refillQueue)
-                else -> EmptyState(
-                    title = "No hay más sugerencias",
-                    message = "Responde algunas para que la app aprenda tus gustos.",
-                    icon = Icons.Default.Explore,
-                    actionLabel = "Cargar más",
-                    onAction = vm::refillQueue,
+            if (movieFilters.isActive) {
+                Text(
+                    movieFilters.summary(),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
                 )
             }
         }
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+            if (current != null) {
+                BoxWithConstraints(Modifier.fillMaxSize()) {
+                    // En horizontal o con poca altura la tarjeta no cabe junto a los botones: pasa a ser desplazable.
+                    val compact = maxHeight < 520.dp
+                    Column(
+                        Modifier
+                            .fillMaxSize()
+                            .then(if (compact) Modifier.verticalScroll(scroll) else Modifier)
+                            .padding(start = ScreenHorizontalPadding, end = ScreenHorizontalPadding, top = CompactSpacing)
+                            .padding(bottom = 88.dp + navInset),
+                        verticalArrangement = Arrangement.spacedBy(ItemSpacing),
+                    ) {
+                        AnimatedContent(
+                            targetState = current,
+                            contentKey = { it.movieId },
+                            modifier = if (compact) Modifier.fillMaxWidth() else Modifier.weight(1f).fillMaxWidth(),
+                            transitionSpec = {
+                                (fadeIn(spring(Spring.DampingRatioMediumBouncy)) +
+                                    slideInVertically(spring(Spring.DampingRatioMediumBouncy)) { it / 3 }) togetherWith
+                                    fadeOut()
+                            },
+                            label = "discoverCard",
+                        ) { e ->
+                            GlassCard(
+                                (if (compact) Modifier.fillMaxWidth() else Modifier.fillMaxSize())
+                                    .swipeToSkip(e.movieId) { vm.answer(e, MainViewModel.Answer.Skip) },
+                                contentPadding = PaddingValues(16.dp),
+                            ) {
+                                DiscoverCardBody(
+                                    e = e,
+                                    partnerWants = e.movieId in partnerWants,
+                                    poster = if (compact) Modifier.fillMaxWidth().height(260.dp) else Modifier.fillMaxWidth().weight(1f),
+                                    onZoom = { zoomed = e },
+                                    onSkip = { vm.answer(e, MainViewModel.Answer.Skip) },
+                                )
+                            }
+                        }
+                        // "Ya la vi y me gustó" enseña tus gustos a la app; "Quiero verla" va a la lista que se comparte.
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(CompactSpacing)) {
+                            ActionButton(
+                                "No me interesa", Icons.Default.ThumbDown,
+                                { vm.answer(current, MainViewModel.Answer.NotInterested) }, Modifier.weight(1f),
+                            )
+                            ActionButton(
+                                "La vi y me gustó", Icons.Default.ThumbUp,
+                                { vm.answer(current, MainViewModel.Answer.SeenLiked) }, Modifier.weight(1f),
+                            )
+                            ActionButton(
+                                "Quiero verla", Icons.Default.Bookmark,
+                                { vm.answer(current, MainViewModel.Answer.Want) }, Modifier.weight(1f), gradient = true,
+                            )
+                        }
+                    }
+                }
+                zoomed?.let { PosterViewer(it.posterPath, it.title) { zoomed = null } }
+            } else {
+                Column(
+                    Modifier
+                        .fillMaxSize()
+                        .verticalScroll(scroll)
+                        .padding(screenContentPadding()),
+                    verticalArrangement = Arrangement.spacedBy(SectionSpacing),
+                ) {
+                    when {
+                        loading -> DiscoverSkeleton()
+                        error != null -> ErrorState(error!!, onRetry = vm::refillQueue)
+                        else -> EmptyState(
+                            title = "No hay más sugerencias",
+                            message = if (movieFilters.isActive || years != null) {
+                                "Ninguna película cumple estos filtros por ahora. Prueba con otros o toca «Quitar filtros»."
+                            } else "Responde algunas para que la app aprenda tus gustos.",
+                            icon = Icons.Default.Explore,
+                            actionLabel = "Cargar más",
+                            onAction = vm::refillQueue,
+                        )
+                    }
+                }
+            }
+        }
     }
+    if (showYears) {
+        YearFilterSheet(years, onApply = vm::setSearchYears, onDismiss = { showYears = false })
+    }
+    if (showFilters) {
+        MovieFiltersSheet(
+            current = movieFilters,
+            omdbAvailable = vm.omdbAvailable,
+            onApply = vm::setMovieFilters,
+            onClearAll = vm::clearFilters,
+            onDismiss = { showFilters = false },
+        )
+    }
+}
+
+/** Deslizar la tarjeta hacia cualquier lado la omite; si se suelta antes de llegar lejos, vuelve a su lugar. */
+@Composable
+private fun Modifier.swipeToSkip(key: Any, onSkip: () -> Unit): Modifier {
+    val offset = remember(key) { Animatable(0f) }
+    val scope = rememberCoroutineScope()
+    val skip by rememberUpdatedState(onSkip)
+    var width by remember(key) { mutableFloatStateOf(1f) }
+    return this
+        .onSizeChanged { width = it.width.toFloat().coerceAtLeast(1f) }
+        .pointerInput(key) {
+            detectHorizontalDragGestures(
+                onDragEnd = {
+                    scope.launch {
+                        if (abs(offset.value) > width * 0.3f) {
+                            offset.animateTo(sign(offset.value) * width * 1.2f, tween(160))
+                            skip()
+                        } else {
+                            offset.animateTo(0f, spring(Spring.DampingRatioMediumBouncy))
+                        }
+                    }
+                },
+                onDragCancel = { scope.launch { offset.animateTo(0f) } },
+            ) { change, drag ->
+                change.consume()
+                scope.launch { offset.snapTo(offset.value + drag) }
+            }
+        }
+        .graphicsLayer {
+            translationX = offset.value
+            rotationZ = offset.value / width * 10f
+            alpha = (1f - abs(offset.value) / (width * 1.5f)).coerceIn(0.3f, 1f)
+        }
 }
 
 @Composable

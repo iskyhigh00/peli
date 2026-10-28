@@ -145,6 +145,10 @@ object Changelog {
             "Las sugerencias ahora también consideran palabras clave, director y reparto de lo que te gusta (además de géneros y época).",
             "Esos datos se completan solos en segundo plano y se guardan en el teléfono: cada película se consulta una sola vez.",
         ),
+        "1.3.5" to listOf(
+            "Descubrir ahora tiene los mismos filtros que Buscar (años, puntajes, Oscar, premios y «Quitar filtros»); valen en las dos pantallas.",
+            "En Descubrir puedes deslizar la tarjeta hacia un lado para omitirla.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"
