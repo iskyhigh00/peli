@@ -19,6 +19,9 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
         const val MAX_CONCURRENT_CALLS = 4
         const val SEARCH_PAGES_WITH_YEARS = 3
         const val FILTER_CHUNK = 6
+        const val PROFILE_FACT_FETCH = 25
+        const val BACKGROUND_BATCH = 40
+        const val ENRICH_TOP = 24
         const val OMDB_PAUSE_MS = 3L * 60 * 60 * 1000
     }
 
@@ -352,7 +355,58 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
             }
         }
         val usable = synchronized(stashLock) { stash.usable(known) }
-        Pool(usable.map { it.first }, usable.associate { it.first.movieId to it.second }, profile)
+        // Con los datos extra de lo que ya marqué (y de las mejores candidatas) el perfil y el puntaje afinan más.
+        val profileFacts = attempt { profileFacts(marked, PROFILE_FACT_FETCH) }.getOrDefault(emptyMap())
+        val rich = if (profileFacts.isEmpty()) profile else Recommender.buildProfile(marked, facts = profileFacts)
+        val candidateFacts = attempt { candidateFacts(usable, rich) }.getOrDefault(emptyMap())
+        Pool(
+            usable.map { it.first },
+            usable.associate { (e, m) -> e.movieId to (candidateFacts[e.movieId]?.let { m.copy(facts = it) } ?: m) },
+            rich,
+        )
+    }
+
+    /**
+     * Datos extra de las películas que marqué con una señal de gusto. Se piden las que falten (hasta [maxFetch]
+     * por llamada; con 0 solo se leen los guardados).
+     */
+    suspend fun profileFacts(marked: List<Entry>, maxFetch: Int): Map<Int, MovieFacts> {
+        val ids = marked.filter { Recommender.signalOf(it) != null }.map { it.movieId }
+        val facts = cachedFacts(ids).toMutableMap()
+        val missing = ids.filter { facts[it]?.hasTmdb != true }.take(maxFetch)
+        if (missing.isNotEmpty()) {
+            coroutineScope { missing.map { id -> async { ensureFacts(id, false) } }.awaitAll() }
+                .forEach { f -> if (f != null) facts[f.movieId] = f }
+        }
+        return facts
+    }
+
+    /** Completa en segundo plano los datos extra de todo lo que marqué (en tandas, hasta que no falte nada). */
+    suspend fun enrichMarked(marked: List<Entry>) {
+        var left = Int.MAX_VALUE
+        while (true) {
+            val ids = marked.filter { Recommender.signalOf(it) != null }.map { it.movieId }
+            val have = cachedFacts(ids)
+            val missing = ids.count { have[it]?.hasTmdb != true }
+            if (missing == 0 || missing >= left) return   // terminó, o la última tanda no avanzó (sin red)
+            left = missing
+            profileFacts(marked, BACKGROUND_BATCH)
+        }
+    }
+
+    /** Datos extra de las [ENRICH_TOP] mejores candidatas (por puntaje sin ellos); el resto usa solo lo guardado. */
+    private suspend fun candidateFacts(usable: List<Pair<Entry, CandMeta>>, profile: Recommender.Profile): Map<Int, MovieFacts> {
+        if (usable.isEmpty()) return emptyMap()
+        val facts = cachedFacts(usable.map { it.first.movieId }).toMutableMap()
+        val best = usable.sortedWith(
+            compareByDescending<Pair<Entry, CandMeta>> { Recommender.baseScore(it.first, profile, it.second) }.thenBy { it.first.movieId },
+        )
+        val missing = best.map { it.first.movieId }.filter { facts[it]?.hasTmdb != true }.take(ENRICH_TOP)
+        if (missing.isNotEmpty()) {
+            coroutineScope { missing.map { id -> async { ensureFacts(id, false) } }.awaitAll() }
+                .forEach { f -> if (f != null) facts[f.movieId] = f }
+        }
+        return facts
     }
 
     /** Una pasada por todas las fuentes; lo encontrado va al depósito. Los cursores avanzan solo si la llamada salió bien. */

@@ -7,8 +7,11 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlin.random.Random
 
-/** Datos de una candidata que no se guardan en [Entry]: votos de TMDB y fuerza de la señal colaborativa. */
-data class CandMeta(val votes: Int? = null, val collab: Double = 0.0)
+/**
+ * Datos de una candidata que no se guardan en [Entry]: votos de TMDB, fuerza de la señal colaborativa y,
+ * si ya se pidieron, sus palabras clave / director / reparto ([facts]).
+ */
+data class CandMeta(val votes: Int? = null, val collab: Double = 0.0, val facts: MovieFacts? = null)
 
 /** Lo que una marca dice del gusto: [y] en -1..1 y qué tan fiable es ([confidence] 0..1). */
 data class Signal(val y: Double, val confidence: Double)
@@ -35,9 +38,14 @@ object Recommender {
     private const val QUALITY_PRIOR_VOTES = 100.0
     private const val QUALITY_PRIOR_MEAN = 0.65
 
-    /** Peso de cada familia en la relevancia (por ahora solo géneros y década están disponibles). */
+    /** Peso de cada familia en la relevancia: géneros y década siempre; el resto solo si se conocen los datos extra. */
     private const val GENRE_WEIGHT = 0.8
     private const val DECADE_WEIGHT = 0.2
+    private const val KEYWORD_WEIGHT = 0.15
+    private const val DIRECTOR_WEIGHT = 0.08
+    private const val ACTOR_WEIGHT = 0.07
+    private const val MAX_KEYWORDS = 8
+    private const val MAX_ACTORS = 3
 
     class Stat(var evidence: Double = 0.0, var signed: Double = 0.0) {
         fun theta() = signed / (LAMBDA + evidence)
@@ -71,17 +79,22 @@ object Recommender {
                 .sortedWith(compareByDescending<Pair<Int, Double>> { it.second }.thenBy { it.first })
                 .take(n).map { it.first }
 
-        internal fun affinity(c: Entry, stats: Map<String, Stat>): Double {
+        internal fun affinity(c: Entry, stats: Map<String, Stat>, facts: MovieFacts?): Double {
             var sum = 0.0
-            for (f in features(c)) sum += f.groupWeight * f.x * (stats[f.key]?.theta() ?: 0.0)
+            for (f in features(c, facts)) sum += f.groupWeight * f.x * (stats[f.key]?.theta() ?: 0.0)
             return sum
         }
     }
 
     private class Feature(val key: String, val groupWeight: Double, val x: Double)
 
-    /** Géneros (peso repartido, suman 1) y década (interpolada entre décadas vecinas). */
-    private fun features(e: Entry): List<Feature> {
+    /**
+     * Géneros (peso repartido, suman 1) y década (interpolada entre décadas vecinas). Si se conocen los datos
+     * extra de la película ([facts]) se SUMAN palabras clave, director y reparto principal: lo desconocido aporta 0,
+     * así que tener datos nunca penaliza frente a no tenerlos (solo agrega evidencia a favor o en contra).
+     */
+    private fun features(e: Entry, facts: MovieFacts? = null): List<Feature> {
+        val rich = facts != null && facts.hasTmdb
         val out = ArrayList<Feature>()
         val genres = e.genreIds.distinct()
         for (g in genres) out += Feature("g$g", GENRE_WEIGHT, 1.0 / genres.size)
@@ -91,6 +104,13 @@ object Recommender {
             val frac = (year - d0) / 10.0
             out += Feature("d$d0", DECADE_WEIGHT, 1.0 - frac)
             if (frac > 0) out += Feature("d${d0 + 10}", DECADE_WEIGHT, frac)
+        }
+        if (rich && facts != null) {
+            val keywords = facts.keywords.map { it.trim().lowercase() }.filter { it.isNotEmpty() }.distinct().take(MAX_KEYWORDS)
+            for (k in keywords) out += Feature("k:$k", KEYWORD_WEIGHT, 1.0 / keywords.size)
+            facts.director?.trim()?.lowercase()?.takeIf { it.isNotEmpty() }?.let { out += Feature("p:$it", DIRECTOR_WEIGHT, 1.0) }
+            val actors = facts.actors.map { it.trim().lowercase() }.filter { it.isNotEmpty() }.distinct().take(MAX_ACTORS)
+            for (a in actors) out += Feature("a:$a", ACTOR_WEIGHT, 1.0 / actors.size)
         }
         return out
     }
@@ -112,7 +132,7 @@ object Recommender {
     private fun ageDays(e: Entry, now: Long) =
         if (e.updatedAt > 0) (now - e.updatedAt) / DAY_MS else UNKNOWN_AGE_DAYS
 
-    fun buildProfile(entries: List<Entry>, now: Long = System.currentTimeMillis()): Profile {
+    fun buildProfile(entries: List<Entry>, now: Long = System.currentTimeMillis(), facts: Map<Int, MovieFacts> = emptyMap()): Profile {
         val long = HashMap<String, Stat>()
         val short = HashMap<String, Stat>()
         var recent = 0.0
@@ -126,7 +146,7 @@ object Recommender {
             val wShort = s.confidence * decay(age, SHORT_HALF_LIFE_DAYS)
             recent += wShort
             effective += wLong
-            for (f in features(e)) {
+            for (f in features(e, facts[e.movieId])) {
                 val l = long.getOrPut(f.key) { Stat() }
                 l.evidence += wLong * f.x
                 l.signed += wLong * f.x * s.y
@@ -158,8 +178,8 @@ object Recommender {
     }
 
     /** Afinidad 0..1 (0.5 = neutral): mezcla de la memoria larga y la corta. */
-    fun relevance(c: Entry, profile: Profile): Double {
-        val a = (1 - profile.rho) * profile.affinity(c, profile.long) + profile.rho * profile.affinity(c, profile.short)
+    fun relevance(c: Entry, profile: Profile, facts: MovieFacts? = null): Double {
+        val a = (1 - profile.rho) * profile.affinity(c, profile.long, facts) + profile.rho * profile.affinity(c, profile.short, facts)
         return ((1.0 + a) / 2.0).coerceIn(0.0, 1.0)
     }
 
@@ -188,7 +208,7 @@ object Recommender {
 
     /** Puntaje base de una candidata (sin azar ni diversidad). */
     fun baseScore(c: Entry, profile: Profile, meta: CandMeta?): Double {
-        val r = relevance(c, profile)
+        val r = relevance(c, profile, meta?.facts)
         val z = profile.effectiveEvidence / (profile.effectiveEvidence + 20.0)
         val serendipity = if (profile.positives.isEmpty()) 0.0
         else r * (1.0 - profile.positives.maxOf { similarity(c, it) })

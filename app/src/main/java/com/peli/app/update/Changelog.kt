@@ -141,6 +141,10 @@ object Changelog {
             "Los filtros (y el de años) se guardan aunque cierres la app y siguen activos hasta que toques «Quitar filtros».",
             "Los datos de cada película (palabras clave, director, reparto, puntajes y premios) se piden una sola vez y se guardan en el teléfono.",
         ),
+        "1.3.4" to listOf(
+            "Las sugerencias ahora también consideran palabras clave, director y reparto de lo que te gusta (además de géneros y época).",
+            "Esos datos se completan solos en segundo plano y se guardan en el teléfono: cada película se consulta una sola vez.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

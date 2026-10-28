@@ -24,6 +24,7 @@ import com.peli.app.data.Social
 import com.peli.app.data.SupabaseAuth
 import com.peli.app.data.Usernames
 import com.peli.app.data.accountMessage
+import com.peli.app.data.attempt
 import com.peli.app.data.Entry
 import com.peli.app.data.InsightsState
 import com.peli.app.data.RatingSource
@@ -304,6 +305,13 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         }
         checkForUpdate(manual = false)
         refillQueue()
+
+        // Datos extra (palabras clave, director, reparto) de lo que ya marqué: se completan de a poco en segundo plano.
+        launch(Dispatchers.IO) {
+            delay(ENRICH_DELAY_MS)
+            attempt { repo.enrichMarked(repo.mine.first()) }
+                .onFailure { AppLog.w("Datos", "no se pudieron completar los datos de mis películas", it) }
+        }
 
         // Búsqueda: espera a que dejes de escribir; si llega otra consulta, la anterior se cancela
         // (así nunca se muestra una respuesta vieja). "Buscar" del teclado o deslizar la lanza al instante.
@@ -620,7 +628,8 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
      * se vuelve a ordenar con el perfil actualizado.
      */
     private suspend fun rerankQueue() {
-        val profile = Recommender.buildProfile(repo.mine.first())
+        val marked = repo.mine.first()
+        val profile = Recommender.buildProfile(marked, facts = repo.profileFacts(marked, 0))
         queue.update { q ->
             if (q.size <= 2) q else {
                 val head = q.first()
@@ -1237,6 +1246,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         const val KEY_MINE_YEARS = "mine_years"
         const val SEARCH_DEBOUNCE_MS = 350L
         const val FEED_SIZE = 40
+        const val ENRICH_DELAY_MS = 4_000L
         const val MAX_FEED = 300
         const val FILTER_ROUNDS = 3
         const val FILTER_FETCH_BUDGET = 45
