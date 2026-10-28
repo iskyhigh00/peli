@@ -17,6 +17,8 @@ import com.peli.app.data.ExposureRules
 import com.peli.app.data.MovieFilters
 import com.peli.app.data.ReleaseInfo
 import com.peli.app.data.Recommender
+import com.peli.app.data.Safe
+import com.peli.app.data.SafePick
 import com.peli.app.data.Repository
 import com.peli.app.data.Scopes
 import com.peli.app.data.FriendRequestResult
@@ -599,6 +601,93 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
     fun dismissRatePrompt() {
         ratePrompt.value?.let { AppLog.d("Nota", "omitida para «${it.title}»") }
         ratePrompt.value = null
+    }
+
+    // ---- Película segura -----------------------------------------------------
+
+    sealed interface SafeState {
+        data object Idle : SafeState
+        data object Loading : SafeState
+        data class NeedMore(val have: Int, val need: Int) : SafeState
+        data class Ready(val pick: SafePick) : SafeState
+        data object Empty : SafeState
+        data class Failed(val message: String) : SafeState
+    }
+
+    enum class SafeAnswer { Seen, Want, NotInterested, Another }
+
+    /** Estado de la hoja «Película segura» (Idle = cerrada). */
+    val safe = MutableStateFlow<SafeState>(SafeState.Idle)
+
+    /** Ya mostradas en esta sesión de la hoja: no vuelven a salir. */
+    private val safeSeen = HashSet<Int>()
+    private val safeQueue = ArrayDeque<SafePick>()
+    private var safeJob: Job? = null
+
+    fun openSafe() {
+        AppLog.i("Segura", "se abre la película segura")
+        safeSeen.clear()
+        safeQueue.clear()
+        loadSafe()
+    }
+
+    fun closeSafe() {
+        safeJob?.cancel()
+        safe.value = SafeState.Idle
+    }
+
+    private fun loadSafe() {
+        safeJob?.cancel()
+        safe.value = SafeState.Loading
+        safeJob = launch {
+            try {
+                val marked = repo.mine.first()
+                if (!Safe.enoughData(marked)) {
+                    safe.value = SafeState.NeedMore(Safe.signals(marked), Safe.MIN_SIGNALS)
+                    return@launch
+                }
+                val picks = repo.safePicks(marked, safeSeen.toSet(), SAFE_BATCH)
+                AppLog.i("Segura", "${picks.size} candidatas; mejor: ${picks.firstOrNull()?.let { "«${it.entry.title}» %.2f".format(it.score) } ?: "ninguna"}")
+                safeQueue.clear()
+                safeQueue.addAll(picks)
+                if (!showNextSafe()) safe.value = SafeState.Empty
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                AppLog.w("Segura", "falló el cálculo", e)
+                safe.value = SafeState.Failed(e.message ?: e.javaClass.simpleName)
+            }
+        }
+    }
+
+    /** Muestra la siguiente de la cola que no esté ya marcada ni vista en esta hoja; false si no queda ninguna. */
+    private fun showNextSafe(): Boolean {
+        val known = mine.value.map { it.movieId }.toSet()
+        while (safeQueue.isNotEmpty()) {
+            val p = safeQueue.removeFirst()
+            if (p.entry.movieId in known || p.entry.movieId in safeSeen) continue
+            safeSeen += p.entry.movieId
+            safe.value = SafeState.Ready(p)
+            return true
+        }
+        return false
+    }
+
+    fun retrySafe() = loadSafe()
+
+    /** Respuesta a la película segura: «ya la vi» (y se pide la nota), «quiero verla», «no me interesa» u «otra». */
+    fun safeAnswer(e: Entry, answer: SafeAnswer) {
+        AppLog.i("Segura", "$answer → «${e.title}» (${e.movieId})")
+        when (answer) {
+            SafeAnswer.Seen -> launch {
+                val next = applyAndPush(e) { it.toggleSeen() }
+                if (next.seen && next.myRating == 0) ratePrompt.value = next
+            }
+            SafeAnswer.Want -> toggleWant(e)
+            SafeAnswer.NotInterested -> toggleDislike(e)
+            SafeAnswer.Another -> {}
+        }
+        if (!showNextSafe()) loadSafe()
     }
 
     /** La película con ese id desde cualquier lista conocida (para reabrir el detalle tras rotar). */
@@ -1304,6 +1393,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         const val KEY_MINE_YEARS = "mine_years"
         const val SEARCH_DEBOUNCE_MS = 350L
         const val FEED_SIZE = 40
+        const val SAFE_BATCH = 6
         const val ENRICH_DELAY_MS = 4_000L
         const val MAX_FEED = 300
         const val FILTER_ROUNDS = 3

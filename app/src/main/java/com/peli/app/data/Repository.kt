@@ -22,6 +22,8 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
         const val PROFILE_FACT_FETCH = 25
         const val BACKGROUND_BATCH = 40
         const val ENRICH_TOP = 24
+        const val SAFE_SEEDS = 8
+        const val SAFE_SHORTLIST = 25
         const val OMDB_PAUSE_MS = 3L * 60 * 60 * 1000
     }
 
@@ -394,6 +396,72 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
         }
     }
 
+    /**
+     * Las películas "seguras" para mí, de la más a la menos probable. Parte de lo que califiqué alto: pide a TMDB
+     * las parecidas de cada una y los mejores títulos de mis géneros, se queda con las que tienen buena nota y
+     * votos, completa los datos extra de las mejores y las ordena con [Safe.score]. Si ninguna fuente responde falla.
+     */
+    suspend fun safePicks(marked: List<Entry>, exclude: Set<Int>, limit: Int): List<SafePick> {
+        val profileFacts = attempt { profileFacts(marked, PROFILE_FACT_FETCH) }.getOrDefault(emptyMap())
+        val profile = Recommender.buildProfile(marked, facts = profileFacts)
+        val known = marked.map { it.movieId }.toSet() + exclude
+        val seeds = Safe.seeds(marked, SAFE_SEEDS)
+        val genres = profile.topGenres(2).joinToString("|")
+
+        val tally = SourceTally()
+        val found = LinkedHashMap<Int, Entry>()
+        val votes = HashMap<Int, Int>()
+        val fromSeeds = HashMap<Int, MutableList<Pair<Double, Int>>>()
+        coroutineScope {
+            val seedCalls = seeds.map { s ->
+                s to async { gate.withPermit { attempt { api.recommendations(s.movieId, 1).results } } }
+            }
+            val genreCalls = if (genres.isBlank()) emptyList() else (1..2).map { page ->
+                async { gate.withPermit { attempt { api.discover(genres, page, "vote_average.desc", 1500).results } } }
+            }
+            for ((seed, call) in seedCalls) {
+                tally.record(call.await())?.forEachIndexed { pos, m ->
+                    found.putIfAbsent(m.id, m.toEntry(OWNER_ME))
+                    m.vote_count?.let { votes[m.id] = it }
+                    fromSeeds.getOrPut(m.id) { ArrayList() }.add(Recommender.seedStrength(seed) / (1.0 + pos / 8.0) to seed.movieId)
+                }
+            }
+            for (call in genreCalls) {
+                tally.record(call.await())?.forEach { m ->
+                    found.putIfAbsent(m.id, m.toEntry(OWNER_ME))
+                    m.vote_count?.let { votes[m.id] = it }
+                }
+            }
+        }
+        tally.requireAny()
+
+        fun metaOf(id: Int) = CandMeta(
+            votes = votes[id],
+            collab = fromSeeds[id]?.let { c -> 1.0 - kotlin.math.exp(-c.sumOf { it.first }) } ?: 0.0,
+            seeds = fromSeeds[id]?.sortedByDescending { it.first }?.take(3)?.map { it.second }.orEmpty(),
+        )
+        val shortlist = found.values
+            .filter { it.movieId !in known && Safe.eligible(it, votes[it.movieId]) }
+            .sortedWith(compareByDescending<Entry> { Recommender.baseScore(it, profile, metaOf(it.movieId)) }.thenBy { it.movieId })
+            .take(SAFE_SHORTLIST)
+        if (shortlist.isEmpty()) return emptyList()
+
+        val facts = cachedFacts(shortlist.map { it.movieId }).toMutableMap()
+        val missing = shortlist.map { it.movieId }.filter { facts[it]?.hasTmdb != true }
+        if (missing.isNotEmpty()) {
+            attempt {
+                coroutineScope { missing.map { id -> async { ensureFacts(id, false) } }.awaitAll() }
+                    .forEach { f -> if (f != null) facts[f.movieId] = f }
+            }
+        }
+        return shortlist
+            .map { e -> e to metaOf(e.movieId).copy(facts = facts[e.movieId]) }
+            .map { (e, m) -> Triple(e, m, Safe.score(e, profile, m)) }
+            .sortedWith(compareByDescending<Triple<Entry, CandMeta, Double>> { it.third }.thenBy { it.first.movieId })
+            .take(limit)
+            .map { (e, m, score) -> SafePick(e, score, Safe.reasons(e, m, marked, profileFacts)) }
+    }
+
     /** Datos extra de las [ENRICH_TOP] mejores candidatas (por puntaje sin ellos); el resto usa solo lo guardado. */
     private suspend fun candidateFacts(usable: List<Pair<Entry, CandMeta>>, profile: Recommender.Profile): Map<Int, MovieFacts> {
         if (usable.isEmpty()) return emptyMap()
@@ -468,11 +536,15 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
         val found = LinkedHashMap<Int, Entry>()
         val votes = HashMap<Int, Int>()
         val contributions = HashMap<Int, MutableList<Pair<Double, Int>>>()
+        val seedsOf = HashMap<Int, MutableList<Pair<Double, Int>>>()
         fun add(result: Result<List<TmdbMovie>>, seed: Entry? = null) {
             tally.record(result)?.forEachIndexed { pos, m ->
                 found.putIfAbsent(m.id, m.toEntry(OWNER_ME))
                 m.vote_count?.let { votes[m.id] = it }
-                if (seed != null) contributions.getOrPut(m.id) { ArrayList() }.add(Recommender.seedStrength(seed) to pos)
+                if (seed != null) {
+                    contributions.getOrPut(m.id) { ArrayList() }.add(Recommender.seedStrength(seed) to pos)
+                    seedsOf.getOrPut(m.id) { ArrayList() }.add(Recommender.seedStrength(seed) / (1.0 + pos / 8.0) to seed.movieId)
+                }
             }
         }
         seedCalls.forEach { (seed, d) -> add(d.await(), seed) }
@@ -483,7 +555,14 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
         synchronized(stashLock) {
             for ((id, e) in found) {
                 if (years != null && e !in years) continue
-                stash.add(e, CandMeta(votes[id], contributions[id]?.let { c -> Recommender.collab(c) } ?: 0.0))
+                stash.add(
+                    e,
+                    CandMeta(
+                        votes = votes[id],
+                        collab = contributions[id]?.let { c -> Recommender.collab(c) } ?: 0.0,
+                        seeds = seedsOf[id]?.sortedByDescending { it.first }?.take(3)?.map { it.second }.orEmpty(),
+                    ),
+                )
             }
         }
         tally

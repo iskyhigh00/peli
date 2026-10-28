@@ -149,6 +149,11 @@ object Changelog {
             "Descubrir ahora tiene los mismos filtros que Buscar (años, puntajes, Oscar, premios y «Quitar filtros»); valen en las dos pantallas.",
             "En Descubrir puedes deslizar la tarjeta hacia un lado para omitirla.",
         ),
+        "1.3.7" to listOf(
+            "Nuevo botón «Película segura» (en Buscar y Descubrir): propone la película que más probablemente te guste según tus notas, con los motivos.",
+            "Puedes marcarla «Ya la vi» (te pide la nota para aprender), «Quiero verla», «No me interesa» o pedir otra opción.",
+            "Necesita al menos 5 películas con nota o «La vi y me gustó» para empezar. Es una estimación, no una garantía.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

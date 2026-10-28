@@ -241,6 +241,7 @@ fun SearchTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Un
                     ChipRow(
                         SearchFilter.entries, filter, { it.label },
                         leading = {
+                            PeliFilterChip("Película segura", false, vm::openSafe)
                             YearChip(years) { showYears = true }
                             MovieFiltersChip(movieFilters) { showFilters = true }
                             if (years != null || movieFilters.isActive) {
@@ -357,6 +358,7 @@ fun DiscoverTab(vm: MainViewModel) {
                 Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(CompactSpacing),
             ) {
+                PeliFilterChip("Película segura", false, vm::openSafe)
                 YearChip(years) { showYears = true }
                 MovieFiltersChip(movieFilters) { showFilters = true }
                 if (years != null || movieFilters.isActive) {

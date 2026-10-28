@@ -33,7 +33,12 @@ class CandidateStash(private val capacity: Int = 600) {
     fun add(entry: Entry, meta: CandMeta) {
         val old = items.remove(entry.movieId)
         // Se conserva la mejor señal conocida de la película.
-        val merged = if (old == null) meta else CandMeta(meta.votes ?: old.second.votes, maxOf(meta.collab, old.second.collab))
+        val merged = if (old == null) meta else CandMeta(
+            votes = meta.votes ?: old.second.votes,
+            collab = maxOf(meta.collab, old.second.collab),
+            facts = meta.facts ?: old.second.facts,
+            seeds = if (meta.collab >= old.second.collab) meta.seeds else old.second.seeds,
+        )
         items[entry.movieId] = entry to merged
         while (items.size > capacity) items.remove(items.keys.first())
     }

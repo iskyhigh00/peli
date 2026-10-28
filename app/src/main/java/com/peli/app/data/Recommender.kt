@@ -11,7 +11,13 @@ import kotlin.random.Random
  * Datos de una candidata que no se guardan en [Entry]: votos de TMDB, fuerza de la señal colaborativa y,
  * si ya se pidieron, sus palabras clave / director / reparto ([facts]).
  */
-data class CandMeta(val votes: Int? = null, val collab: Double = 0.0, val facts: MovieFacts? = null)
+data class CandMeta(
+    val votes: Int? = null,
+    val collab: Double = 0.0,
+    val facts: MovieFacts? = null,
+    /** Ids de mis películas que la recomiendan en TMDB, de la que más aporta a la que menos (hasta 3). */
+    val seeds: List<Int> = emptyList(),
+)
 
 /** Lo que una marca dice del gusto: [y] en -1..1 y qué tan fiable es ([confidence] 0..1). */
 data class Signal(val y: Double, val confidence: Double)

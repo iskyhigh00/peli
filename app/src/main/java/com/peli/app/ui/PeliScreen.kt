@@ -412,6 +412,10 @@ private fun Home(vm: MainViewModel, tab: Tab, onTabChange: (Tab) -> Unit, onOpen
     ratePrompt?.let { RatePromptSheet(it, onRate = vm::rateFromPrompt, onSkip = vm::dismissRatePrompt) }
     val claim by vm.claim.collectAsState()
     claim?.let { ClaimGuestDialog(it, onChoose = vm::claimGuestCollection) }
+    val safe by vm.safe.collectAsState()
+    if (safe != MainViewModel.SafeState.Idle) {
+        SafePickSheet(safe, onAnswer = vm::safeAnswer, onRetry = vm::retrySafe, onDismiss = vm::closeSafe)
+    }
 
     if (whatsNew.isNotEmpty()) WhatsNewSheet(whatsNew, onDismiss = vm::dismissWhatsNew)
     if (showSettings) {
