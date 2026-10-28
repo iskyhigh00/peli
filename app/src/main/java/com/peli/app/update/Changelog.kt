@@ -135,6 +135,12 @@ object Changelog {
             "Los datos de sesión y vinculación quedan fuera de las copias de seguridad del teléfono.",
             "Al importar una lista se validan tamaño, identificadores y campos antes de guardar.",
         ),
+        "1.3.3" to listOf(
+            "La lista principal sigue cargando sugerencias al llegar al final: ya no hay que volver arriba para actualizar.",
+            "Nuevos filtros: nota mínima en TMDB, IMDb, Rotten Tomatoes y Metacritic, Oscar (nominada o ganadora), premios ganados y nominaciones.",
+            "Los filtros (y el de años) se guardan aunque cierres la app y siguen activos hasta que toques «Quitar filtros».",
+            "Los datos de cada película (palabras clave, director, reparto, puntajes y premios) se piden una sola vez y se guardan en el teléfono.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

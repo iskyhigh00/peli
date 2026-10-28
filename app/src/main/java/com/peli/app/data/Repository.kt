@@ -10,6 +10,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.sync.withLock
+import java.util.concurrent.atomic.AtomicLong
 
 class Repository(private val db: AppDb, private val api: TmdbApi) {
     private companion object {
@@ -17,9 +18,12 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
         const val MAX_PASSES = 2
         const val MAX_CONCURRENT_CALLS = 4
         const val SEARCH_PAGES_WITH_YEARS = 3
+        const val FILTER_CHUNK = 6
+        const val OMDB_PAUSE_MS = 3L * 60 * 60 * 1000
     }
 
     private val dao = db.entries()
+    private val factsDao = db.facts()
     private val gson = Gson()
     private val outbox = Outbox(RoomOutboxTable(db.outbox()))
 
@@ -136,6 +140,123 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
                 }
                 .take(5),
         )
+    }
+
+    // ---- Datos extra por película (palabras clave, reparto, valoraciones y premios) ----------------
+
+    /** Hasta cuándo no se vuelve a llamar a OMDb (límite diario alcanzado o clave rechazada). */
+    private val omdbBlockedUntil = AtomicLong(0)
+
+    /** ¿OMDb está bloqueado ahora? (límite diario o clave inválida) */
+    val omdbBlocked get() = System.currentTimeMillis() < omdbBlockedUntil.get()
+
+    /** Lo que ya se guardó de esas películas; no usa la red. */
+    suspend fun cachedFacts(ids: Collection<Int>): Map<Int, MovieFacts> =
+        ids.distinct().chunked(400).flatMap { factsDao.get(it) }.associate { it.movieId to it.toFacts() }
+
+    /**
+     * Datos extra de una película: se piden a TMDB una sola vez y, si [needOmdb], también a OMDb (una sola vez).
+     * Un fallo de red no guarda nada (se reintenta después); "no existe en OMDb" sí queda anotado.
+     * Devuelve lo que haya (puede faltar la parte que no se pudo pedir).
+     */
+    suspend fun ensureFacts(id: Int, needOmdb: Boolean): MovieFacts? = gate.withPermit {
+        val now = System.currentTimeMillis()
+        var f = factsDao.one(id)?.toFacts()
+        if (f == null || !f.hasTmdb) {
+            val d = attempt { api.details(id, "external_ids,keywords,credits") }.getOrNull()
+            if (d != null) {
+                f = (f ?: MovieFacts(id)).copy(
+                    imdbId = d.external_ids?.imdb_id?.takeIf { it.isNotBlank() },
+                    keywords = d.keywords?.keywords.orEmpty().mapNotNull { it.name?.trim()?.takeIf { n -> n.isNotEmpty() } }.take(12),
+                    director = d.credits?.crew.orEmpty().firstOrNull { it.job == "Director" }?.name?.takeIf { it.isNotBlank() },
+                    actors = d.credits?.cast.orEmpty().mapNotNull { it.name?.trim()?.takeIf { n -> n.isNotEmpty() } }.take(5),
+                    tmdbAt = now,
+                )
+            }
+        }
+        if (f != null && needOmdb && !f.hasOmdb) f = fillOmdb(f, now)
+        f?.also { factsDao.put(it.toRow()) }
+    }
+
+    private suspend fun fillOmdb(f: MovieFacts, now: Long): MovieFacts {
+        // Solo se puede saber que no está en IMDb cuando TMDB ya respondió (sin datos de TMDB no se sabe el id).
+        if (!f.hasTmdb) return f
+        val imdb = f.imdbId ?: return f.copy(omdbAt = now)
+        if (!Omdb.configured || omdbBlocked) return f
+        val call = attempt { Omdb.api.byImdb(imdb, com.peli.app.BuildConfig.OMDB_API_KEY) }
+        val http = call.exceptionOrNull() as? retrofit2.HttpException
+        if (http?.code() == 401) {
+            omdbBlockedUntil.set(now + OMDB_PAUSE_MS)
+            com.peli.app.log.AppLog.w("OMDb", "límite diario o clave rechazada (401); se pausa un rato")
+            return f
+        }
+        val r = call.getOrNull() ?: return f
+        if (r.response != "True") {
+            val error = r.error.orEmpty()
+            return when {
+                error.contains("limit", ignoreCase = true) || error.contains("key", ignoreCase = true) -> {
+                    omdbBlockedUntil.set(now + OMDB_PAUSE_MS)
+                    com.peli.app.log.AppLog.w("OMDb", "no disponible: $error")
+                    f
+                }
+                error.contains("not found", ignoreCase = true) || error.contains("incorrect", ignoreCase = true) -> f.copy(omdbAt = now)
+                else -> f
+            }
+        }
+        val awards = Awards.parse(r.awards)
+        return f.copy(
+            imdbRating = r.imdbRating?.toDoubleOrNull(),
+            imdbVotes = Ratings.parseVotes(r.imdbVotes),
+            rottenTomatoes = Ratings.parsePercent(r.ratings?.firstOrNull { it.source == "Rotten Tomatoes" }?.value),
+            metacritic = Ratings.parseMetascore(r.metascore)
+                ?: Ratings.parseMetascore(r.ratings?.firstOrNull { it.source == "Metacritic" }?.value),
+            oscarWins = awards.oscarWins,
+            oscarNominations = awards.oscarNominations,
+            wins = awards.wins,
+            nominations = awards.nominations,
+            omdbAt = now,
+        )
+    }
+
+    /** Resultado de aplicar los filtros: lo que pasó, lo que no (para no volver a evaluarlo) y cuántas quedaron sin datos. */
+    class FilterPass(val kept: List<Entry>, val rejected: Set<Int>, val unknown: Int, val limited: Boolean, val fetched: Int)
+
+    /**
+     * Aplica [filters] a [candidates] (ya en el orden en que se quieren): la nota de TMDB se comprueba al instante y
+     * lo demás con los datos guardados; lo que falta se pide en tandas hasta juntar [want] aceptadas o gastar
+     * [maxFetch] películas nuevas. Las que no se alcanzaron a evaluar quedan fuera de esta vuelta, no rechazadas.
+     */
+    suspend fun applyFilters(candidates: List<Entry>, filters: MovieFilters, want: Int, maxFetch: Int): FilterPass {
+        val rejected = HashSet<Int>()
+        val base = candidates.filter { e -> filters.acceptsTmdb(e.rating).also { if (!it) rejected += e.movieId } }
+        if (!filters.needsOmdb) return FilterPass(base, rejected, 0, false, 0)
+        val facts = cachedFacts(base.map { it.movieId }).toMutableMap()
+        val kept = ArrayList<Entry>()
+        var fetched = 0
+        var unknown = 0
+        var limited = false
+        for (chunk in base.chunked(FILTER_CHUNK)) {
+            if (kept.size >= want) break
+            val missing = chunk.filter { facts[it.movieId]?.hasOmdb != true }
+            if (missing.isNotEmpty()) {
+                if (fetched >= maxFetch || omdbBlocked) {
+                    limited = true
+                } else {
+                    fetched += missing.size
+                    coroutineScope { missing.map { e -> async { e.movieId to ensureFacts(e.movieId, true) } }.awaitAll() }
+                        .forEach { (id, f) -> if (f != null) facts[id] = f }
+                }
+            }
+            for (e in chunk) {
+                val f = facts[e.movieId]
+                when {
+                    f?.hasOmdb != true -> unknown++
+                    filters.accepts(e.rating, f) -> kept += e
+                    else -> rejected += e.movieId
+                }
+            }
+        }
+        return FilterPass(kept, rejected, unknown, limited, fetched)
     }
 
     /** Mi marca actual de una película (null si no la marqué). */

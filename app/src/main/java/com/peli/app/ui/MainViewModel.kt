@@ -14,6 +14,7 @@ import com.peli.app.data.Friend
 import com.peli.app.data.CandMeta
 import com.peli.app.data.Delivery
 import com.peli.app.data.ExposureRules
+import com.peli.app.data.MovieFilters
 import com.peli.app.data.ReleaseInfo
 import com.peli.app.data.Recommender
 import com.peli.app.data.Scopes
@@ -102,9 +103,13 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         .map { SearchFilter.valueOf(it) }.stateIn(viewModelScope, SharingStarted.Eagerly, SearchFilter.All)
     val mineFilter: StateFlow<MineFilter> = saved.getStateFlow(KEY_MINE_FILTER, MineFilter.All.name)
         .map { MineFilter.valueOf(it) }.stateIn(viewModelScope, SharingStarted.Eagerly, MineFilter.All)
-    val searchYears: StateFlow<YearRange?> = saved.getStateFlow(KEY_SEARCH_YEARS, "")
+    private val filterStore = peli.filterStore
+
+    /** Filtros por valoraciones y premios; se guardan en el teléfono hasta que se quiten. */
+    val movieFilters = MutableStateFlow(filterStore.movie)
+    val searchYears: StateFlow<YearRange?> = saved.getStateFlow(KEY_SEARCH_YEARS, filterStore.searchYears)
         .map { YearRange.decode(it) }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
-    val mineYears: StateFlow<YearRange?> = saved.getStateFlow(KEY_MINE_YEARS, "")
+    val mineYears: StateFlow<YearRange?> = saved.getStateFlow(KEY_MINE_YEARS, filterStore.mineYears)
         .map { YearRange.decode(it) }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
     val mineSort: StateFlow<MineSort> = saved.getStateFlow(KEY_MINE_SORT, MineSort.Recent.name)
         .map { MineSort.valueOf(it) }.stateIn(viewModelScope, SharingStarted.Eagerly, MineSort.Recent)
@@ -113,8 +118,32 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
     fun setSearchFilter(f: SearchFilter) { AppLog.d("Filtro", "buscar: ${f.name}"); saved[KEY_SEARCH_FILTER] = f.name }
     fun setMineFilter(f: MineFilter) { AppLog.d("Filtro", "mi lista: ${f.name}"); saved[KEY_MINE_FILTER] = f.name }
     fun setMineSort(s: MineSort) { AppLog.d("Filtro", "orden de mi lista: ${s.name}"); saved[KEY_MINE_SORT] = s.name }
-    fun setSearchYears(r: YearRange?) { AppLog.d("Filtro", "años (buscar): ${r?.encode() ?: "todos"}"); saved[KEY_SEARCH_YEARS] = r?.encode() ?: "" }
-    fun setMineYears(r: YearRange?) { AppLog.d("Filtro", "años (mi lista): ${r?.encode() ?: "todos"}"); saved[KEY_MINE_YEARS] = r?.encode() ?: "" }
+    fun setSearchYears(r: YearRange?) {
+        AppLog.d("Filtro", "años (buscar): ${r?.encode() ?: "todos"}")
+        filterStore.searchYears = r?.encode() ?: ""
+        saved[KEY_SEARCH_YEARS] = r?.encode() ?: ""
+    }
+    fun setMineYears(r: YearRange?) {
+        AppLog.d("Filtro", "años (mi lista): ${r?.encode() ?: "todos"}")
+        filterStore.mineYears = r?.encode() ?: ""
+        saved[KEY_MINE_YEARS] = r?.encode() ?: ""
+    }
+
+    /** Aplica filtros de valoraciones y premios: se guardan y la lista principal se arma de nuevo con ellos. */
+    fun setMovieFilters(f: MovieFilters) {
+        AppLog.i("Filtro", "valoraciones y premios: ${f.summary().ifEmpty { "ninguno" }}")
+        filterStore.movie = f
+        filterRejected.clear()
+        movieFilters.value = f
+        searchNow.tryEmit(Unit)
+    }
+
+    /** "Quitar filtros": años y valoraciones/premios de la lista principal. */
+    fun clearFilters() {
+        AppLog.i("Filtro", "se quitan todos los filtros de la lista principal")
+        setSearchYears(null)
+        setMovieFilters(MovieFilters.NONE)
+    }
 
     // ---- Buscar --------------------------------------------------------------
 
@@ -132,6 +161,16 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
     /** Último lote del feed personalizado: se reutiliza al volver a la lista vacía y cambia al deslizar. */
     private var feed: List<Entry> = emptyList()
     private var feedYears: YearRange? = null
+    private var feedFilters = MovieFilters.NONE
+
+    /** Películas que no pasaron los filtros actuales: no se vuelven a evaluar ni cuentan como material disponible. */
+    private val filterRejected = HashSet<Int>()
+
+    /** Se están pidiendo más sugerencias al llegar al final de la lista. */
+    val loadingMore = MutableStateFlow(false)
+
+    /** Ya no hay más sugerencias para estos filtros (por ahora). */
+    val feedEnd = MutableStateFlow(false)
 
     // ---- Descubrir -----------------------------------------------------------
 
@@ -308,11 +347,13 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         val t0 = System.currentTimeMillis()
         try {
             val years = searchYears.value
-            results.value = if (q.isBlank()) loadFeed(refresh = pull, years = years) else repo.search(q.trim(), years)
+            val filters = movieFilters.value
+            if (q.isBlank()) feedEnd.value = false
+            results.value = if (q.isBlank()) loadFeed(refresh = pull, years = years, filters = filters) else searchFiltered(q.trim(), years, filters)
             AppLog.i(
                 "Buscar",
                 "${if (q.isBlank()) "sugerencias${if (pull) " (actualizadas)" else ""}" else "«${q.trim()}»"} " +
-                    "años=${years?.encode() ?: "todos"} → ${results.value.size} resultados (${System.currentTimeMillis() - t0} ms)",
+                    "años=${years?.encode() ?: "todos"} filtros=${filters.summary().ifEmpty { "ninguno" }} → ${results.value.size} resultados (${System.currentTimeMillis() - t0} ms)",
             )
         } catch (e: CancellationException) {
             AppLog.d("Buscar", "búsqueda «$q» cancelada (llegó otra)")
@@ -336,27 +377,67 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
      * Sin búsqueda, la lista principal es como "Sorpréndeme": sugerencias según tus gustos.
      * Se mantiene estable mientras navegas y, al deslizar, trae un lote distinto sin repetir lo anterior.
      */
-    private suspend fun loadFeed(refresh: Boolean, years: YearRange?): List<Entry> {
-        // El lote guardado solo sirve si se pidió con el mismo rango de años.
-        if (!refresh && feed.isNotEmpty() && feedYears == years) return feed
+    private suspend fun loadFeed(refresh: Boolean, years: YearRange?, filters: MovieFilters, append: Boolean = false): List<Entry> {
+        // El lote guardado solo sirve si se pidió con el mismo rango de años y los mismos filtros.
+        if (!refresh && feed.isNotEmpty() && feedYears == years && feedFilters == filters) return feed
         // Se lee de la base (no del StateFlow, que al arrancar aún puede estar vacío) para personalizar de verdad.
         val marked = repo.mine.first()
         // Elegir, reservar y entregar es una sola operación: la lista principal y Descubrir no se pisan.
         return deliveryMutex.withLock {
+            // Una petición de "más" que quedó vieja (cambió el rango o los filtros mientras esperaba) no hace nada.
+            if (append && (feedYears != years || feedFilters != filters)) return@withLock feed
             val store = peli.exposure
             val round = store.round() + 1
             val now = System.currentTimeMillis()
             val before = store.snapshot()
-            val pool = repo.candidatePool(
-                marked, years, needed = FEED_SIZE,
-                isUsable = { ExposureRules.eligible(before[it], round, now) },
-            )
-            // La red tarda: se vuelve a leer la memoria por si Descubrir entregó algo mientras tanto.
-            val tiers = Delivery.tiers(pool.candidates, store.snapshot(), round, now)
             // Con un filtro explícito de años futuros los próximos estrenos pueden ser toda la lista.
             val upcomingCap = if (years != null && years.to >= ReleaseInfo.currentYear()) FEED_SIZE else null
-            val next = Delivery.choose(tiers, FEED_SIZE) { list, need, chosen ->
-                Recommender.select(list, pool.profile, pool.meta, need, recent = chosen, maxUpcoming = upcomingCap)
+            val next = ArrayList<Entry>()
+            var budget = FILTER_FETCH_BUDGET
+            var unknown = 0
+            var limited = false
+            var tries = 0
+            var candidates = 0
+            var fresh = 0
+            var repeatable = 0
+            // Sin filtros basta una vuelta; con filtros se sigue buscando material hasta llenar la lista (o gastar el presupuesto).
+            val maxTries = if (filters.isActive) FILTER_ROUNDS else 1
+            while (next.size < FEED_SIZE && tries < maxTries) {
+                tries++
+                val taken = next.map { it.movieId }.toSet()
+                val pool = repo.candidatePool(
+                    marked, years, needed = FEED_SIZE,
+                    isUsable = { it !in taken && it !in filterRejected && ExposureRules.eligible(before[it], round, now) },
+                )
+                candidates = pool.candidates.size
+                // La red tarda: se vuelve a leer la memoria por si Descubrir entregó algo mientras tanto.
+                val tiers = Delivery.tiers(
+                    pool.candidates.filter { it.movieId !in taken && it.movieId !in filterRejected },
+                    store.snapshot(), round, now,
+                )
+                if (tries == 1) {
+                    fresh = tiers[0].size
+                    repeatable = tiers[1].size + tiers[2].size
+                }
+                for (tier in tiers) {
+                    if (next.size >= FEED_SIZE) break
+                    if (tier.isEmpty()) continue
+                    val usable = if (filters.isActive) {
+                        val ranked = Recommender.rank(tier, pool.profile, pool.meta, noise = FILTER_RANK_NOISE)
+                        val pass = repo.applyFilters(ranked, filters, want = (FEED_SIZE - next.size) * 2, maxFetch = budget)
+                        filterRejected += pass.rejected
+                        budget -= pass.fetched
+                        unknown += pass.unknown
+                        limited = limited || pass.limited
+                        pass.kept
+                    } else tier
+                    if (usable.isEmpty()) continue
+                    next += Recommender.select(
+                        usable, pool.profile, pool.meta, FEED_SIZE - next.size,
+                        recent = next.toList(), maxUpcoming = upcomingCap,
+                    )
+                }
+                if (budget <= 0 || (filters.needsOmdb && repo.omdbBlocked)) break
             }
             if (next.isNotEmpty()) {
                 val ids = next.map { it.movieId }
@@ -365,15 +446,51 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
             }
             AppLog.i(
                 "Feed",
-                "ronda $round: ${next.size} películas (candidatas ${pool.candidates.size}, " +
-                    "nuevas ${tiers[0].size}, repetibles ${tiers[1].size + tiers[2].size})",
+                "ronda $round: ${next.size} películas (candidatas $candidates, nuevas $fresh, repetibles $repeatable" +
+                    (if (filters.isActive) ", filtros: ${filters.summary()}, sin datos $unknown" else "") + ")",
             )
-            if (next.size < FEED_SIZE / 2) {
-                message.value = "Hay pocas películas nuevas por ahora. Prueba más tarde o cambia los filtros."
+            if (filters.needsOmdb && (limited || repo.omdbBlocked) && next.size < FEED_SIZE) {
+                message.value = "OMDb llegó a su límite de consultas por hoy: algunas películas no se pudieron revisar con estos filtros."
+            } else if (next.size < FEED_SIZE / 2) {
+                message.value = if (filters.isActive) "Pocas películas cumplen estos filtros. Prueba con otros o quítalos."
+                else "Hay pocas películas nuevas por ahora. Prueba más tarde o cambia los filtros."
             }
-            feed = next
+            feed = if (append) (feed + next).distinctBy { it.movieId }.takeLast(MAX_FEED) else next
             feedYears = years
-            next
+            feedFilters = filters
+            feedEnd.value = next.isEmpty()
+            feed
+        }
+    }
+
+    /** Búsqueda por título con los filtros de valoraciones y premios (lo que no tiene datos para decidir queda fuera). */
+    private suspend fun searchFiltered(q: String, years: YearRange?, filters: MovieFilters): List<Entry> {
+        val found = repo.search(q, years)
+        if (!filters.isActive) return found
+        val pass = repo.applyFilters(found, filters, want = found.size, maxFetch = FILTER_FETCH_BUDGET)
+        if (pass.unknown > 0) message.value = "${pass.unknown} películas no tienen datos suficientes para estos filtros y se ocultaron."
+        return pass.kept
+    }
+
+    /** Al llegar al final de la lista principal: trae otro lote y lo agrega abajo (sin tener que volver arriba). */
+    fun loadMore() {
+        if (loadingMore.value || searchLoading.value || refreshing.value || feedEnd.value) return
+        if (searchQuery.value.isNotBlank() || feed.isEmpty()) return
+        loadingMore.value = true
+        launch {
+            try {
+                val years = searchYears.value
+                val filters = movieFilters.value
+                val all = loadFeed(refresh = true, years = years, filters = filters, append = true)
+                if (searchQuery.value.isBlank() && years == searchYears.value && filters == movieFilters.value) results.value = all
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                AppLog.w("Feed", "no se pudieron cargar más sugerencias", e)
+                message.value = "No se pudieron cargar más: ${e.message}"
+            } finally {
+                loadingMore.value = false
+            }
         }
     }
 
@@ -1120,6 +1237,10 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         const val KEY_MINE_YEARS = "mine_years"
         const val SEARCH_DEBOUNCE_MS = 350L
         const val FEED_SIZE = 40
+        const val MAX_FEED = 300
+        const val FILTER_ROUNDS = 3
+        const val FILTER_FETCH_BUDGET = 45
+        const val FILTER_RANK_NOISE = 0.1
         const val REFILL_TARGET = 40
         const val FEED_NOISE = 0.3
     }

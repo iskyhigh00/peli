@@ -21,6 +21,8 @@ data class OmdbResponse(
     @SerializedName("imdbVotes") val imdbVotes: String? = null,
     @SerializedName("Metascore") val metascore: String? = null,
     @SerializedName("Ratings") val ratings: List<OmdbRating>? = null,
+    @SerializedName("Awards") val awards: String? = null,
+    @SerializedName("Error") val error: String? = null,
 )
 
 interface OmdbApi {

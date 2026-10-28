@@ -24,11 +24,19 @@ data class TmdbPage(val results: List<TmdbMovie> = emptyList(), val page: Int = 
 
 data class TmdbExternalIds(val imdb_id: String? = null)
 
+data class TmdbKeyword(val name: String? = null)
+data class TmdbKeywords(val keywords: List<TmdbKeyword>? = null)
+data class TmdbCastMember(val name: String? = null)
+data class TmdbCrewMember(val name: String? = null, val job: String? = null)
+data class TmdbCredits(val cast: List<TmdbCastMember>? = null, val crew: List<TmdbCrewMember>? = null)
+
 data class TmdbDetails(
     val id: Int,
     val vote_average: Double? = null,
     val vote_count: Int? = null,
     val external_ids: TmdbExternalIds? = null,
+    val keywords: TmdbKeywords? = null,
+    val credits: TmdbCredits? = null,
 )
 
 data class TmdbAuthorDetails(val rating: Double? = null)

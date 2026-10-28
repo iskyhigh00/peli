@@ -8,6 +8,7 @@ import android.os.Bundle
 import com.peli.app.data.AccountStore
 import com.peli.app.data.AppDb
 import com.peli.app.data.ExposureStore
+import com.peli.app.data.FilterStore
 import com.peli.app.data.PrefsCursors
 import com.peli.app.data.PairingStore
 import com.peli.app.data.Repository
@@ -65,6 +66,7 @@ class PeliApp : Application() {
     }
 
     val exposure by lazy { ExposureStore(this) }
+    val filterStore by lazy { FilterStore(this) }
     val account by lazy { AccountStore(this) }
     val pairing by lazy { PairingStore(this) }
     val sourcePrefs by lazy { SourcePrefs(this) }

@@ -5,6 +5,7 @@ import androidx.room.Dao
 import androidx.room.Entity
 import androidx.room.Database
 import androidx.room.Insert
+import androidx.room.PrimaryKey
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Room
@@ -108,6 +109,50 @@ class RoomOutboxTable(private val dao: OutboxDao) : OutboxTable {
     override suspend fun count(scope: String) = dao.count(scope)
 }
 
+/** Datos extra de una película (ver [MovieFacts]); las listas se guardan separadas por "|". */
+@Entity(tableName = "facts")
+data class FactsRow(
+    @PrimaryKey val movieId: Int,
+    val imdbId: String?,
+    val keywords: String,
+    val director: String?,
+    val actors: String,
+    val tmdbAt: Long,
+    val imdbRating: Double?,
+    val imdbVotes: Int?,
+    val rottenTomatoes: Int?,
+    val metacritic: Int?,
+    val oscarWins: Int,
+    val oscarNominations: Int,
+    val wins: Int,
+    val nominations: Int,
+    val omdbAt: Long,
+) {
+    fun toFacts() = MovieFacts(
+        movieId, imdbId, keywords.split('|').filter { it.isNotBlank() }, director,
+        actors.split('|').filter { it.isNotBlank() }, tmdbAt, imdbRating, imdbVotes, rottenTomatoes, metacritic,
+        oscarWins, oscarNominations, wins, nominations, omdbAt,
+    )
+}
+
+fun MovieFacts.toRow() = FactsRow(
+    movieId, imdbId, keywords.joinToString("|") { it.replace('|', ' ') }, director,
+    actors.joinToString("|") { it.replace('|', ' ') }, tmdbAt, imdbRating, imdbVotes, rottenTomatoes, metacritic,
+    oscarWins, oscarNominations, wins, nominations, omdbAt,
+)
+
+@Dao
+abstract class FactsDao {
+    @Query("SELECT * FROM facts WHERE movieId IN (:ids)")
+    abstract suspend fun get(ids: List<Int>): List<FactsRow>
+
+    @Query("SELECT * FROM facts WHERE movieId = :id")
+    abstract suspend fun one(id: Int): FactsRow?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    abstract suspend fun put(row: FactsRow)
+}
+
 private val MIGRATION_1_2 = object : Migration(1, 2) {
     override fun migrate(db: SupportSQLiteDatabase) {
         AppLog.i("DB", "migración 1→2")
@@ -144,15 +189,28 @@ private val MIGRATION_4_5 = object : Migration(4, 5) {
     }
 }
 
-@Database(entities = [Entry::class, OutboxRow::class], version = 5, exportSchema = false)
+private val MIGRATION_5_6 = object : Migration(5, 6) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        AppLog.i("DB", "migración 5→6 (datos extra de películas)")
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS facts (movieId INTEGER NOT NULL, imdbId TEXT, keywords TEXT NOT NULL, " +
+                "director TEXT, actors TEXT NOT NULL, tmdbAt INTEGER NOT NULL, imdbRating REAL, imdbVotes INTEGER, " +
+                "rottenTomatoes INTEGER, metacritic INTEGER, oscarWins INTEGER NOT NULL, oscarNominations INTEGER NOT NULL, " +
+                "wins INTEGER NOT NULL, nominations INTEGER NOT NULL, omdbAt INTEGER NOT NULL, PRIMARY KEY(movieId))",
+        )
+    }
+}
+
+@Database(entities = [Entry::class, OutboxRow::class, FactsRow::class], version = 6, exportSchema = false)
 abstract class AppDb : RoomDatabase() {
     abstract fun entries(): EntryDao
     abstract fun outbox(): OutboxDao
+    abstract fun facts(): FactsDao
 
     companion object {
         fun create(context: Context) =
             Room.databaseBuilder(context, AppDb::class.java, "peli.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onOpen(db: SupportSQLiteDatabase) {
                         AppLog.i("DB", "base de datos abierta (versión ${db.version})")

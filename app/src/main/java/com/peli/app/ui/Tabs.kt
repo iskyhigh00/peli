@@ -10,6 +10,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -43,6 +44,7 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.ThumbDown
 import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -148,7 +150,11 @@ fun SearchTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Un
     var text by remember { mutableStateOf(vm.searchQuery.value) }
     val filter by vm.searchFilter.collectAsState()
     val years by vm.searchYears.collectAsState()
+    val movieFilters by vm.movieFilters.collectAsState()
+    val loadingMore by vm.loadingMore.collectAsState()
+    val feedEnd by vm.feedEnd.collectAsState()
     var showYears by rememberSaveable { mutableStateOf(false) }
+    var showFilters by rememberSaveable { mutableStateOf(false) }
     val results by vm.results.collectAsState()
     val mine by vm.mine.collectAsState()
     val error by vm.searchError.collectAsState()
@@ -166,6 +172,17 @@ fun SearchTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Un
     }
     val pullState = rememberPullToRefreshState()
     val dismissKeyboard = rememberDismissKeyboard()
+    val suggestions = feedMode && (filter == SearchFilter.All || filter == SearchFilter.Unmarked) && shown.isNotEmpty()
+
+    // Al llegar cerca del final de las sugerencias se piden más: no hace falta volver arriba para actualizar.
+    LaunchedEffect(listState, suggestions) {
+        if (!suggestions) return@LaunchedEffect
+        snapshotFlow {
+            val info = listState.layoutInfo
+            val last = info.visibleItemsInfo.lastOrNull()?.index ?: -1
+            info.totalItemsCount > 0 && last >= info.totalItemsCount - 4
+        }.distinctUntilChanged().filter { it }.collect { vm.loadMore() }
+    }
 
     // Al empezar a desplazar la lista se oculta el teclado.
     LaunchedEffect(listState) {
@@ -214,8 +231,21 @@ fun SearchTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Un
                     )
                     ChipRow(
                         SearchFilter.entries, filter, { it.label },
-                        leading = { YearChip(years) { showYears = true } },
+                        leading = {
+                            YearChip(years) { showYears = true }
+                            MovieFiltersChip(movieFilters) { showFilters = true }
+                            if (years != null || movieFilters.isActive) {
+                                PeliFilterChip("Quitar filtros", false, vm::clearFilters)
+                            }
+                        },
                     ) { vm.setSearchFilter(it) }
+                    if (movieFilters.isActive) {
+                        Text(
+                            movieFilters.summary(),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
                 }
             }
             if (feedMode && (filter == SearchFilter.All || filter == SearchFilter.Unmarked) && shown.isNotEmpty()) {
@@ -237,6 +267,7 @@ fun SearchTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Un
                     EmptyState(
                         title = "Sin resultados",
                         message = when {
+                            movieFilters.isActive -> "Ninguna película cumple estos filtros. Prueba con otros o toca «Quitar filtros»."
                             years != null -> "No hay películas de ${years!!.label()} con estos filtros. Prueba con otro rango de años."
                             text.isBlank() -> "Aún no hay películas con este filtro."
                             else -> "No encontramos \"$text\". Prueba con otro título."
@@ -255,11 +286,34 @@ fun SearchTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Un
                     )
                 }
             }
+            if (suggestions) {
+                item(key = "footer") {
+                    Box(Modifier.fillMaxWidth().padding(vertical = SectionSpacing), contentAlignment = Alignment.Center) {
+                        when {
+                            loadingMore -> CircularProgressIndicator()
+                            feedEnd -> Text(
+                                "No hay más sugerencias por ahora. Desliza hacia abajo para actualizar.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 
     if (showYears) {
         YearFilterSheet(years, onApply = vm::setSearchYears, onDismiss = { showYears = false })
+    }
+    if (showFilters) {
+        MovieFiltersSheet(
+            current = movieFilters,
+            omdbAvailable = vm.omdbAvailable,
+            onApply = vm::setMovieFilters,
+            onClearAll = vm::clearFilters,
+            onDismiss = { showFilters = false },
+        )
     }
 }
 
