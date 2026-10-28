@@ -17,6 +17,7 @@ import com.peli.app.data.ExposureRules
 import com.peli.app.data.MovieFilters
 import com.peli.app.data.ReleaseInfo
 import com.peli.app.data.Recommender
+import com.peli.app.data.Repository
 import com.peli.app.data.Scopes
 import com.peli.app.data.FriendRequestResult
 import com.peli.app.data.Profile
