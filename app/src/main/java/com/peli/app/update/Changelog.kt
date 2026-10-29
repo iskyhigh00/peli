@@ -177,7 +177,7 @@ object Changelog {
         "1.4.4" to listOf(
             "Se quitó el icono de actualizar de la barra de arriba: «Buscar actualización» sigue en Ajustes.",
         ),
-        "1.5.0" to listOf(
+        "1.4.5" to listOf(
             "En el detalle de una película, al deslizar el cartel hacia un lado aparece el tráiler (reproductor de YouTube; si no carga, hay botón para abrirlo en YouTube).",
             "Abajo del detalle ahora se ven el director y el reparto.",
         ),
