@@ -31,6 +31,22 @@ data class TmdbCastMember(val name: String? = null)
 data class TmdbCrewMember(val id: Int? = null, val name: String? = null, val job: String? = null)
 data class TmdbCredits(val cast: List<TmdbCastMember>? = null, val crew: List<TmdbCrewMember>? = null)
 
+/** Película de la filmografía de una persona (la lista de «crew» trae también el puesto: job). */
+data class TmdbCreditMovie(
+    val id: Int,
+    val title: String? = null,
+    val original_title: String? = null,
+    val overview: String? = null,
+    val poster_path: String? = null,
+    val release_date: String? = null,
+    val genre_ids: List<Int>? = null,
+    val vote_average: Double? = null,
+    val vote_count: Int? = null,
+    val job: String? = null,
+)
+
+data class TmdbPersonCredits(val crew: List<TmdbCreditMovie>? = null)
+
 data class TmdbVideo(
     val key: String? = null,
     val site: String? = null,
@@ -89,6 +105,10 @@ interface TmdbApi {
     /** Las reseñas de TMDB casi siempre están en inglés: se piden sin forzar el idioma. */
     @GET("movie/{id}/reviews")
     suspend fun reviews(@Path("id") id: Int, @Query("language") language: String = "en-US"): TmdbReviewsPage
+
+    /** Filmografía de una persona; las que dirigió son las de «crew» con job = Director. */
+    @GET("person/{id}/movie_credits")
+    suspend fun personCredits(@Path("id") id: Int): TmdbPersonCredits
 
     /** Tráilers y videos: en español, inglés y sin idioma (los tráilers en español son pocos). */
     @GET("movie/{id}/videos")

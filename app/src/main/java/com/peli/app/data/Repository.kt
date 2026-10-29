@@ -266,6 +266,32 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
         return FilterPass(kept, rejected, unknown, limited, fetched)
     }
 
+    /** Directores con 3 o más películas conocidas (las que la app tiene guardadas), ordenados por películas y premios. */
+    suspend fun topDirectors(): List<DirectorStat> = Directors.rank(factsDao.withDirector().map { it.toFacts() })
+
+    private val filmographies = HashMap<Int, List<Entry>>()
+
+    /**
+     * Las películas que dirigió esa persona (TMDB), de más a menos votadas. Un fallo de red se propaga; lo ya traído se
+     * recuerda mientras la app siga abierta.
+     */
+    suspend fun directorFilmography(directorId: Int): List<Entry> {
+        synchronized(filmographies) { filmographies[directorId]?.let { return it } }
+        val list = api.personCredits(directorId).crew.orEmpty()
+            .filter { it.job == "Director" && !it.title.isNullOrBlank() }
+            .distinctBy { it.id }
+            .sortedWith(compareByDescending<TmdbCreditMovie> { it.vote_count ?: 0 }.thenBy { it.id })
+            .map { c ->
+                TmdbMovie(
+                    id = c.id, title = c.title, overview = c.overview, poster_path = c.poster_path,
+                    release_date = c.release_date, genre_ids = c.genre_ids, vote_average = c.vote_average,
+                    vote_count = c.vote_count, original_title = c.original_title,
+                ).toEntry(OWNER_ME)
+            }
+        synchronized(filmographies) { filmographies[directorId] = list }
+        return list
+    }
+
     private val trailerCache = HashMap<Int, String?>()
 
     /**

@@ -13,6 +13,7 @@ import com.peli.app.data.ContextGuard
 import com.peli.app.data.Friend
 import com.peli.app.data.CandMeta
 import com.peli.app.data.Delivery
+import com.peli.app.data.DirectorStat
 import com.peli.app.data.ExposureRules
 import com.peli.app.data.MovieFilters
 import com.peli.app.data.ReleaseInfo
@@ -143,6 +144,22 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         movieFilters.value = f
         searchNow.tryEmit(Unit)
         resetQueue()
+    }
+
+    /** Directores con 3 o más películas conocidas (null = aún no se calculó). */
+    val directors = MutableStateFlow<List<DirectorStat>?>(null)
+
+    fun loadDirectors() {
+        launch(Dispatchers.IO) {
+            directors.value = attempt { repo.topDirectors() }
+                .onFailure { AppLog.w("Directores", "no se pudo armar la lista", it) }
+                .getOrDefault(emptyList())
+        }
+    }
+
+    /** Filtra por un director: se ven sus películas (con los demás filtros aplicados). */
+    fun setDirector(d: DirectorStat?) {
+        setMovieFilters(movieFilters.value.copy(directorId = d?.id ?: 0, directorName = d?.name.orEmpty()))
     }
 
     /** Cambiaron los filtros: la cola de Descubrir se arma de nuevo con ellos (los filtros valen en las dos pantallas). */
@@ -441,6 +458,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
     private suspend fun loadFeed(refresh: Boolean, years: YearRange?, filters: MovieFilters, append: Boolean = false): List<Entry> {
         // El lote guardado solo sirve si se pidió con el mismo rango de años y los mismos filtros.
         if (!refresh && feed.isNotEmpty() && feedYears == years && feedFilters == filters) return feed
+        if (filters.directorId != 0) return loadDirectorFeed(years, filters)
         // Se lee de la base (no del StateFlow, que al arrancar aún puede estar vacío) para personalizar de verdad.
         val marked = repo.mine.first()
         // Elegir, reservar y entregar es una sola operación: la lista principal y Descubrir no se pisan.
@@ -507,6 +525,19 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         }
     }
 
+    /** Con filtro de director la lista principal es su filmografía (de más a menos votada), con los demás filtros aplicados. */
+    private suspend fun loadDirectorFeed(years: YearRange?, filters: MovieFilters): List<Entry> {
+        val all = repo.directorFilmography(filters.directorId).filter { years.accepts(it.year) }
+        val pass = repo.applyFilters(all, filters, want = all.size, maxFetch = FILTER_FETCH_BUDGET)
+        AppLog.i("Feed", "director ${filters.directorName}: ${pass.kept.size} de ${all.size} películas")
+        if (pass.kept.isEmpty()) message.value = "Ninguna película de ${filters.directorName} cumple estos filtros."
+        feed = pass.kept
+        feedYears = years
+        feedFilters = filters
+        feedEnd.value = true
+        return feed
+    }
+
     /** Presupuesto de consultas a OMDb de una carga y lo que se vio en ella. */
     private class FilterBudget(var fetch: Int) {
         var unknown = 0
@@ -548,7 +579,11 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
 
     /** Búsqueda por título con los filtros de valoraciones y premios (lo que no tiene datos para decidir queda fuera). */
     private suspend fun searchFiltered(q: String, years: YearRange?, filters: MovieFilters): List<Entry> {
-        val found = repo.search(q, years)
+        var found = repo.search(q, years)
+        if (filters.directorId != 0) {
+            val ids = repo.directorFilmography(filters.directorId).map { it.movieId }.toSet()
+            found = found.filter { it.movieId in ids }
+        }
         if (!filters.isActive) return found
         val pass = repo.applyFilters(found, filters, want = found.size, maxFetch = FILTER_FETCH_BUDGET)
         if (pass.unknown > 0) message.value = "${pass.unknown} películas no tienen datos suficientes para estos filtros y se ocultaron."
@@ -892,6 +927,15 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
                 val marked = repo.mine.first()
                 val years = searchYears.value
                 val filters = movieFilters.value
+                if (filters.directorId != 0) {
+                    // Con filtro de director la cola es su filmografía, sin lo que ya marqué ni lo omitido.
+                    val all = repo.directorFilmography(filters.directorId).filter { years.accepts(it.year) }
+                    val pass = repo.applyFilters(all, filters, want = all.size, maxFetch = FILTER_FETCH_BUDGET)
+                    val known = marked.map { it.movieId }.toSet()
+                    queue.value = pass.kept.filter { it.movieId !in known && it.movieId !in skipped }
+                    AppLog.i("Descubrir", "cola de ${filters.directorName}: ${queue.value.size} sugerencias")
+                    return@launch
+                }
                 deliveryMutex.withLock {
                     val store = peli.exposure
                     val round = store.round() + 1

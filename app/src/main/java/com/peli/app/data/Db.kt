@@ -154,6 +154,9 @@ abstract class FactsDao {
     @Query("SELECT * FROM facts WHERE movieId = :id")
     abstract suspend fun one(id: Int): FactsRow?
 
+    @Query("SELECT * FROM facts WHERE directorId IS NOT NULL")
+    abstract suspend fun withDirector(): List<FactsRow>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     abstract suspend fun put(row: FactsRow)
 }

@@ -181,6 +181,11 @@ object Changelog {
             "En el detalle de una película, al deslizar el cartel hacia un lado aparece el tráiler (reproductor de YouTube; si no carga, hay botón para abrirlo en YouTube).",
             "Abajo del detalle ahora se ven el director y el reparto.",
         ),
+        "1.4.6" to listOf(
+            "Nuevo filtro «Directores» (en Buscar y Descubrir): lista los directores con 3 o más películas conocidas por Peli, primero los de más películas y más premios.",
+            "Al elegir un director se ven sus películas (con los demás filtros aplicados). Se guarda como los otros filtros hasta tocar «Quitar filtros».",
+            "La lista de directores crece a medida que marcas y exploras películas.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

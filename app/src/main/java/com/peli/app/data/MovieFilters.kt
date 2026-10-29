@@ -19,6 +19,9 @@ data class MovieFilters(
     val oscar: OscarFilter = OscarFilter.Any,
     val minWins: Int = 0,
     val minNominations: Int = 0,
+    /** Solo películas de este director (id de TMDB; 0 = sin filtro) y su nombre para mostrarlo. */
+    val directorId: Int = 0,
+    val directorName: String = "",
 ) {
     val isActive get() = this != NONE
 
@@ -60,16 +63,18 @@ data class MovieFilters(
         },
         minWins.takeIf { it > 0 }?.let { "$it+ premios" },
         minNominations.takeIf { it > 0 }?.let { "$it+ nominaciones" },
+        directorId.takeIf { it > 0 }?.let { "Director: ${directorName.ifBlank { "#$it" }}" },
     ).joinToString(" · ")
 
     /** Cantidad de filtros activos (para el número del chip). */
     fun count(): Int = listOf(
         minTmdb > 0, minImdb > 0, minRottenTomatoes > 0, minMetacritic > 0,
-        oscar != OscarFilter.Any, minWins > 0, minNominations > 0,
+        oscar != OscarFilter.Any, minWins > 0, minNominations > 0, directorId > 0,
     ).count { it }
 
     fun encode(): String =
-        "t=$minTmdb;i=$minImdb;r=$minRottenTomatoes;m=$minMetacritic;o=${oscar.name};w=$minWins;n=$minNominations"
+        "t=$minTmdb;i=$minImdb;r=$minRottenTomatoes;m=$minMetacritic;o=${oscar.name};w=$minWins;n=$minNominations;" +
+            "d=$directorId;dn=${java.net.URLEncoder.encode(directorName, "UTF-8")}"
 
     companion object {
         val NONE = MovieFilters()
@@ -88,6 +93,8 @@ data class MovieFilters(
                 oscar = OscarFilter.entries.firstOrNull { it.name == values["o"] } ?: OscarFilter.Any,
                 minWins = values["w"]?.toIntOrNull()?.takeIf { it >= 0 } ?: 0,
                 minNominations = values["n"]?.toIntOrNull()?.takeIf { it >= 0 } ?: 0,
+                directorId = values["d"]?.toIntOrNull()?.takeIf { it > 0 } ?: 0,
+                directorName = runCatching { java.net.URLDecoder.decode(values["dn"].orEmpty(), "UTF-8") }.getOrDefault("").take(120),
             )
         }
     }

@@ -165,6 +165,8 @@ fun SearchTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Un
     val feedEnd by vm.feedEnd.collectAsState()
     var showYears by rememberSaveable { mutableStateOf(false) }
     var showFilters by rememberSaveable { mutableStateOf(false) }
+    var showDirectors by rememberSaveable { mutableStateOf(false) }
+    val directors by vm.directors.collectAsState()
     val results by vm.results.collectAsState()
     val mine by vm.mine.collectAsState()
     val error by vm.searchError.collectAsState()
@@ -218,6 +220,11 @@ fun SearchTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Un
                         PeliFilterChip("Película segura", false, vm::openSafe)
                         YearChip(years) { showYears = true }
                         MovieFiltersChip(movieFilters) { showFilters = true }
+                        PeliFilterChip(
+                            if (movieFilters.directorId > 0) "Director: ${movieFilters.directorName}" else "Directores",
+                            movieFilters.directorId > 0,
+                            { vm.loadDirectors(); showDirectors = true },
+                        )
                         if (years != null || movieFilters.isActive) {
                             PeliFilterChip("Quitar filtros", false, vm::clearFilters)
                         }
@@ -335,6 +342,15 @@ fun SearchTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Un
             onDismiss = { showFilters = false },
         )
     }
+    if (showDirectors) {
+        DirectorsSheet(
+            directors = directors,
+            selectedId = movieFilters.directorId,
+            onPick = { vm.setDirector(it) },
+            onClear = { vm.setDirector(null) },
+            onDismiss = { showDirectors = false },
+        )
+    }
 }
 
 // ---- Descubrir -------------------------------------------------------------
@@ -350,6 +366,8 @@ fun DiscoverTab(vm: MainViewModel) {
     val movieFilters by vm.movieFilters.collectAsState()
     var showYears by rememberSaveable { mutableStateOf(false) }
     var showFilters by rememberSaveable { mutableStateOf(false) }
+    var showDirectors by rememberSaveable { mutableStateOf(false) }
+    val directors by vm.directors.collectAsState()
     var zoomed by remember { mutableStateOf<Entry?>(null) }
     val current = queue.firstOrNull()
     val navInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
@@ -371,6 +389,11 @@ fun DiscoverTab(vm: MainViewModel) {
                 PeliFilterChip("Película segura", false, vm::openSafe)
                 YearChip(years) { showYears = true }
                 MovieFiltersChip(movieFilters) { showFilters = true }
+                PeliFilterChip(
+                    if (movieFilters.directorId > 0) "Director: ${movieFilters.directorName}" else "Directores",
+                    movieFilters.directorId > 0,
+                    { vm.loadDirectors(); showDirectors = true },
+                )
                 if (years != null || movieFilters.isActive) {
                     PeliFilterChip("Quitar filtros", false, vm::clearFilters)
                 }
@@ -474,6 +497,15 @@ fun DiscoverTab(vm: MainViewModel) {
             onApply = vm::setMovieFilters,
             onClearAll = vm::clearFilters,
             onDismiss = { showFilters = false },
+        )
+    }
+    if (showDirectors) {
+        DirectorsSheet(
+            directors = directors,
+            selectedId = movieFilters.directorId,
+            onPick = { vm.setDirector(it) },
+            onClear = { vm.setDirector(null) },
+            onDismiss = { showDirectors = false },
         )
     }
 }
