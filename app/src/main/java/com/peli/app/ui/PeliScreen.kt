@@ -32,7 +32,6 @@ import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
@@ -296,9 +295,6 @@ private fun Home(vm: MainViewModel, tab: Tab, onTabChange: (Tab) -> Unit, onOpen
                     actions = {
                         IconButton(onClick = { showSettings = true }) {
                             Icon(Icons.Default.Settings, contentDescription = "Ajustes")
-                        }
-                        IconButton(onClick = { vm.checkForUpdate(manual = true) }) {
-                            Icon(Icons.Default.SystemUpdate, contentDescription = "Buscar actualización")
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(

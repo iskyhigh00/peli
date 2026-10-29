@@ -174,6 +174,9 @@ object Changelog {
             "Compartir (en Mis pelis) ahora envía solo un ID, no la lista entera: tu ID de amigo si tienes cuenta, o el código de una sala (si no hay ninguna, crea una con tu lista). La lista ya está en el servidor.",
             "El código largo con toda la lista queda solo para cuando la app no tiene servidor.",
         ),
+        "1.4.4" to listOf(
+            "Se quitó el icono de actualizar de la barra de arriba: «Buscar actualización» sigue en Ajustes.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"
