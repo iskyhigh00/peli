@@ -945,6 +945,28 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         }
     }
 
+    /**
+     * Texto corto para invitar a la otra persona SIN pasar la lista (la lista ya está en el servidor): mi ID de amigo si
+     * tengo cuenta, o el código de la sala. null = aún no hay nada creado.
+     */
+    fun inviteText(): String? {
+        val p = profile.value
+        if (p != null) {
+            return "Agrégame en Peli para comparar nuestras películas. Mi ID de amigo: " +
+                "${com.peli.app.data.FriendCodes.format(p.friend_code)}\n(Peli → Juntos → agregar amigo)"
+        }
+        return if (room.value != null) roomShareText() else null
+    }
+
+    /** Como [inviteText], pero si hay servidor y aún no hay cuenta ni sala, crea una sala con mi lista. null = sin servidor. */
+    fun startInvite(): String? {
+        inviteText()?.let { return it }
+        if (!cloudAvailable) return null
+        createRoom()
+        message.value = "Creé una sala con tu lista: comparte su código."
+        return inviteText()
+    }
+
     fun roomShareText(): String {
         val code = room.value?.let { RoomCodes.format(it) } ?: ""
         return "Únete a mi sala en Peli para ver qué películas queremos ver juntos. Código: $code\n" +

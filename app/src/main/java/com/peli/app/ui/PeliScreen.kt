@@ -362,11 +362,17 @@ private fun Home(vm: MainViewModel, tab: Tab, onTabChange: (Tab) -> Unit, onOpen
                 icon = { Icon(if (share) Icons.Default.Share else Icons.Default.Explore, contentDescription = label) },
                 onClick = {
                     if (share) {
-                        // Aviso al instante y el código se arma fuera del hilo principal: así no parece que no pasó nada.
-                        vm.message.value = "Preparando tu lista para compartir…"
-                        scope.launch {
-                            val code = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { vm.exportCode() }
-                            shareList(context, code, "Enviar mi lista a mi pareja") { vm.message.value = it }
+                        // Con servidor se comparte solo un ID (de amigo o de sala): la lista ya está allá. El código con
+                        // toda la lista queda solo para cuando no hay servidor.
+                        val invite = vm.startInvite()
+                        if (invite != null) {
+                            shareList(context, invite, "Invitar a mi pareja") { vm.message.value = it }
+                        } else {
+                            vm.message.value = "Preparando tu lista para compartir…"
+                            scope.launch {
+                                val code = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { vm.exportCode() }
+                                shareList(context, code, "Enviar mi lista a mi pareja") { vm.message.value = it }
+                            }
                         }
                     } else {
                         onTabChange(Tab.Discover)

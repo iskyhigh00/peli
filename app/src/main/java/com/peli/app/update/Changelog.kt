@@ -170,6 +170,10 @@ object Changelog {
         "1.4.2" to listOf(
             "Compartir mi lista abre más rápido: avisa al instante, el código se arma sin congelar la pantalla y es unas 3 veces más corto (sin sinopsis).",
         ),
+        "1.4.3" to listOf(
+            "Compartir (en Mis pelis) ahora envía solo un ID, no la lista entera: tu ID de amigo si tienes cuenta, o el código de una sala (si no hay ninguna, crea una con tu lista). La lista ya está en el servidor.",
+            "El código largo con toda la lista queda solo para cuando la app no tiene servidor.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"
