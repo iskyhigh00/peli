@@ -12,12 +12,11 @@ import com.google.gson.reflect.TypeToken
 object Sharing {
     private const val PREFIX_V1 = "PELI1:"
     private const val PREFIX = "PELI2:"
-    private const val SHARED_OVERVIEW_CHARS = 160
     private val gson = Gson()
 
-    /** Solo lo que la otra persona necesita: sinopsis corta y sin título original (se vuelve a pedir allí). */
+    /** Solo lo que la otra persona necesita (ver [slimForSharing]): el código queda corto y se comparte rápido. */
     fun export(entries: List<Entry>): String {
-        val slim = entries.map { it.copy(overview = it.overview.take(SHARED_OVERVIEW_CHARS), originalTitle = null) }
+        val slim = entries.map { it.slimForSharing() }
         return PREFIX + Base64.encodeToString(SharePack.gzip(gson.toJson(slim).toByteArray()), Base64.NO_WRAP)
     }
 

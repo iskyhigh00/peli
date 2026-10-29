@@ -25,3 +25,23 @@ class SharePackTest {
         assertTrue(failed)
     }
 }
+
+class SlimSharingTest {
+    @Test fun `lo que se comparte no lleva sinopsis ni datos que la otra persona no usa`() {
+        val e = com.peli.app.entry(7, title = "Dune", year = "2021", genres = "878,12", rating = 8.0, watchlist = true, myRating = 9, updatedAt = 123L)
+            .copy(overview = "Una sinopsis muy larga ".repeat(20), originalTitle = "Dune", releaseDate = "2021-10-22")
+        val slim = e.slimForSharing()
+        assertEquals("", slim.overview)
+        assertEquals(null, slim.originalTitle)
+        assertEquals(null, slim.genres)
+        assertEquals(null, slim.rating)
+        assertEquals(null, slim.releaseDate)
+        // lo esencial se conserva
+        assertEquals(7, slim.movieId)
+        assertEquals("Dune", slim.title)
+        assertEquals("2021", slim.year)
+        assertEquals(true, slim.watchlist)
+        assertEquals(9, slim.myRating)
+        assertEquals(123L, slim.updatedAt)
+    }
+}

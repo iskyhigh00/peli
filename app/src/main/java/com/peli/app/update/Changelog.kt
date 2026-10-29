@@ -167,6 +167,9 @@ object Changelog {
             "En Buscar y Mis pelis, los filtros reaparecen arriba al instante cuando deslizas la lista hacia arriba, aunque estés lejos del principio; se esconden al seguir bajando.",
             "Desde esa barra se pueden editar los filtros sin volver al inicio de la lista.",
         ),
+        "1.4.2" to listOf(
+            "Compartir mi lista abre más rápido: avisa al instante, el código se arma sin congelar la pantalla y es unas 3 veces más corto (sin sinopsis).",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

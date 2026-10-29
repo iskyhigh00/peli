@@ -362,7 +362,12 @@ private fun Home(vm: MainViewModel, tab: Tab, onTabChange: (Tab) -> Unit, onOpen
                 icon = { Icon(if (share) Icons.Default.Share else Icons.Default.Explore, contentDescription = label) },
                 onClick = {
                     if (share) {
-                        shareList(context, vm.exportCode(), "Enviar mi lista a mi pareja") { vm.message.value = it }
+                        // Aviso al instante y el código se arma fuera del hilo principal: así no parece que no pasó nada.
+                        vm.message.value = "Preparando tu lista para compartir…"
+                        scope.launch {
+                            val code = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { vm.exportCode() }
+                            shareList(context, code, "Enviar mi lista a mi pareja") { vm.message.value = it }
+                        }
                     } else {
                         onTabChange(Tab.Discover)
                     }
