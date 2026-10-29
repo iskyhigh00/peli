@@ -28,8 +28,18 @@ data class TmdbExternalIds(val imdb_id: String? = null)
 data class TmdbKeyword(val name: String? = null)
 data class TmdbKeywords(val keywords: List<TmdbKeyword>? = null)
 data class TmdbCastMember(val name: String? = null)
-data class TmdbCrewMember(val name: String? = null, val job: String? = null)
+data class TmdbCrewMember(val id: Int? = null, val name: String? = null, val job: String? = null)
 data class TmdbCredits(val cast: List<TmdbCastMember>? = null, val crew: List<TmdbCrewMember>? = null)
+
+data class TmdbVideo(
+    val key: String? = null,
+    val site: String? = null,
+    val type: String? = null,
+    val official: Boolean? = null,
+    val iso_639_1: String? = null,
+)
+
+data class TmdbVideosPage(val results: List<TmdbVideo>? = null)
 
 data class TmdbDetails(
     val id: Int,
@@ -79,6 +89,14 @@ interface TmdbApi {
     /** Las reseñas de TMDB casi siempre están en inglés: se piden sin forzar el idioma. */
     @GET("movie/{id}/reviews")
     suspend fun reviews(@Path("id") id: Int, @Query("language") language: String = "en-US"): TmdbReviewsPage
+
+    /** Tráilers y videos: en español, inglés y sin idioma (los tráilers en español son pocos). */
+    @GET("movie/{id}/videos")
+    suspend fun videos(
+        @Path("id") id: Int,
+        @Query("language") language: String = "es-ES",
+        @Query("include_video_language") include: String = "es,en,null",
+    ): TmdbVideosPage
 
     @GET("movie/{id}/recommendations")
     suspend fun recommendations(@Path("id") id: Int, @Query("page") page: Int = 1): TmdbPage

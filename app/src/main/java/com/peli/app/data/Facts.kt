@@ -11,6 +11,8 @@ data class MovieFacts(
     val keywords: List<String> = emptyList(),
     val director: String? = null,
     val actors: List<String> = emptyList(),
+    /** Id de TMDB del director (para ver su filmografía). Las filas guardadas antes de existir este dato lo traen null. */
+    val directorId: Int? = null,
     val tmdbAt: Long = 0,
     val imdbRating: Double? = null,
     val imdbVotes: Int? = null,
@@ -24,6 +26,9 @@ data class MovieFacts(
 ) {
     val hasOmdb get() = omdbAt > 0
     val hasTmdb get() = tmdbAt > 0
+
+    /** Hay que (volver a) pedir los datos de TMDB: nunca se pidieron, o se guardaron sin el id del director. */
+    val needsTmdb get() = !hasTmdb || (director != null && directorId == null)
     val oscarNominated get() = oscarWins > 0 || oscarNominations > 0
 }
 

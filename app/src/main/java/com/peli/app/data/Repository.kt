@@ -167,14 +167,16 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
     suspend fun ensureFacts(id: Int, needOmdb: Boolean): MovieFacts? = gate.withPermit {
         val now = System.currentTimeMillis()
         var f = factsDao.one(id)?.toFacts()
-        if (f == null || !f.hasTmdb) {
+        if (f == null || f.needsTmdb) {
             val d = attempt { api.details(id, "external_ids,keywords,credits") }.getOrNull()
             if (d != null) {
+                val director = d.credits?.crew.orEmpty().firstOrNull { it.job == "Director" }
                 f = (f ?: MovieFacts(id)).copy(
                     imdbId = d.external_ids?.imdb_id?.takeIf { it.isNotBlank() },
                     keywords = d.keywords?.keywords.orEmpty().mapNotNull { it.name?.trim()?.takeIf { n -> n.isNotEmpty() } }.take(12),
-                    director = d.credits?.crew.orEmpty().firstOrNull { it.job == "Director" }?.name?.takeIf { it.isNotBlank() },
-                    actors = d.credits?.cast.orEmpty().mapNotNull { it.name?.trim()?.takeIf { n -> n.isNotEmpty() } }.take(5),
+                    director = director?.name?.takeIf { it.isNotBlank() },
+                    directorId = director?.id,
+                    actors = d.credits?.cast.orEmpty().mapNotNull { it.name?.trim()?.takeIf { n -> n.isNotEmpty() } }.take(8),
                     tmdbAt = now,
                 )
             }
@@ -262,6 +264,21 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
             }
         }
         return FilterPass(kept, rejected, unknown, limited, fetched)
+    }
+
+    private val trailerCache = HashMap<Int, String?>()
+
+    /**
+     * Clave de YouTube del mejor tráiler de la película; null si no tiene. Un fallo de red se propaga (para poder
+     * reintentar); lo ya resuelto se recuerda mientras la app siga abierta.
+     */
+    suspend fun trailerKey(movieId: Int): String? {
+        synchronized(trailerCache) { if (trailerCache.containsKey(movieId)) return trailerCache[movieId] }
+        val key = Trailers.pick(
+            api.videos(movieId).results.orEmpty().map { TrailerVideo(it.key, it.site, it.type, it.official, it.iso_639_1) },
+        )
+        synchronized(trailerCache) { trailerCache[movieId] = key }
+        return key
     }
 
     /** Mi marca actual de una película (null si no la marqué). */
@@ -375,7 +392,7 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
     suspend fun profileFacts(marked: List<Entry>, maxFetch: Int): Map<Int, MovieFacts> {
         val ids = marked.filter { Recommender.signalOf(it) != null }.map { it.movieId }
         val facts = cachedFacts(ids).toMutableMap()
-        val missing = ids.filter { facts[it]?.hasTmdb != true }.take(maxFetch)
+        val missing = ids.filter { facts[it]?.needsTmdb != false }.take(maxFetch)
         if (missing.isNotEmpty()) {
             coroutineScope { missing.map { id -> async { ensureFacts(id, false) } }.awaitAll() }
                 .forEach { f -> if (f != null) facts[f.movieId] = f }
@@ -389,7 +406,7 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
         while (true) {
             val ids = marked.filter { Recommender.signalOf(it) != null }.map { it.movieId }
             val have = cachedFacts(ids)
-            val missing = ids.count { have[it]?.hasTmdb != true }
+            val missing = ids.count { have[it]?.needsTmdb != false }
             if (missing == 0 || missing >= left) return   // terminó, o la última tanda no avanzó (sin red)
             left = missing
             profileFacts(marked, BACKGROUND_BATCH)
@@ -447,7 +464,7 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
         if (shortlist.isEmpty()) return emptyList()
 
         val facts = cachedFacts(shortlist.map { it.movieId }).toMutableMap()
-        val missing = shortlist.map { it.movieId }.filter { facts[it]?.hasTmdb != true }
+        val missing = shortlist.map { it.movieId }.filter { facts[it]?.needsTmdb != false }
         if (missing.isNotEmpty()) {
             attempt {
                 coroutineScope { missing.map { id -> async { ensureFacts(id, false) } }.awaitAll() }
@@ -491,7 +508,7 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
         val best = usable.sortedWith(
             compareByDescending<Pair<Entry, CandMeta>> { Recommender.baseScore(it.first, profile, it.second) }.thenBy { it.first.movieId },
         )
-        val missing = best.map { it.first.movieId }.filter { facts[it]?.hasTmdb != true }.take(ENRICH_TOP)
+        val missing = best.map { it.first.movieId }.filter { facts[it]?.needsTmdb != false }.take(ENRICH_TOP)
         if (missing.isNotEmpty()) {
             coroutineScope { missing.map { id -> async { ensureFacts(id, false) } }.awaitAll() }
                 .forEach { f -> if (f != null) facts[f.movieId] = f }

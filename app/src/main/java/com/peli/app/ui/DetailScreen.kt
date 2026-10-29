@@ -6,6 +6,23 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.viewinterop.AndroidView
+import android.content.Intent
+import android.net.Uri
+import android.webkit.WebChromeClient
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import com.peli.app.data.Trailers
+import com.peli.app.log.AppLog
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -13,6 +30,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -65,17 +83,54 @@ fun DetailScreen(entry: Entry, mine: Entry?, vm: MainViewModel, onBack: () -> Un
     val insights by vm.insights.collectAsState()
     val partner by vm.partner.collectAsState()
     val partnerRating = remember(partner, entry.movieId) { partner.firstOrNull { it.movieId == entry.movieId }?.myRating ?: 0 }
-    LaunchedEffect(entry.movieId) { vm.loadInsights(entry.movieId) }
+    LaunchedEffect(entry.movieId) { vm.loadInsights(entry.movieId); vm.loadFacts(entry.movieId) }
+    val allFacts by vm.facts.collectAsState()
+    val trailers by vm.trailers.collectAsState()
+    val pager = rememberPagerState(pageCount = { 2 })
+    // El tráiler se pide al deslizar el cartel (página 2) y se quita al volver, para que deje de sonar.
+    LaunchedEffect(pager.currentPage) { if (pager.currentPage == 1) vm.loadTrailer(entry.movieId) }
 
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-            PosterImage(
-                path = entry.posterPath,
-                contentDescription = "Carátula de ${entry.title}",
-                modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f).sharedPoster(entry.movieId),
-                shape = RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp),
-                onClick = { zoomed = true },
-            )
+            Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f).sharedPoster(entry.movieId)) {
+                HorizontalPager(state = pager, modifier = Modifier.fillMaxSize()) { page ->
+                    if (page == 0) {
+                        PosterImage(
+                            path = entry.posterPath,
+                            contentDescription = "Carátula de ${entry.title}",
+                            modifier = Modifier.fillMaxSize(),
+                            shape = RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp),
+                            onClick = { zoomed = true },
+                        )
+                    } else {
+                        TrailerPage(
+                            state = trailers[entry.movieId],
+                            active = pager.currentPage == 1,
+                            onRetry = { vm.loadTrailer(entry.movieId, force = true) },
+                        )
+                    }
+                }
+                // Puntos de página y pista de que se puede deslizar.
+                Column(Modifier.align(Alignment.BottomCenter).padding(bottom = 14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    if (pager.currentPage == 0) {
+                        Surface(shape = RoundedCornerShape(50), color = Color.Black.copy(alpha = 0.55f)) {
+                            Row(Modifier.padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                                Text("Desliza para ver el tráiler", style = MaterialTheme.typography.labelMedium, color = Color.White)
+                            }
+                        }
+                        Box(Modifier.height(8.dp))
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        repeat(2) { i ->
+                            Box(
+                                Modifier.size(7.dp).clip(CircleShape)
+                                    .background(if (i == pager.currentPage) Color.White else Color.White.copy(alpha = 0.4f)),
+                            )
+                        }
+                    }
+                }
+            }
             Column(
                 Modifier.padding(horizontal = ScreenHorizontalPadding, vertical = SectionSpacing),
                 verticalArrangement = Arrangement.spacedBy(SectionSpacing),
@@ -104,6 +159,24 @@ fun DetailScreen(entry: Entry, mine: Entry?, vm: MainViewModel, onBack: () -> Un
                     onRetry = { vm.loadInsights(entry.movieId, force = true) },
                 )
                 ReviewsSection(insights[entry.movieId], sources)
+                allFacts[entry.movieId]?.let { f ->
+                    if (f.director != null || f.actors.isNotEmpty()) {
+                        GlassCard {
+                            f.director?.let { d ->
+                                Text("Dirección", style = MaterialTheme.typography.titleMedium)
+                                Text(d, style = MaterialTheme.typography.bodyLarge, color = scheme.onSurfaceVariant)
+                            }
+                            if (f.actors.isNotEmpty()) {
+                                Text(
+                                    "Reparto",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    modifier = Modifier.padding(top = if (f.director != null) ItemSpacing else 0.dp),
+                                )
+                                Text(f.actors.joinToString(", "), style = MaterialTheme.typography.bodyLarge, color = scheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                }
                 Column(verticalArrangement = Arrangement.spacedBy(ItemSpacing)) {
                     GradientButton(
                         if (want) "En mi lista para ver" else "Quiero verla",
@@ -147,5 +220,57 @@ fun DetailScreen(entry: Entry, mine: Entry?, vm: MainViewModel, onBack: () -> Un
             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
         }
         if (zoomed) PosterViewer(entry.posterPath, entry.title) { zoomed = false }
+    }
+}
+
+/** Página del tráiler: reproductor incrustado de YouTube y, siempre, un botón para abrirlo en YouTube. */
+@Composable
+private fun TrailerPage(state: MainViewModel.TrailerState?, active: Boolean, onRetry: () -> Unit) {
+    val context = LocalContext.current
+    Box(
+        Modifier.fillMaxSize().background(Color.Black).padding(bottom = 56.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        when (state) {
+            null, MainViewModel.TrailerState.Loading -> CircularProgressIndicator(color = Color.White)
+            MainViewModel.TrailerState.None -> Text(
+                "Esta película no tiene tráiler disponible.",
+                color = Color.White,
+                modifier = Modifier.padding(24.dp),
+            )
+            is MainViewModel.TrailerState.Failed -> Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(24.dp)) {
+                Text("No se pudo cargar el tráiler.", color = Color.White)
+                Box(Modifier.height(8.dp))
+                TonalButton("Reintentar", onRetry)
+            }
+            is MainViewModel.TrailerState.Ready -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                if (active) {
+                    AndroidView(
+                        modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f),
+                        factory = { ctx ->
+                            WebView(ctx).apply {
+                                settings.javaScriptEnabled = true
+                                webChromeClient = WebChromeClient()
+                                webViewClient = WebViewClient()
+                                setBackgroundColor(android.graphics.Color.BLACK)
+                                loadDataWithBaseURL("https://www.youtube.com", Trailers.embedHtml(state.key), "text/html", "utf-8", null)
+                            }
+                        },
+                        onRelease = { it.destroy() },
+                    )
+                }
+                Box(Modifier.height(12.dp))
+                TonalButton(
+                    "Abrir en YouTube",
+                    {
+                        try {
+                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Trailers.watchUrl(state.key))).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                        } catch (e: Exception) {
+                            AppLog.w("Tráiler", "no se pudo abrir YouTube", e)
+                        }
+                    },
+                )
+            }
+        }
     }
 }

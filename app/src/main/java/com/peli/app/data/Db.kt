@@ -121,6 +121,7 @@ data class FactsRow(
     val keywords: String,
     val director: String?,
     val actors: String,
+    val directorId: Int?,
     val tmdbAt: Long,
     val imdbRating: Double?,
     val imdbVotes: Int?,
@@ -134,14 +135,14 @@ data class FactsRow(
 ) {
     fun toFacts() = MovieFacts(
         movieId, imdbId, keywords.split('|').filter { it.isNotBlank() }, director,
-        actors.split('|').filter { it.isNotBlank() }, tmdbAt, imdbRating, imdbVotes, rottenTomatoes, metacritic,
+        actors.split('|').filter { it.isNotBlank() }, directorId, tmdbAt, imdbRating, imdbVotes, rottenTomatoes, metacritic,
         oscarWins, oscarNominations, wins, nominations, omdbAt,
     )
 }
 
 fun MovieFacts.toRow() = FactsRow(
     movieId, imdbId, keywords.joinToString("|") { it.replace('|', ' ') }, director,
-    actors.joinToString("|") { it.replace('|', ' ') }, tmdbAt, imdbRating, imdbVotes, rottenTomatoes, metacritic,
+    actors.joinToString("|") { it.replace('|', ' ') }, directorId, tmdbAt, imdbRating, imdbVotes, rottenTomatoes, metacritic,
     oscarWins, oscarNominations, wins, nominations, omdbAt,
 )
 
@@ -212,7 +213,14 @@ private val MIGRATION_6_7 = object : Migration(6, 7) {
     }
 }
 
-@Database(entities = [Entry::class, OutboxRow::class, FactsRow::class], version = 7, exportSchema = false)
+private val MIGRATION_7_8 = object : Migration(7, 8) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        AppLog.i("DB", "migración 7→8 (id del director)")
+        db.execSQL("ALTER TABLE facts ADD COLUMN directorId INTEGER")
+    }
+}
+
+@Database(entities = [Entry::class, OutboxRow::class, FactsRow::class], version = 8, exportSchema = false)
 abstract class AppDb : RoomDatabase() {
     abstract fun entries(): EntryDao
     abstract fun outbox(): OutboxDao
@@ -221,7 +229,7 @@ abstract class AppDb : RoomDatabase() {
     companion object {
         fun create(context: Context) =
             Room.databaseBuilder(context, AppDb::class.java, "peli.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onOpen(db: SupportSQLiteDatabase) {
                         AppLog.i("DB", "base de datos abierta (versión ${db.version})")

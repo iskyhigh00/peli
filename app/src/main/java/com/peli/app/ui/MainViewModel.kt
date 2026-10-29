@@ -252,6 +252,44 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         }
     }
 
+    // ---- Detalle: director, reparto y tráiler --------------------------------------
+
+    /** Datos extra (director, reparto) de las películas cuyo detalle se abrió. */
+    val facts = MutableStateFlow<Map<Int, com.peli.app.data.MovieFacts>>(emptyMap())
+
+    fun loadFacts(movieId: Int) {
+        launch(Dispatchers.IO) {
+            repo.cachedFacts(listOf(movieId))[movieId]?.let { f -> facts.update { it + (movieId to f) } }
+            attempt { repo.ensureFacts(movieId, false) }.getOrNull()?.let { f -> facts.update { it + (movieId to f) } }
+        }
+    }
+
+    sealed interface TrailerState {
+        data object Loading : TrailerState
+        data class Ready(val key: String) : TrailerState
+        data object None : TrailerState
+        data class Failed(val message: String) : TrailerState
+    }
+
+    val trailers = MutableStateFlow<Map<Int, TrailerState>>(emptyMap())
+
+    fun loadTrailer(movieId: Int, force: Boolean = false) {
+        val current = trailers.value[movieId]
+        if (!force && (current is TrailerState.Ready || current is TrailerState.None || current is TrailerState.Loading)) return
+        trailers.update { it + (movieId to TrailerState.Loading) }
+        launch {
+            val state = try {
+                repo.trailerKey(movieId)?.let { TrailerState.Ready(it) } ?: TrailerState.None
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                AppLog.w("Tráiler", "falló la carga del tráiler de $movieId", e)
+                TrailerState.Failed(e.message ?: e.javaClass.simpleName)
+            }
+            trailers.update { it + (movieId to state) }
+        }
+    }
+
     /** Mi nota (1..10, 0 la quita). Calificar implica que ya la vi; se sincroniza con la sala. */
     fun setMyRating(e: Entry, score: Int) = update(e) { it.withRating(score) }
 
