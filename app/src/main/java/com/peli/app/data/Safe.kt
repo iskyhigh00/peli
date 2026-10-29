@@ -53,20 +53,20 @@ object Safe {
         val byId = marked.associateBy { it.movieId }
         val out = ArrayList<String>()
         for (s in (meta?.seeds.orEmpty()).mapNotNull { byId[it] }.take(2)) {
-            out += if (s.myRating > 0) "Se parece a «${s.title}», que calificaste con ${s.myRating}"
-            else "Se parece a «${s.title}», que te gustó"
+            out += if (s.myRating > 0) "Se parece a «${s.displayTitle}», que calificaste con ${s.myRating}"
+            else "Se parece a «${s.displayTitle}», que te gustó"
         }
         val facts = meta?.facts
         val liked = marked.filter { strongLike(it) }
         facts?.director?.let { d ->
             liked.firstOrNull { markedFacts[it.movieId]?.director.equals(d, ignoreCase = true) }
-                ?.let { out += "Del mismo director que «${it.title}» ($d)" }
+                ?.let { out += "Del mismo director que «${it.displayTitle}» ($d)" }
         }
         val actors = facts?.actors.orEmpty().map { it.lowercase() }.toSet()
         if (actors.isNotEmpty()) {
             for (m in liked) {
                 val shared = markedFacts[m.movieId]?.actors.orEmpty().firstOrNull { it.lowercase() in actors } ?: continue
-                out += "Con $shared, como en «${m.title}»"
+                out += "Con $shared, como en «${m.displayTitle}»"
                 break
             }
         }

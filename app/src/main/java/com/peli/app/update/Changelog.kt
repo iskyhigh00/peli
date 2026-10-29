@@ -154,6 +154,10 @@ object Changelog {
             "Puedes marcarla «Ya la vi» (te pide la nota para aprender), «Quiero verla», «No me interesa» o pedir otra opción.",
             "Necesita al menos 5 películas con nota o «La vi y me gustó» para empezar. Es una estimación, no una garantía.",
         ),
+        "1.3.8" to listOf(
+            "Los títulos salen en su idioma original con la traducción entre paréntesis, por ejemplo «Spirited Away (El viaje de Chihiro)». Si coinciden, se muestra uno solo.",
+            "Las películas que ya tenías marcadas completan su título original solas, en segundo plano.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

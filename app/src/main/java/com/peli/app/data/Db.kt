@@ -42,6 +42,10 @@ abstract class EntryDao {
     @Query("SELECT COUNT(*) FROM entries WHERE owner = :owner")
     abstract suspend fun count(owner: String): Int
 
+    /** Completa el título original solo donde aún no se conocía; no cuenta como cambio de mi marca. */
+    @Query("UPDATE entries SET originalTitle = :title WHERE owner = :owner AND movieId = :id AND originalTitle IS NULL")
+    abstract suspend fun setOriginalTitle(owner: String, id: Int, title: String)
+
     @Query("UPDATE entries SET owner = :to WHERE owner = :from")
     abstract suspend fun rename(from: String, to: String)
 
@@ -201,7 +205,14 @@ private val MIGRATION_5_6 = object : Migration(5, 6) {
     }
 }
 
-@Database(entities = [Entry::class, OutboxRow::class, FactsRow::class], version = 6, exportSchema = false)
+private val MIGRATION_6_7 = object : Migration(6, 7) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        AppLog.i("DB", "migración 6→7 (título original)")
+        db.execSQL("ALTER TABLE entries ADD COLUMN originalTitle TEXT")
+    }
+}
+
+@Database(entities = [Entry::class, OutboxRow::class, FactsRow::class], version = 7, exportSchema = false)
 abstract class AppDb : RoomDatabase() {
     abstract fun entries(): EntryDao
     abstract fun outbox(): OutboxDao
@@ -210,7 +221,7 @@ abstract class AppDb : RoomDatabase() {
     companion object {
         fun create(context: Context) =
             Room.databaseBuilder(context, AppDb::class.java, "peli.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onOpen(db: SupportSQLiteDatabase) {
                         AppLog.i("DB", "base de datos abierta (versión ${db.version})")

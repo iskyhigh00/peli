@@ -462,6 +462,28 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
             .map { (e, m, score) -> SafePick(e, score, Safe.reasons(e, m, marked, profileFacts)) }
     }
 
+    /**
+     * Completa el título original de lo que marqué antes de guardarse ese dato (en tandas, sin tocar mi marca).
+     * Se anota "" cuando TMDB no trae otro, para no volver a preguntar. Si una tanda entera falla (sin red) se detiene.
+     */
+    suspend fun backfillOriginalTitles(marked: List<Entry>) {
+        val missing = marked.filter { it.originalTitle == null }.map { it.movieId }
+        for (chunk in missing.chunked(BACKGROUND_BATCH)) {
+            val done = coroutineScope {
+                chunk.map { id ->
+                    async {
+                        gate.withPermit {
+                            val d = attempt { api.details(id) }.getOrNull()
+                            if (d != null) dao.setOriginalTitle(OWNER_ME, id, d.original_title?.trim().orEmpty())
+                            d != null
+                        }
+                    }
+                }.awaitAll()
+            }
+            if (done.none { it }) return
+        }
+    }
+
     /** Datos extra de las [ENRICH_TOP] mejores candidatas (por puntaje sin ellos); el resto usa solo lo guardado. */
     private suspend fun candidateFacts(usable: List<Pair<Entry, CandMeta>>, profile: Recommender.Profile): Map<Int, MovieFacts> {
         if (usable.isEmpty()) return emptyMap()

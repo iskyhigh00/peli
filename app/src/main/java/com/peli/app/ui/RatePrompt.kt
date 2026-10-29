@@ -46,7 +46,7 @@ fun RatePromptSheet(entry: Entry, onRate: (Int) -> Unit, onSkip: () -> Unit) {
         ) {
             Text("¿Qué nota le pones?", style = MaterialTheme.typography.headlineSmall)
             Text(
-                "«${entry.title}» — con tu nota Peli aprende mejor qué te gusta y te recomienda cosas más parecidas.",
+                "«${entry.displayTitle}» — con tu nota Peli aprende mejor qué te gusta y te recomienda cosas más parecidas.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

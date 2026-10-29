@@ -96,7 +96,7 @@ fun SafePickSheet(
                             contentScale = ContentScale.Crop,
                         )
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(CompactSpacing)) {
-                            Text(e.title, style = MaterialTheme.typography.titleLarge)
+                            Text(e.displayTitle, style = MaterialTheme.typography.titleLarge)
                             if (e.dateLabel.isNotBlank()) StatusChip(e.dateLabel)
                             Text(
                                 e.overview,

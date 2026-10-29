@@ -12,6 +12,7 @@ import retrofit2.http.Query
 data class TmdbMovie(
     val id: Int,
     val title: String?,
+    val original_title: String? = null,
     val overview: String?,
     val poster_path: String?,
     val release_date: String?,
@@ -32,6 +33,7 @@ data class TmdbCredits(val cast: List<TmdbCastMember>? = null, val crew: List<Tm
 
 data class TmdbDetails(
     val id: Int,
+    val original_title: String? = null,
     val vote_average: Double? = null,
     val vote_count: Int? = null,
     val external_ids: TmdbExternalIds? = null,
@@ -117,4 +119,5 @@ fun TmdbMovie.toEntry(owner: String) = Entry(
     releaseDate = release_date?.takeIf { it.isNotBlank() },
     genres = genre_ids?.takeIf { it.isNotEmpty() }?.joinToString(","),
     rating = vote_average,
+    originalTitle = original_title?.trim().orEmpty(),
 )

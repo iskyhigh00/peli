@@ -81,7 +81,7 @@ fun DetailScreen(entry: Entry, mine: Entry?, vm: MainViewModel, onBack: () -> Un
                 verticalArrangement = Arrangement.spacedBy(SectionSpacing),
             ) {
                 GlassCard {
-                    Text(entry.title, style = MaterialTheme.typography.headlineMedium, modifier = Modifier.sharedTitle(entry.movieId))
+                    Text(entry.displayTitle, style = MaterialTheme.typography.headlineMedium, modifier = Modifier.sharedTitle(entry.movieId))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         if (entry.dateLabel.isNotBlank()) StatusChip(entry.dateLabel)
                         if (entry.isUpcoming) UpcomingChip()

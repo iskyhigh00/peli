@@ -122,7 +122,7 @@ fun MatchOverlay(
                 Modifier.align(Alignment.CenterHorizontally).size(width = 160.dp, height = 240.dp),
             )
             Text(
-                entry.title,
+                entry.displayTitle,
                 style = MaterialTheme.typography.titleLarge,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth().padding(top = 12.dp),

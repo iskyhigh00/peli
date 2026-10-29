@@ -514,7 +514,7 @@ private fun ColumnScope.DiscoverCardBody(
     Spacer(Modifier.height(12.dp))
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
-            e.title,
+            e.displayTitle,
             style = MaterialTheme.typography.titleLarge,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,

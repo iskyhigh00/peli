@@ -322,6 +322,8 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         // Datos extra (palabras clave, director, reparto) de lo que ya marqué: se completan de a poco en segundo plano.
         launch(Dispatchers.IO) {
             delay(ENRICH_DELAY_MS)
+            attempt { repo.backfillOriginalTitles(repo.mine.first()) }
+                .onFailure { AppLog.w("Datos", "no se pudieron completar los títulos originales", it) }
             attempt { repo.enrichMarked(repo.mine.first()) }
                 .onFailure { AppLog.w("Datos", "no se pudieron completar los datos de mis películas", it) }
         }

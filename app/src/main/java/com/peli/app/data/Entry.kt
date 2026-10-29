@@ -38,6 +38,8 @@ data class Entry(
     val updatedAt: Long = 0,
     /** Mi nota de 1 a 10 (0 = sin calificar). Calificar implica que ya la vi. */
     val myRating: Int = 0,
+    /** Título en el idioma original (de TMDB). null = aún no se sabe; "" = ya consultado y no hay otro. Solo local. */
+    val originalTitle: String? = null,
 ) {
     val isEmpty get() = !liked && !seen && !disliked && !watchlist
 
@@ -46,6 +48,9 @@ data class Entry(
 
     /** Fecha "12 nov 2026" si es próximo estreno; si no, solo el año. */
     val dateLabel get() = if (isUpcoming) ReleaseInfo.format(releaseDate) ?: year else year
+
+    /** Cómo se muestra el título: «Original (Traducción)» cuando son distintos; si no, el título tal cual. */
+    val displayTitle: String get() = TitleFormat.display(title, originalTitle)
 
     val genreIds: List<Int> get() = genres?.split(",")?.mapNotNull { it.trim().toIntOrNull() }.orEmpty()
 }
@@ -107,4 +112,22 @@ fun Entry.stateLabel(): String? = when {
     disliked -> "No me gusta"
     seen -> "La vi"
     else -> null
+}
+
+/** Título en idioma original con la traducción entre paréntesis. */
+object TitleFormat {
+    private val accents = Regex("\\p{InCombiningDiacriticalMarks}+")
+
+    /** Sin acentos, signos ni mayúsculas: «Amélie» y «Amelie» cuentan como el mismo título. */
+    private fun key(text: String) = java.text.Normalizer.normalize(text, java.text.Normalizer.Form.NFD)
+        .replace(accents, "").lowercase().filter { it.isLetterOrDigit() }
+
+    fun display(title: String, original: String?): String {
+        val o = original?.trim().orEmpty()
+        val t = title.trim()
+        if (o.isEmpty() || t.isEmpty()) return title.ifBlank { o }
+        val ko = key(o)
+        val kt = key(t)
+        return if (ko.isNotEmpty() && ko == kt) title else "$o ($t)"
+    }
 }
