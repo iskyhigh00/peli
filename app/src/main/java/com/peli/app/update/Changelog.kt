@@ -158,6 +158,11 @@ object Changelog {
             "Los títulos salen en su idioma original con la traducción entre paréntesis, por ejemplo «Spirited Away (El viaje de Chihiro)». Si coinciden, se muestra uno solo.",
             "Las películas que ya tenías marcadas completan su título original solas, en segundo plano.",
         ),
+        "1.3.9" to listOf(
+            "Compartir mi lista ya no falla con listas largas: el código ahora va comprimido (unas 10 veces más corto) y, si aun así fuera enorme, se envía como archivo.",
+            "Si compartir falla por otro motivo, la app lo avisa y lo deja en el registro en vez de no hacer nada.",
+            "El código de versiones anteriores sigue pudiéndose importar.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"
