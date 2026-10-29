@@ -163,7 +163,7 @@ object Changelog {
             "Si compartir falla por otro motivo, la app lo avisa y lo deja en el registro en vez de no hacer nada.",
             "El código de versiones anteriores sigue pudiéndose importar.",
         ),
-        "1.4.0" to listOf(
+        "1.4.1" to listOf(
             "En Buscar y Mis pelis, los filtros reaparecen arriba al instante cuando deslizas la lista hacia arriba, aunque estés lejos del principio; se esconden al seguir bajando.",
             "Desde esa barra se pueden editar los filtros sin volver al inicio de la lista.",
         ),
