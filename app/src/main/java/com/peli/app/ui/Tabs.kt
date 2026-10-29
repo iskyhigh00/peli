@@ -207,6 +207,31 @@ fun SearchTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Un
             .collect { keys -> vm.markVisible(keys.filter { it in shownIds }) }
     }
 
+    val quickBar = rememberQuickBar(listState)
+    // Los mismos filtros arriba de la lista y en la barra que reaparece al deslizar hacia arriba.
+    val searchFilterBar: @Composable () -> Unit = {
+        Column(verticalArrangement = Arrangement.spacedBy(CompactSpacing)) {
+                ChipRow(
+                    SearchFilter.entries, filter, { it.label },
+                    leading = {
+                        PeliFilterChip("Película segura", false, vm::openSafe)
+                        YearChip(years) { showYears = true }
+                        MovieFiltersChip(movieFilters) { showFilters = true }
+                        if (years != null || movieFilters.isActive) {
+                            PeliFilterChip("Quitar filtros", false, vm::clearFilters)
+                        }
+                    },
+                ) { vm.setSearchFilter(it) }
+                if (movieFilters.isActive) {
+                    Text(
+                        movieFilters.summary(),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+        }
+    }
+
     PullToRefreshBox(
         isRefreshing = refreshing,
         onRefresh = vm::refreshSearch,
@@ -222,7 +247,7 @@ fun SearchTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Un
         },
     ) {
         LazyColumn(
-            Modifier.fillMaxSize(),
+            Modifier.fillMaxSize().nestedScroll(quickBar.connection),
             state = listState,
             contentPadding = screenContentPadding(),
             verticalArrangement = Arrangement.spacedBy(ItemSpacing),
@@ -238,24 +263,7 @@ fun SearchTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Un
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                         keyboardActions = KeyboardActions(onSearch = { vm.submitSearch(); dismissKeyboard() }),
                     )
-                    ChipRow(
-                        SearchFilter.entries, filter, { it.label },
-                        leading = {
-                            PeliFilterChip("Película segura", false, vm::openSafe)
-                            YearChip(years) { showYears = true }
-                            MovieFiltersChip(movieFilters) { showFilters = true }
-                            if (years != null || movieFilters.isActive) {
-                                PeliFilterChip("Quitar filtros", false, vm::clearFilters)
-                            }
-                        },
-                    ) { vm.setSearchFilter(it) }
-                    if (movieFilters.isActive) {
-                        Text(
-                            movieFilters.summary(),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                    }
+                    searchFilterBar()
                 }
             }
             if (feedMode && (filter == SearchFilter.All || filter == SearchFilter.Unmarked) && shown.isNotEmpty()) {
@@ -311,6 +319,7 @@ fun SearchTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Un
                 }
             }
         }
+        QuickBarOverlay(quickBar) { searchFilterBar() }
     }
 
     if (showYears) {
@@ -549,19 +558,25 @@ fun MineTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Unit
         mine.filter { filter.accepts(it) && years.accepts(it.year) }.orderedBy(sort)
     }
     var menuOpen by remember { mutableStateOf(false) }
+    val quickBar = rememberQuickBar(listState)
+    // Los mismos filtros arriba de la lista y en la barra que reaparece al deslizar hacia arriba.
+    val mineChips: @Composable () -> Unit = {
+        ChipRow(
+            MineFilter.entries, filter, { it.label },
+            leading = { YearChip(years) { showYears = true } },
+        ) { vm.setMineFilter(it) }
+    }
 
+    Box(Modifier.fillMaxSize()) {
     LazyColumn(
-        Modifier.fillMaxSize(),
+        Modifier.fillMaxSize().nestedScroll(quickBar.connection),
         state = listState,
         contentPadding = screenContentPadding(),
         verticalArrangement = Arrangement.spacedBy(ItemSpacing),
     ) {
         item {
             Column(verticalArrangement = Arrangement.spacedBy(CompactSpacing)) {
-                ChipRow(
-                    MineFilter.entries, filter, { it.label },
-                    leading = { YearChip(years) { showYears = true } },
-                ) { vm.setMineFilter(it) }
+                mineChips()
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         "${shown.size} " + if (shown.size == 1) "película" else "películas",
@@ -615,6 +630,8 @@ fun MineTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Unit
                 )
             }
         }
+    }
+    QuickBarOverlay(quickBar) { mineChips() }
     }
 
     if (showYears) {
