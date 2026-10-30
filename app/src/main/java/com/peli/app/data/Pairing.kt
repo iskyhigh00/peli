@@ -33,6 +33,13 @@ class PairingStore(context: Context) {
         prefs.edit().putStringSet("announced2", current + ids.map { "$ctx|$it" }).apply()
     }
 
+    /** ¿Ya se tomó la «foto inicial» de matches de este contexto? (ver [MatchAnnouncer.baseline]) */
+    fun hasBaseline(ctx: String): Boolean = ctx in prefs.getStringSet("baselines", emptySet()).orEmpty()
+
+    fun markBaseline(ctx: String) {
+        prefs.edit().putStringSet("baselines", prefs.getStringSet("baselines", emptySet()).orEmpty() + ctx).apply()
+    }
+
     private fun migrateLegacy(ctx: String) {
         if (prefs.getBoolean("announced_migrated", false)) return
         val legacy = prefs.getStringSet("announced", emptySet()).orEmpty().mapNotNull { it.toIntOrNull() }

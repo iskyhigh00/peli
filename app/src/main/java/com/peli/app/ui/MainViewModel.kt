@@ -37,6 +37,7 @@ import com.peli.app.data.Remote
 import com.peli.app.data.RoomCodes
 import com.peli.app.data.YearRange
 import com.peli.app.data.Sharing
+import com.peli.app.data.MatchAnnouncer
 import com.peli.app.data.computeMatches
 import com.peli.app.data.toggleDisliked
 import com.peli.app.data.toggleLiked
@@ -400,12 +401,11 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
                 // Solo se anuncia si la lista de la otra persona es realmente la del contexto actual.
                 val c = matchContext() ?: return@collect
                 if (partnerSource.value != c) return@collect
-                val announced = pairing.announced(c)
-                val fresh = list.filter { it.both && it.entry.movieId !in announced }
+                val fresh = MatchAnnouncer.fresh(list, pairing.announced(c))
                 if (fresh.isNotEmpty()) {
-                    AppLog.i("Match", "nuevos: ${fresh.joinToString { it.entry.title }}")
-                    pairing.addAnnounced(c, fresh.map { it.entry.movieId })
-                    pendingMatches.update { it + fresh.map { m -> m.entry } }
+                    AppLog.i("Match", "nuevos: ${fresh.joinToString { it.title }}")
+                    pairing.addAnnounced(c, fresh.map { it.movieId })
+                    pendingMatches.update { it + fresh }
                 }
             }
         }
@@ -889,8 +889,18 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
     /** Películas de la lista principal que llegaron a verse en pantalla (para la memoria de lo mostrado). */
     fun markVisible(ids: Collection<Int>) {
         if (ids.isEmpty()) return
-        launch(Dispatchers.IO) { peli.exposure.markVisible(ids) }
+        // Al desplazar la lista esto llega muchas veces por segundo: se junta y se guarda de una vez.
+        synchronized(visibleBuffer) { visibleBuffer += ids }
+        if (visibleJob?.isActive == true) return
+        visibleJob = launch(Dispatchers.IO) {
+            delay(VISIBLE_FLUSH_MS)
+            val batch = synchronized(visibleBuffer) { visibleBuffer.toList().also { visibleBuffer.clear() } }
+            if (batch.isNotEmpty()) peli.exposure.markVisible(batch)
+        }
     }
+
+    private val visibleBuffer = HashSet<Int>()
+    private var visibleJob: Job? = null
 
     /** Deshace la última respuesta: restaura la marca anterior y devuelve la tarjeta al frente. */
     fun undoAnswer() {
@@ -1119,8 +1129,14 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
                     AppLog.d("Sala", "respuesta descartada: la sala cambió mientras se pedía")
                     return
                 }
+                // Al entrar a una sala, lo que ya coincidía no se celebra todo de golpe (igual que con amigos).
+                val c = Scopes.room(r)
+                if (!pairing.hasBaseline(c) && others.isNotEmpty()) {
+                    pairing.addAnnounced(c, MatchAnnouncer.baseline(repo.mine.first(), others))
+                    pairing.markBaseline(c)
+                }
                 repo.setPartner(others)
-                partnerSource.value = Scopes.room(r)
+                partnerSource.value = c
                 if (syncError.value != null) AppLog.i("Sala", "sincronización recuperada")
                 syncError.value = null
                 picksToFront()
@@ -1352,9 +1368,8 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
                         val partner = result.partner ?: return
                         val c = "friend:$friendId"
                         // Los matches que ya existían al elegir al amigo no se "estrenan" todos de golpe.
-                        if (account.baselineFriend != friendId) {
-                            val existing = computeMatches(repo.mine.first(), partner).filter { it.both }.map { it.entry.movieId }
-                            pairing.addAnnounced(c, existing)
+                        if (account.baselineFriend != friendId && partner.isNotEmpty()) {
+                            pairing.addAnnounced(c, MatchAnnouncer.baseline(repo.mine.first(), partner))
                             account.baselineFriend = friendId
                         }
                         repo.setPartner(partner)
@@ -1506,6 +1521,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         const val KEY_MINE_YEARS = "mine_years"
         const val SEARCH_DEBOUNCE_MS = 350L
         const val FEED_SIZE = 40
+        const val VISIBLE_FLUSH_MS = 800L
         const val SAFE_BATCH = 6
         const val ENRICH_DELAY_MS = 4_000L
         const val MAX_FEED = 300

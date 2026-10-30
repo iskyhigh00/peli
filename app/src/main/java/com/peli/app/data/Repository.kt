@@ -120,20 +120,18 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
     suspend fun insights(movieId: Int): MovieInsights = coroutineScope {
         val details = async { api.details(movieId) }
         val reviews = async { attempt { api.reviews(movieId).results }.getOrDefault(emptyList()) }
+        // IMDb / Rotten Tomatoes / Metacritic salen de los datos guardados de la película: OMDb se consulta una sola
+        // vez por película y no en cada apertura del detalle (cuida el límite diario).
+        val facts = async { if (Omdb.configured) attempt { ensureFacts(movieId, needOmdb = true) }.getOrNull() else null }
         val d = details.await()
-        val imdbId = d.external_ids?.imdb_id?.takeIf { it.isNotBlank() }
-        val omdb = if (Omdb.configured && imdbId != null) {
-            attempt { Omdb.api.byImdb(imdbId, com.peli.app.BuildConfig.OMDB_API_KEY) }
-                .getOrNull()?.takeIf { it.response == "True" }
-        } else null
+        val f = facts.await()?.takeIf { it.hasOmdb }
         MovieInsights(
             tmdbRating = d.vote_average?.takeIf { it > 0 },
             tmdbVotes = d.vote_count ?: 0,
-            imdbRating = omdb?.imdbRating?.toDoubleOrNull(),
-            imdbVotes = Ratings.parseVotes(omdb?.imdbVotes),
-            rottenTomatoes = Ratings.parsePercent(omdb?.ratings?.firstOrNull { it.source == "Rotten Tomatoes" }?.value),
-            metacritic = Ratings.parseMetascore(omdb?.metascore)
-                ?: Ratings.parseMetascore(omdb?.ratings?.firstOrNull { it.source == "Metacritic" }?.value),
+            imdbRating = f?.imdbRating,
+            imdbVotes = f?.imdbVotes,
+            rottenTomatoes = f?.rottenTomatoes,
+            metacritic = f?.metacritic,
             reviews = reviews.await()
                 .filter { !it.content.isNullOrBlank() }
                 .map { r ->

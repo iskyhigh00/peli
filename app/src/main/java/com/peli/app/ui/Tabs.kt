@@ -38,6 +38,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Explore
@@ -214,29 +215,15 @@ fun SearchTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Un
     // Los mismos filtros arriba de la lista y en la barra que reaparece al deslizar hacia arriba.
     val searchFilterBar: @Composable () -> Unit = {
         Column(verticalArrangement = Arrangement.spacedBy(CompactSpacing)) {
-                ChipRow(
-                    SearchFilter.entries, filter, { it.label },
-                    leading = {
-                        PeliFilterChip("Película segura", false, vm::openSafe)
-                        YearChip(years) { showYears = true }
-                        MovieFiltersChip(movieFilters) { showFilters = true }
-                        PeliFilterChip(
-                            if (movieFilters.directorId > 0) "Director: ${movieFilters.directorName}" else "Directores",
-                            movieFilters.directorId > 0,
-                            { vm.loadDirectors(); showDirectors = true },
-                        )
-                        if (years != null || movieFilters.isActive) {
-                            PeliFilterChip("Quitar filtros", false, vm::clearFilters)
-                        }
-                    },
-                ) { vm.setSearchFilter(it) }
-                if (movieFilters.isActive) {
-                    Text(
-                        movieFilters.summary(),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                }
+            RefineBar(
+                years = years,
+                filters = movieFilters,
+                onFilters = { showFilters = true },
+                onYears = { showYears = true },
+                onDirectors = { vm.loadDirectors(); showDirectors = true },
+                onClear = vm::clearFilters,
+            )
+            ChipRow(SearchFilter.entries, filter, { it.label }) { vm.setSearchFilter(it) }
         }
     }
 
@@ -276,13 +263,16 @@ fun SearchTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Un
             }
             if (feedMode && (filter == SearchFilter.All || filter == SearchFilter.Unmarked) && shown.isNotEmpty()) {
                 item {
-                    Column {
-                        Text("Sugerencias para ti", style = MaterialTheme.typography.titleLarge)
-                        Text(
-                            "Desliza hacia abajo para ver otras",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Sugerencias para ti", style = MaterialTheme.typography.titleLarge)
+                            Text(
+                                "Desliza hacia abajo para ver otras",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        SafePickChip(vm::openSafe)
                     }
                 }
             }
@@ -382,29 +372,15 @@ fun DiscoverTab(vm: MainViewModel) {
             Modifier.padding(horizontal = ScreenHorizontalPadding),
             verticalArrangement = Arrangement.spacedBy(CompactSpacing),
         ) {
-            Row(
-                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(CompactSpacing),
-            ) {
-                PeliFilterChip("Película segura", false, vm::openSafe)
-                YearChip(years) { showYears = true }
-                MovieFiltersChip(movieFilters) { showFilters = true }
-                PeliFilterChip(
-                    if (movieFilters.directorId > 0) "Director: ${movieFilters.directorName}" else "Directores",
-                    movieFilters.directorId > 0,
-                    { vm.loadDirectors(); showDirectors = true },
-                )
-                if (years != null || movieFilters.isActive) {
-                    PeliFilterChip("Quitar filtros", false, vm::clearFilters)
-                }
-            }
-            if (movieFilters.isActive) {
-                Text(
-                    movieFilters.summary(),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
+            RefineBar(
+                years = years,
+                filters = movieFilters,
+                onFilters = { showFilters = true },
+                onYears = { showYears = true },
+                onDirectors = { vm.loadDirectors(); showDirectors = true },
+                onClear = vm::clearFilters,
+                leading = { SafePickChip(vm::openSafe) },
+            )
         }
         Box(Modifier.weight(1f).fillMaxWidth()) {
             if (current != null) {
@@ -594,10 +570,15 @@ fun MineTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Unit
     val quickBar = rememberQuickBar(listState)
     // Los mismos filtros arriba de la lista y en la barra que reaparece al deslizar hacia arriba.
     val mineChips: @Composable () -> Unit = {
-        ChipRow(
-            MineFilter.entries, filter, { it.label },
-            leading = { YearChip(years) { showYears = true } },
-        ) { vm.setMineFilter(it) }
+        Column(verticalArrangement = Arrangement.spacedBy(CompactSpacing)) {
+            ChipRow(MineFilter.entries, filter, { it.label }) { vm.setMineFilter(it) }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                RefineChip(years?.label() ?: "Años", years != null, Icons.Default.CalendarMonth) { showYears = true }
+                if (years != null) {
+                    TextButton(onClick = { vm.setMineYears(null) }) { Text("Limpiar") }
+                }
+            }
+        }
     }
 
     Box(Modifier.fillMaxSize()) {

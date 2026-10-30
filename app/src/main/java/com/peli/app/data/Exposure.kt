@@ -140,9 +140,13 @@ class ExposureStore(context: Context) {
 
     @Synchronized fun round(): Long = prefs.getLong("round", 0L)
 
+    /** Copia en memoria de lo guardado: se lee del teléfono una sola vez (antes se decodificaba en cada consulta). */
+    private var cache: Map<Int, Exposure>? = null
+
     @Synchronized fun snapshot(): Map<Int, Exposure> {
+        cache?.let { return it }
         migrateIfNeeded()
-        return ExposureRules.decode(prefs.getString("items", "").orEmpty())
+        return ExposureRules.decode(prefs.getString("items", "").orEmpty()).also { cache = it }
     }
 
     private fun migrateIfNeeded() {
@@ -154,6 +158,7 @@ class ExposureStore(context: Context) {
 
     private fun save(items: Map<Int, Exposure>, round: Long = round()) {
         val kept = ExposureRules.trim(items, round + 1, System.currentTimeMillis())
+        cache = kept
         prefs.edit().putString("items", ExposureRules.encode(kept.values)).putLong("round", round).apply()
     }
 

@@ -195,6 +195,12 @@ object Changelog {
             "El aviso de límite de OMDb solo sale cuando OMDb de verdad dejó de responder (antes también salía al alcanzar el tope de cada carga) e indica cuándo se renueva.",
             "El límite diario de OMDb se renueva a medianoche UTC; la app espera hasta esa hora en vez de un tiempo fijo.",
         ),
+        "1.4.9" to listOf(
+            "Filtros ordenados: siempre Filtros, Años y Director (con íconos y su valor cuando están activos), «Limpiar» al final y debajo un resumen de lo activo. Las categorías (Quiero ver, Vistas…) van en su propia fila.",
+            "«Película segura» ahora se ve como una acción aparte: junto a «Sugerencias para ti» y al inicio de la fila en Descubrir.",
+            "Matches con otra persona: al conectarse ya no se celebran de golpe muchas coincidencias que existían (si son 3 o menos, sí se avisan), y la «foto inicial» se toma cuando de verdad llegó su lista.",
+            "Más fluida: la memoria de lo ya mostrado se guarda en lote al desplazar la lista y abrir una película ya no gasta consultas de OMDb repetidas.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"
