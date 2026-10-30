@@ -10,6 +10,9 @@ import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.animation.core.animateDpAsState
@@ -108,8 +111,10 @@ fun DetailScreen(entry: Entry, mine: Entry?, vm: MainViewModel, onBack: () -> Un
     val trailerMode = pager.currentPage == 1
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
+        // Con el tráiler, el video queda debajo de la barra de estado (no se mezcla con la hora ni los íconos).
+        val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
         val headerHeight by animateDpAsState(
-            if (trailerMode) maxWidth * 9 / 16 else maxWidth * 3 / 2,
+            if (trailerMode) maxWidth * 9 / 16 + statusTop else maxWidth * 3 / 2,
             tween(250),
             label = "headerHeight",
         )
@@ -217,6 +222,7 @@ fun DetailScreen(entry: Entry, mine: Entry?, vm: MainViewModel, onBack: () -> Un
                     TrailerPage(
                         state = trailers[entry.movieId],
                         active = pager.currentPage == 1,
+                        topInset = statusTop,
                         onRetry = { vm.loadTrailer(entry.movieId, force = true) },
                     )
                 }
@@ -262,9 +268,9 @@ fun DetailScreen(entry: Entry, mine: Entry?, vm: MainViewModel, onBack: () -> Un
 
 /** Página del tráiler: se reproduce aquí mismo (reproductor de YouTube incrustado). */
 @Composable
-private fun TrailerPage(state: MainViewModel.TrailerState?, active: Boolean, onRetry: () -> Unit) {
+private fun TrailerPage(state: MainViewModel.TrailerState?, active: Boolean, topInset: androidx.compose.ui.unit.Dp, onRetry: () -> Unit) {
     Box(
-        Modifier.fillMaxSize().background(Color.Black),
+        Modifier.fillMaxSize().background(Color.Black).padding(top = topInset),
         contentAlignment = Alignment.Center,
     ) {
         when (state) {

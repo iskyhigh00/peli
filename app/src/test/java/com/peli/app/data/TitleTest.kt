@@ -31,4 +31,21 @@ class TitleTest {
         assertEquals("Descendants (Los descendientes)", e.displayTitle)
         assertEquals("Los descendientes", entry(2, title = "Los descendientes").displayTitle)
     }
+
+    @Test fun `si el titulo traducido ya trae el original entre parentesis no se duplica`() {
+        assertEquals(
+            "The Art of Travel (El arte de viajar)",
+            TitleFormat.display("El arte de viajar (The Art of Travel)", "The Art of Travel"),
+        )
+        assertEquals("Spaceman (El astronauta)", TitleFormat.display("El astronauta (Spaceman)", "Spaceman"))
+    }
+
+    @Test fun `un parentesis distinto del original se conserva`() {
+        assertEquals("Dune (Dune (parte uno))", TitleFormat.display("Dune (parte uno)", "Dune"))
+        assertEquals("Alien (El octavo pasajero)", TitleFormat.display("El octavo pasajero", "Alien"))
+    }
+
+    @Test fun `si tras quitar el original queda igual se muestra uno solo`() {
+        assertEquals("Roma", TitleFormat.display("Roma (Roma)", "Roma"))
+    }
 }

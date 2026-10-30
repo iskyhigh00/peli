@@ -132,6 +132,13 @@ fun PeliScreen(vm: MainViewModel = viewModel()) {
             }
         }
 
+        // Si el id guardado ya no corresponde a ninguna película, se suelta: si no, la lista ignoraría todos los toques.
+        LaunchedEffect(selectedId, selected == null) {
+            if (selectedId != null && selected == null) {
+                AppLog.w("Navegación", "detalle $selectedId sin película: se descarta")
+                selectedId = null
+            }
+        }
         LaunchedEffect(tab) { AppLog.i("Navegación", "pestaña: ${tab.name}") }
         LaunchedEffect(selectedId) {
             AppLog.i("Navegación", if (selectedId == null) "detalle cerrado" else "detalle abierto: película $selectedId")
@@ -164,7 +171,7 @@ fun PeliScreen(vm: MainViewModel = viewModel()) {
                                     tab = tab,
                                     onTabChange = { tab = it },
                                     // Un toque rápido sobre otra tarjeta durante la transición se ignora.
-                                    onOpen = { if (selectedId == null) selectedId = it.movieId },
+                                    onOpen = { selectedId = it.movieId },
                                 )
                             }
                         } else {

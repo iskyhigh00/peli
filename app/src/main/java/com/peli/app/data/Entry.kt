@@ -122,12 +122,21 @@ object TitleFormat {
     private fun key(text: String) = java.text.Normalizer.normalize(text, java.text.Normalizer.Form.NFD)
         .replace(accents, "").lowercase().filter { it.isLetterOrDigit() }
 
+    /** «El arte de viajar (The Art of Travel)» -> «El arte de viajar»: TMDB a veces ya trae el original entre paréntesis. */
+    private val trailingParens = Regex("""^(.*?)\s*\(([^()]+)\)\s*$""")
+
+    private fun withoutOriginalSuffix(title: String, originalKey: String): String {
+        val m = trailingParens.matchEntire(title) ?: return title
+        return if (key(m.groupValues[2]) == originalKey && m.groupValues[1].isNotBlank()) m.groupValues[1].trim() else title
+    }
+
     fun display(title: String, original: String?): String {
         val o = original?.trim().orEmpty()
         val t = title.trim()
         if (o.isEmpty() || t.isEmpty()) return title.ifBlank { o }
         val ko = key(o)
-        val kt = key(t)
-        return if (ko.isNotEmpty() && ko == kt) title else "$o ($t)"
+        val translated = withoutOriginalSuffix(t, ko)
+        val kt = key(translated)
+        return if (ko.isNotEmpty() && ko == kt) { if (translated != t) o else title } else "$o ($translated)"
     }
 }

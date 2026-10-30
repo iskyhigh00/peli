@@ -209,6 +209,11 @@ object Changelog {
             "Con el tráiler a la vista, el video queda fijo arriba mientras te desplazas por la ficha: puedes leer y seguir viéndolo. Con el cartel, todo se desplaza como antes.",
             "El tráiler que se elige sigue tu preferencia de idioma: español latino, luego inglés (primero con subtítulos, después sin ellos) y al final español de España.",
         ),
+        "1.5.3" to listOf(
+            "El título ya no repite el nombre original entre paréntesis (\"The Art of Travel (El arte de viajar)\").",
+            "Con el tráiler, el video queda debajo de la barra de estado, sin tapar la hora ni los íconos.",
+            "Corregido: si una ficha guardada ya no existía, las tarjetas dejaban de abrir al tocarlas.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"
