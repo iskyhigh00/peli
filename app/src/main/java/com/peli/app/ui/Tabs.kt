@@ -118,6 +118,7 @@ import com.peli.app.ui.components.UpcomingChip
 import com.peli.app.ui.components.entrance
 import com.peli.app.ui.components.screenContentPadding
 import com.peli.app.ui.theme.SheetShape
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
@@ -184,6 +185,17 @@ fun SearchTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Un
         }
     }
     val pullState = rememberPullToRefreshState()
+
+    // Si un arrastre queda a medias (p. ej. lo toma otro desplazamiento), la flecha no debe quedar pegada.
+    LaunchedEffect(pullState, refreshing, listState) {
+        if (refreshing) return@LaunchedEffect
+        snapshotFlow { listState.isScrollInProgress }.collect { moving ->
+            if (!moving) {
+                delay(250)
+                if (!listState.isScrollInProgress && pullState.distanceFraction > 0f) pullState.animateToHidden()
+            }
+        }
+    }
     val dismissKeyboard = rememberDismissKeyboard()
     val suggestions = feedMode && (filter == SearchFilter.All || filter == SearchFilter.Unmarked) && shown.isNotEmpty()
 
@@ -675,6 +687,17 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
     val context = LocalContext.current
     val refreshing by vm.refreshing.collectAsState()
     val pullState = rememberPullToRefreshState()
+
+    // Si un arrastre queda a medias (p. ej. lo toma otro desplazamiento), la flecha no debe quedar pegada.
+    LaunchedEffect(pullState, refreshing, listState) {
+        if (refreshing) return@LaunchedEffect
+        snapshotFlow { listState.isScrollInProgress }.collect { moving ->
+            if (!moving) {
+                delay(250)
+                if (!listState.isScrollInProgress && pullState.distanceFraction > 0f) pullState.animateToHidden()
+            }
+        }
+    }
 
     val both = remember(matches) { matches.filter { it.both } }
     val single = remember(matches) { matches.filter { !it.both } }

@@ -218,6 +218,9 @@ object Changelog {
             "Avisos de estreno: una notificación cuando se acerca el estreno de una película de \"Quiero verla\" (a una semana, el día anterior y el mismo día). Se pueden desactivar en Ajustes.",
             "La fecha de estreno de esas películas se revisa en segundo plano, porque suele cambiar.",
         ),
+        "1.5.5" to listOf(
+            "Corregido: la flecha de \"arrastrar para actualizar\" ya no queda pegada sobre el buscador.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"
