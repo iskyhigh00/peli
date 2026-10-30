@@ -224,6 +224,9 @@ object Changelog {
         "1.5.6" to listOf(
             "El tráiler se ve limpio, sin los controles ni el título de YouTube. Un toque pausa o reanuda; doble toque a la izquierda retrocede 10 s y a la derecha adelanta 10 s.",
         ),
+        "1.5.7" to listOf(
+            "El botón verde de Buscar ahora sirve para volver arriba (aparece al bajar por la lista). Descubrir queda solo en la barra de abajo.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

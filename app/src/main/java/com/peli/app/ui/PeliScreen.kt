@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Explore
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Search
@@ -381,16 +382,16 @@ private fun Home(vm: MainViewModel, tab: Tab, onTabChange: (Tab) -> Unit, onOpen
 
         // FAB extendido: se colapsa a FAB normal al hacer scroll.
         AnimatedVisibility(
-            visible = (tab == Tab.Search || tab == Tab.Mine) && !imeVisible,
+            visible = ((tab == Tab.Search && scrolled) || tab == Tab.Mine) && !imeVisible,
             modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp).navigationBarsPadding().padding(bottom = 88.dp),
             enter = scaleIn(spring(Spring.DampingRatioMediumBouncy)) + fadeIn(),
             exit = scaleOut() + fadeOut(),
         ) {
             val share = tab == Tab.Mine
-            val label = if (share) "Compartir" else "Sorpréndeme"
+            val label = if (share) "Compartir" else "Volver arriba"
             ExtendedFloatingActionButton(
                 text = { Text(label) },
-                icon = { Icon(if (share) Icons.Default.Share else Icons.Default.Explore, contentDescription = label) },
+                icon = { Icon(if (share) Icons.Default.Share else Icons.Default.KeyboardArrowUp, contentDescription = label) },
                 onClick = {
                     if (share) {
                         // Con servidor se comparte solo un ID (de amigo o de sala): la lista ya está allá. El código con
@@ -406,10 +407,10 @@ private fun Home(vm: MainViewModel, tab: Tab, onTabChange: (Tab) -> Unit, onOpen
                             }
                         }
                     } else {
-                        onTabChange(Tab.Discover)
+                        scope.launch { searchState.animateScrollToItem(0) }
                     }
                 },
-                expanded = !scrolled,
+                expanded = share && !scrolled,
                 containerColor = scheme.secondary,
                 contentColor = scheme.onSecondary,
                 shape = MaterialTheme.shapes.large,
