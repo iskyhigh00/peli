@@ -8,7 +8,7 @@ plugins {
 }
 
 /** Única fuente de la versión: x.y.z con un dígito por campo (0.0.0 a 9.9.9). Usar scripts/bump-version.sh. */
-val appVersion = "1.5.1"
+val appVersion = "1.5.2"
 require(Regex("[0-9]\\.[0-9]\\.[0-9]").matches(appVersion)) { "appVersion debe ser x.y.z de un dígito (máx 9.9.9)" }
 val (vMajor, vMinor, vPatch) = appVersion.split(".").map { it.toInt() }
 

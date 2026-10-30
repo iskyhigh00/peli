@@ -205,7 +205,7 @@ object Changelog {
             "Película segura respeta tus filtros de años y de nota TMDB.",
             "Además solo propone películas de la época de lo que te gusta: si nunca calificaste alto algo anterior al 2000, no te ofrecerá una de 1985 (si te gustan clásicos, sí los incluye).",
         ),
-        "1.5.1" to listOf(
+        "1.5.2" to listOf(
             "Con el tráiler a la vista, el video queda fijo arriba mientras te desplazas por la ficha: puedes leer y seguir viéndolo. Con el cartel, todo se desplaza como antes.",
             "El tráiler que se elige sigue tu preferencia de idioma: español latino, luego inglés (primero con subtítulos, después sin ellos) y al final español de España.",
         ),
