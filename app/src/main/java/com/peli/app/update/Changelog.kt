@@ -190,6 +190,11 @@ object Changelog {
             "El tráiler ahora se reproduce dentro de la app con un reproductor de YouTube (sin botón para salir a YouTube).",
             "Solo si YouTube no permite ese video fuera de su app, se explica el motivo y se ofrece abrirlo en YouTube.",
         ),
+        "1.4.8" to listOf(
+            "Los filtros de IMDb, Rotten Tomatoes, Metacritic y premios gastan menos consultas de OMDb: se descartan sin consultar las películas cuya nota de TMDB casi seguro no cumpliría.",
+            "El aviso de límite de OMDb solo sale cuando OMDb de verdad dejó de responder (antes también salía al alcanzar el tope de cada carga) e indica cuándo se renueva.",
+            "El límite diario de OMDb se renueva a medianoche UTC; la app espera hasta esa hora en vez de un tiempo fijo.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

@@ -511,8 +511,8 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
                 "ronda $round: ${next.size} películas (candidatas $candidates, nuevas $fresh, repetibles $repeatable" +
                     (if (filters.isActive) ", filtros: ${filters.summary()}, sin datos ${fb.unknown}" else "") + ")",
             )
-            if (filters.needsOmdb && (fb.limited || repo.omdbBlocked) && next.size < FEED_SIZE) {
-                message.value = "OMDb llegó a su límite de consultas por hoy: algunas películas no se pudieron revisar con estos filtros."
+            if (filters.needsOmdb && repo.omdbBlocked && next.size < FEED_SIZE) {
+                message.value = omdbLimitMessage()
             } else if (next.size < FEED_SIZE / 2) {
                 message.value = if (filters.isActive) "Pocas películas cumplen estos filtros. Prueba con otros o quítalos."
                 else "Hay pocas películas nuevas por ahora. Prueba más tarde o cambia los filtros."
@@ -536,6 +536,13 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         feedFilters = filters
         feedEnd.value = true
         return feed
+    }
+
+    /** Aviso cuando OMDb de verdad dejó de responder (límite diario de la clave gratuita). */
+    private fun omdbLimitMessage(): String {
+        val minutes = repo.omdbBlockedMinutes
+        val renew = if (minutes >= 60) "en unas ${(minutes + 30) / 60} h" else "en menos de una hora"
+        return "OMDb llegó a su límite de consultas por hoy: algunas películas no se pueden revisar con estos filtros. Se renueva $renew."
     }
 
     /** Presupuesto de consultas a OMDb de una carga y lo que se vio en ella. */
@@ -976,8 +983,8 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
                     queue.value = (picks + keep + chosen)
                         .filter { it.movieId !in known && it.movieId !in skipped }
                         .distinctBy { it.movieId }
-                    if (filters.needsOmdb && (fb.limited || repo.omdbBlocked) && chosen.size < REFILL_TARGET) {
-                        message.value = "OMDb llegó a su límite de consultas por hoy: algunas películas no se pudieron revisar con estos filtros."
+                    if (filters.needsOmdb && repo.omdbBlocked && chosen.size < REFILL_TARGET) {
+                        message.value = omdbLimitMessage()
                     }
                 }
                 AppLog.i("Descubrir", "cola rellenada: ${queue.value.size} sugerencias (${System.currentTimeMillis() - t0} ms)")

@@ -106,3 +106,34 @@ class FiltersTest {
         assertTrue(s.contains("IMDb") && s.contains("Oscar") && !s.contains("Metacritic"))
     }
 }
+
+class PrefilterTest {
+    @Test fun `sin filtros de OMDb todo vale la pena`() {
+        assertTrue(MovieFilters.NONE.worthChecking(1.0))
+        assertTrue(MovieFilters(minTmdb = 7.0).worthChecking(1.0))
+    }
+
+    @Test fun `IMDb alto descarta notas de TMDB muy bajas pero deja margen`() {
+        val f = MovieFilters(minImdb = 7.5)
+        assertFalse(f.worthChecking(6.0))
+        assertTrue(f.worthChecking(6.6))     // TMDB y IMDb pueden diferir en ~1 punto
+        assertTrue(f.worthChecking(8.0))
+    }
+
+    @Test fun `filtros de premios descartan notas muy bajas`() {
+        assertFalse(MovieFilters(oscar = OscarFilter.Won).worthChecking(4.9))
+        assertTrue(MovieFilters(oscar = OscarFilter.Won).worthChecking(6.0))
+        assertFalse(MovieFilters(minWins = 10).worthChecking(5.0))
+        assertTrue(MovieFilters(minWins = 1).worthChecking(5.0))      // pedir pocos premios no prejuzga
+    }
+
+    @Test fun `la crítica exigente descarta lo que TMDB califica mal`() {
+        assertFalse(MovieFilters(minRottenTomatoes = 90).worthChecking(5.5))
+        assertTrue(MovieFilters(minRottenTomatoes = 60).worthChecking(5.5))
+        assertFalse(MovieFilters(minMetacritic = 80).worthChecking(5.0))
+    }
+
+    @Test fun `sin nota de TMDB no se prejuzga`() {
+        assertTrue(MovieFilters(minImdb = 8.0, oscar = OscarFilter.Won).worthChecking(null))
+    }
+}

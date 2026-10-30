@@ -24,7 +24,8 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
         const val ENRICH_TOP = 24
         const val SAFE_SEEDS = 8
         const val SAFE_SHORTLIST = 25
-        const val OMDB_PAUSE_MS = 3L * 60 * 60 * 1000
+        const val OMDB_PAUSE_MS = 6L * 60 * 60 * 1000
+        const val DAY_MS = 86_400_000L
     }
 
     private val dao = db.entries()
@@ -155,6 +156,12 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
     /** ¿OMDb está bloqueado ahora? (límite diario o clave inválida) */
     val omdbBlocked get() = System.currentTimeMillis() < omdbBlockedUntil.get()
 
+    /** Minutos que faltan para volver a consultar OMDb (0 si no está bloqueado). */
+    val omdbBlockedMinutes get() = ((omdbBlockedUntil.get() - System.currentTimeMillis()) / 60_000L).coerceAtLeast(0L).toInt()
+
+    /** El límite diario de OMDb se renueva a medianoche UTC (un minuto de margen). */
+    private fun nextUtcMidnight(now: Long) = (now / DAY_MS + 1) * DAY_MS + 60_000L
+
     /** Lo que ya se guardó de esas películas; no usa la red. */
     suspend fun cachedFacts(ids: Collection<Int>): Map<Int, MovieFacts> =
         ids.distinct().chunked(400).flatMap { factsDao.get(it) }.associate { it.movieId to it.toFacts() }
@@ -193,8 +200,10 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
         val call = attempt { Omdb.api.byImdb(imdb, com.peli.app.BuildConfig.OMDB_API_KEY) }
         val http = call.exceptionOrNull() as? retrofit2.HttpException
         if (http?.code() == 401) {
-            omdbBlockedUntil.set(now + OMDB_PAUSE_MS)
-            com.peli.app.log.AppLog.w("OMDb", "límite diario o clave rechazada (401); se pausa un rato")
+            val body = runCatching { http?.response()?.errorBody()?.string().orEmpty() }.getOrDefault("")
+            val daily = body.contains("limit", ignoreCase = true)
+            omdbBlockedUntil.set(if (daily) nextUtcMidnight(now) else now + OMDB_PAUSE_MS)
+            com.peli.app.log.AppLog.w("OMDb", "401: ${if (daily) "límite diario (se renueva a medianoche UTC)" else "clave rechazada"} $body")
             return f
         }
         val r = call.getOrNull() ?: return f
@@ -202,7 +211,7 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
             val error = r.error.orEmpty()
             return when {
                 error.contains("limit", ignoreCase = true) || error.contains("key", ignoreCase = true) -> {
-                    omdbBlockedUntil.set(now + OMDB_PAUSE_MS)
+                    omdbBlockedUntil.set(if (error.contains("limit", ignoreCase = true)) nextUtcMidnight(now) else now + OMDB_PAUSE_MS)
                     com.peli.app.log.AppLog.w("OMDb", "no disponible: $error")
                     f
                 }
@@ -235,7 +244,10 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
      */
     suspend fun applyFilters(candidates: List<Entry>, filters: MovieFilters, want: Int, maxFetch: Int): FilterPass {
         val rejected = HashSet<Int>()
-        val base = candidates.filter { e -> filters.acceptsTmdb(e.rating).also { if (!it) rejected += e.movieId } }
+        // Lo que por su nota de TMDB no puede cumplir se descarta sin gastar consultas de OMDb.
+        val base = candidates.filter { e ->
+            (filters.acceptsTmdb(e.rating) && filters.worthChecking(e.rating)).also { if (!it) rejected += e.movieId }
+        }
         if (!filters.needsOmdb) return FilterPass(base, rejected, 0, false, 0)
         val facts = cachedFacts(base.map { it.movieId }).toMutableMap()
         val kept = ArrayList<Entry>()

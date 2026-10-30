@@ -30,6 +30,21 @@ data class MovieFilters(
         get() = minImdb > 0 || minRottenTomatoes > 0 || minMetacritic > 0 || oscar != OscarFilter.Any ||
             minWins > 0 || minNominations > 0
 
+    /**
+     * Antes de gastar una consulta a OMDb: ¿vale la pena revisar esta película? Se descartan las que por su nota de TMDB
+     * (que ya viene en la lista) casi seguro no cumplirían: una nota muy baja en TMDB no llega a IMDb alto ni a Oscar.
+     * Es una aproximación para cuidar el límite diario de OMDb; sin nota no se prejuzga.
+     */
+    fun worthChecking(rating: Double?): Boolean {
+        if (!needsOmdb) return true
+        val r = rating ?: return true
+        if (minImdb > 0 && r < minImdb - IMDB_MARGIN) return false
+        if (minRottenTomatoes >= 75 && r < CRITIC_FLOOR) return false
+        if (minMetacritic >= 70 && r < CRITIC_FLOOR) return false
+        if ((oscar != OscarFilter.Any || minWins >= 5 || minNominations >= 5) && r < AWARD_FLOOR) return false
+        return true
+    }
+
     /** La nota de TMDB ya viene en la lista: se comprueba sin consultar nada más. */
     fun acceptsTmdb(rating: Double?): Boolean = minTmdb <= 0 || (rating ?: 0.0) >= minTmdb
 
@@ -78,6 +93,9 @@ data class MovieFilters(
 
     companion object {
         val NONE = MovieFilters()
+        private const val IMDB_MARGIN = 1.0
+        private const val CRITIC_FLOOR = 6.0
+        private const val AWARD_FLOOR = 5.5
 
         /** Lee lo guardado; cualquier campo ilegible vuelve a "sin filtro" (nunca falla). */
         fun decode(text: String?): MovieFilters {
