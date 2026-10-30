@@ -72,4 +72,34 @@ class SafeTest {
         assertTrue(r.any { it.contains("mismo director") && it.contains("Inception") })
         assertTrue(r.any { it.contains("Actor Dos") })
     }
+
+    @Test fun `la epoca segura parte desde lo mas antiguo que me gusto`() {
+        val recent = (1..10).map { rated(it, 9, year = (2005 + it).toString()) }   // 2006..2015
+        assertEquals(2003, Safe.comfortFrom(recent))                                 // la más antigua (2006) - 3
+        assertFalse(Safe.inComfortZone(entry(100, year = "1985"), Safe.comfortFrom(recent)))
+        assertTrue(Safe.inComfortZone(entry(101, year = "2004"), Safe.comfortFrom(recent)))
+    }
+
+    @Test fun `si me gustan clasicos la epoca segura los incluye`() {
+        val mixed = listOf(1972, 1985, 1994, 2001, 2008, 2012, 2015, 2018, 2020, 2022).mapIndexed { i, y -> rated(i + 1, 9, year = y.toString()) }
+        val from = Safe.comfortFrom(mixed)!!
+        assertTrue(from <= 1972)
+        assertTrue(Safe.inComfortZone(entry(100, year = "1975"), from))
+    }
+
+    @Test fun `con pocas favoritas o sin año no se limita la epoca`() {
+        assertEquals(null, Safe.comfortFrom((1..3).map { rated(it, 9) }))
+        assertTrue(Safe.inComfortZone(entry(1, year = ""), 2000))
+        assertTrue(Safe.inComfortZone(entry(1, year = "1950"), null))
+    }
+
+    @Test fun `una sola favorita muy antigua entre muchas no abre toda la epoca`() {
+        val marked = listOf(rated(1, 10, year = "1960")) + (2..21).map { rated(it, 9, year = "2010") }
+        assertEquals(2007, Safe.comfortFrom(marked))
+    }
+
+    @Test fun `las notas bajas no cuentan para la epoca`() {
+        val marked = (1..6).map { rated(it, 9, year = "2015") } + listOf(rated(50, 3, year = "1960"))
+        assertEquals(2012, Safe.comfortFrom(marked))
+    }
 }

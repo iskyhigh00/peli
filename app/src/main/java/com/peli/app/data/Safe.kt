@@ -33,6 +33,27 @@ object Safe {
     /** Una candidata solo entra si ya se estrenó y tiene buena nota con votos suficientes. */
     fun eligible(c: Entry, votes: Int?): Boolean = !c.isUpcoming && (c.rating ?: 0.0) >= MIN_TMDB_RATING && (votes ?: 0) >= MIN_VOTES
 
+    /** Margen (años) bajo la época de lo que me gusta. */
+    private const val ERA_MARGIN = 3
+
+    /**
+     * Desde qué año es «seguro» proponer: el 10 % más antiguo de lo que me gustó, menos [ERA_MARGIN] años. Si nunca
+     * califiqué alto nada anterior al 2000, una película de 1985 no es una apuesta segura aunque sea muy buena.
+     * null si hay pocas películas para saberlo (o no tienen año).
+     */
+    fun comfortFrom(marked: List<Entry>): Int? {
+        val years = marked.filter { strongLike(it) }.mapNotNull { it.year.take(4).toIntOrNull() }.sorted()
+        if (years.size < MIN_SIGNALS) return null
+        // Percentil 10 (con pocas películas es la más antigua): una sola rareza muy vieja no abre toda la época.
+        return years[(years.size - 1) / 10] - ERA_MARGIN
+    }
+
+    /** ¿La candidata cae en la época de lo que me gusta? Sin año conocido no se descarta. */
+    fun inComfortZone(c: Entry, from: Int?): Boolean {
+        val year = c.year.take(4).toIntOrNull() ?: return true
+        return from == null || year >= from
+    }
+
     /** Puntaje 0..1: afinidad con mi perfil, recomendaciones desde mis favoritas y calidad, menos el parecido con lo que rechacé. */
     fun score(c: Entry, profile: Recommender.Profile, meta: CandMeta?): Double {
         val rel = ((Recommender.relevance(c, profile, meta?.facts) - 0.5) * 2).coerceIn(0.0, 1.0)

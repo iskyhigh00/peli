@@ -728,7 +728,8 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
                     safe.value = SafeState.NeedMore(Safe.signals(marked), Safe.MIN_SIGNALS)
                     return@launch
                 }
-                val picks = repo.safePicks(marked, safeSeen.toSet(), SAFE_BATCH)
+                // Respeta los filtros elegidos (años, nota de TMDB) y la época de lo que me gusta.
+                val picks = repo.safePicks(marked, safeSeen.toSet(), SAFE_BATCH, searchYears.value, movieFilters.value)
                 AppLog.i("Segura", "${picks.size} candidatas; mejor: ${picks.firstOrNull()?.let { "«${it.entry.title}» %.2f".format(it.score) } ?: "ninguna"}")
                 safeQueue.clear()
                 safeQueue.addAll(picks)

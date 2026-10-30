@@ -201,6 +201,10 @@ object Changelog {
             "Matches con otra persona: al conectarse ya no se celebran de golpe muchas coincidencias que existían (si son 3 o menos, sí se avisan), y la «foto inicial» se toma cuando de verdad llegó su lista.",
             "Más fluida: la memoria de lo ya mostrado se guarda en lote al desplazar la lista y abrir una película ya no gasta consultas de OMDb repetidas.",
         ),
+        "1.5.0" to listOf(
+            "Película segura respeta tus filtros de años y de nota TMDB.",
+            "Además solo propone películas de la época de lo que te gusta: si nunca calificaste alto algo anterior al 2000, no te ofrecerá una de 1985 (si te gustan clásicos, sí los incluye).",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

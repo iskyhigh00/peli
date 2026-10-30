@@ -454,7 +454,17 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
      * las parecidas de cada una y los mejores títulos de mis géneros, se queda con las que tienen buena nota y
      * votos, completa los datos extra de las mejores y las ordena con [Safe.score]. Si ninguna fuente responde falla.
      */
-    suspend fun safePicks(marked: List<Entry>, exclude: Set<Int>, limit: Int): List<SafePick> {
+    suspend fun safePicks(
+        marked: List<Entry>,
+        exclude: Set<Int>,
+        limit: Int,
+        years: YearRange? = null,
+        filters: MovieFilters = MovieFilters.NONE,
+    ): List<SafePick> {
+        // Época segura: la de lo que me gusta, y dentro del rango de años elegido en los filtros.
+        val comfort = Safe.comfortFrom(marked)
+        val from = listOfNotNull(comfort, years?.from).maxOrNull()
+        val to = years?.to
         val profileFacts = attempt { profileFacts(marked, PROFILE_FACT_FETCH) }.getOrDefault(emptyMap())
         val profile = Recommender.buildProfile(marked, facts = profileFacts)
         val known = marked.map { it.movieId }.toSet() + exclude
@@ -470,7 +480,13 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
                 s to async { gate.withPermit { attempt { api.recommendations(s.movieId, 1).results } } }
             }
             val genreCalls = if (genres.isBlank()) emptyList() else (1..2).map { page ->
-                async { gate.withPermit { attempt { api.discover(genres, page, "vote_average.desc", 1500).results } } }
+                async {
+                    gate.withPermit {
+                        attempt {
+                            api.discover(genres, page, "vote_average.desc", 1500, from?.let { "$it-01-01" }, to?.let { "$it-12-31" }).results
+                        }
+                    }
+                }
             }
             for ((seed, call) in seedCalls) {
                 tally.record(call.await())?.forEachIndexed { pos, m ->
@@ -494,7 +510,10 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
             seeds = fromSeeds[id]?.sortedByDescending { it.first }?.take(3)?.map { it.second }.orEmpty(),
         )
         val shortlist = found.values
-            .filter { it.movieId !in known && Safe.eligible(it, votes[it.movieId]) }
+            .filter {
+                it.movieId !in known && Safe.eligible(it, votes[it.movieId]) && Safe.inComfortZone(it, from) &&
+                    years.accepts(it.year) && filters.acceptsTmdb(it.rating)
+            }
             .sortedWith(compareByDescending<Entry> { Recommender.baseScore(it, profile, metaOf(it.movieId)) }.thenBy { it.movieId })
             .take(SAFE_SHORTLIST)
         if (shortlist.isEmpty()) return emptyList()
