@@ -42,6 +42,10 @@ abstract class EntryDao {
     @Query("SELECT COUNT(*) FROM entries WHERE owner = :owner")
     abstract suspend fun count(owner: String): Int
 
+    /** Actualiza solo la fecha de estreno (dato de TMDB, no una marca mía: no se envía a nadie). */
+    @Query("UPDATE entries SET releaseDate = :date, year = :year WHERE owner = :owner AND movieId = :id")
+    abstract suspend fun setReleaseDate(owner: String, id: Int, date: String, year: String)
+
     /** Completa el título original solo donde aún no se conocía; no cuenta como cambio de mi marca. */
     @Query("UPDATE entries SET originalTitle = :title WHERE owner = :owner AND movieId = :id AND originalTitle IS NULL")
     abstract suspend fun setOriginalTitle(owner: String, id: Int, title: String)

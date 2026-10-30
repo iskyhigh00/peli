@@ -8,7 +8,7 @@ plugins {
 }
 
 /** Única fuente de la versión: x.y.z con un dígito por campo (0.0.0 a 9.9.9). Usar scripts/bump-version.sh. */
-val appVersion = "1.5.3"
+val appVersion = "1.5.4"
 require(Regex("[0-9]\\.[0-9]\\.[0-9]").matches(appVersion)) { "appVersion debe ser x.y.z de un dígito (máx 9.9.9)" }
 val (vMajor, vMinor, vPatch) = appVersion.split(".").map { it.toInt() }
 
@@ -81,6 +81,7 @@ dependencies {
     implementation("androidx.compose.animation:animation")
     implementation("androidx.activity:activity-compose:1.9.2")
     implementation("androidx.core:core-ktx:1.13.1")
+    implementation("androidx.work:work-runtime-ktx:2.9.1")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.3")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.3")
 

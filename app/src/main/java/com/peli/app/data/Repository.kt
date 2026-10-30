@@ -36,6 +36,18 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
     /** Destinos de envío activos ahora; lo asigna PeliApp. Cada marca se encola para los destinos de ESE momento. */
     var destinations: () -> List<String> = { emptyList() }
 
+    /**
+     * Mis "Quiero verla" aún sin estrenar, con la fecha de estreno al día (TMDB suele moverla). Solo se consulta
+     * lo que tiene fecha exacta o ninguna; el cambio de fecha es local y no cuenta como cambio de mi marca.
+     */
+    suspend fun refreshUpcomingWatchlist(): List<Entry> {
+        val pending = dao.all(OWNER_ME).filter { it.watchlist && !it.seen && !it.disliked && (it.isUpcoming || it.releaseDate == ReleaseInfo.today()) }.take(40)
+        return pending.map { e ->
+            val fresh = attempt { api.details(e.movieId) }.getOrNull()?.release_date?.takeIf { it.isNotBlank() }
+            if (fresh != null && fresh != e.releaseDate) e.copy(releaseDate = fresh, year = fresh.take(4)).also { dao.setReleaseDate(OWNER_ME, e.movieId, fresh, fresh.take(4)) } else e
+        }
+    }
+
     val mine = dao.observe(OWNER_ME)
     val partner = dao.observe(OWNER_PARTNER)
 

@@ -214,6 +214,10 @@ object Changelog {
             "Con el tráiler, el video queda debajo de la barra de estado, sin tapar la hora ni los íconos.",
             "Corregido: si una ficha guardada ya no existía, las tarjetas dejaban de abrir al tocarlas.",
         ),
+        "1.5.4" to listOf(
+            "Avisos de estreno: una notificación cuando se acerca el estreno de una película de \"Quiero verla\" (a una semana, el día anterior y el mismo día). Se pueden desactivar en Ajustes.",
+            "La fecha de estreno de esas películas se revisa en segundo plano, porque suele cambiar.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

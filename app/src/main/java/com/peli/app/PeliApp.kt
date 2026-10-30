@@ -18,6 +18,8 @@ import com.peli.app.data.SourcePrefs
 import com.peli.app.data.Social
 import com.peli.app.data.TmdbApi
 import com.peli.app.log.AppLog
+import com.peli.app.reminders.ReminderStore
+import com.peli.app.reminders.ReminderWorker
 
 class PeliApp : Application() {
     override fun onCreate() {
@@ -25,6 +27,7 @@ class PeliApp : Application() {
         AppLog.init(this)
         CrashReporter.install(this)
         Social.store = account
+        ReminderWorker.schedule(this)
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
             private fun name(a: Activity) = a.javaClass.simpleName
             override fun onActivityCreated(a: Activity, state: Bundle?) =
@@ -67,6 +70,7 @@ class PeliApp : Application() {
 
     val exposure by lazy { ExposureStore(this) }
     val filterStore by lazy { FilterStore(this) }
+    val reminderStore by lazy { ReminderStore(this) }
     val account by lazy { AccountStore(this) }
     val pairing by lazy { PairingStore(this) }
     val sourcePrefs by lazy { SourcePrefs(this) }

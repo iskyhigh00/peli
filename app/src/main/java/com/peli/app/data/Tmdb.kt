@@ -62,6 +62,7 @@ data class TmdbVideosPage(val results: List<TmdbVideo>? = null)
 data class TmdbDetails(
     val id: Int,
     val original_title: String? = null,
+    val release_date: String? = null,
     val vote_average: Double? = null,
     val vote_count: Int? = null,
     val external_ids: TmdbExternalIds? = null,

@@ -10,7 +10,7 @@ object ReleaseInfo {
 
     fun currentYear(): Int = Calendar.getInstance().get(Calendar.YEAR)
 
-    private fun today(): String = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+    fun today(): String = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
 
     /** Las fechas ISO se comparan como texto. Sin fecha exacta, se usa el año. */
     fun isUpcoming(date: String?, year: String): Boolean {

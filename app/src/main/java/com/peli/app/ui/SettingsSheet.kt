@@ -60,6 +60,8 @@ fun SettingsSheet(
     sources: Set<RatingSource>,
     omdbAvailable: Boolean,
     onToggle: (RatingSource) -> Unit,
+    remindersOn: Boolean,
+    onReminders: (Boolean) -> Unit,
     onCheckUpdate: () -> Unit,
     onMessage: (String) -> Unit,
     onDismiss: () -> Unit,
@@ -97,6 +99,14 @@ fun SettingsSheet(
                     onChange = { onToggle(source) },
                 )
             }
+            HorizontalDivider(Modifier.padding(vertical = ItemSpacing))
+            SettingRow(
+                title = "Avisos de estreno",
+                subtitle = "Una notificación cuando se acerca el estreno de una película de \"Quiero verla\": a una semana, el día anterior y el mismo día.",
+                checked = remindersOn,
+                enabled = true,
+                onChange = onReminders,
+            )
             HorizontalDivider(Modifier.padding(vertical = ItemSpacing))
             Text("Versión $APP_VERSION", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             TonalButton("Buscar actualización", onCheckUpdate, Modifier.fillMaxWidth().padding(top = 8.dp))

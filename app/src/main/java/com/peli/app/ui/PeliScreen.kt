@@ -1,7 +1,13 @@
 package com.peli.app.ui
 
 import android.content.Intent
+import android.Manifest
+import android.os.Build
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import com.peli.app.PeliApp
+import com.peli.app.reminders.ReminderWorker
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalSharedTransitionApi
@@ -235,6 +241,28 @@ private fun Home(vm: MainViewModel, tab: Tab, onTabChange: (Tab) -> Unit, onOpen
     val sources by vm.sources.collectAsState()
     var showSettings by rememberSaveable { mutableStateOf(false) }
 
+    // Avisos de estreno: el permiso de notificaciones (Android 13+) se pide una vez, y de nuevo si se activan en Ajustes.
+    val appContext = LocalContext.current.applicationContext
+    val reminderStore = (appContext as PeliApp).reminderStore
+    var remindersOn by remember { mutableStateOf(reminderStore.enabled) }
+    val askPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (!granted) vm.message.value = "Sin permiso de notificaciones no llegarán los avisos de estreno."
+    }
+    fun requestIfNeeded() {
+        if (Build.VERSION.SDK_INT >= 33 && !ReminderWorker.canNotify(appContext)) askPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+    }
+    LaunchedEffect(Unit) {
+        if (reminderStore.enabled && !reminderStore.permissionAsked) {
+            reminderStore.permissionAsked = true
+            requestIfNeeded()
+        }
+    }
+    val onReminders: (Boolean) -> Unit = { on ->
+        remindersOn = on
+        reminderStore.enabled = on
+        if (on) requestIfNeeded()
+    }
+
     LaunchedEffect(message) {
         message?.let { snack.showSnackbar(it); vm.message.value = null }
     }
@@ -433,6 +461,8 @@ private fun Home(vm: MainViewModel, tab: Tab, onTabChange: (Tab) -> Unit, onOpen
             sources = sources,
             omdbAvailable = vm.omdbAvailable,
             onToggle = vm::toggleSource,
+            remindersOn = remindersOn,
+            onReminders = onReminders,
             onCheckUpdate = { vm.checkForUpdate(manual = true) },
             onMessage = { vm.message.value = it },
             onDismiss = { showSettings = false },
