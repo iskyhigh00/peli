@@ -221,6 +221,9 @@ object Changelog {
         "1.5.5" to listOf(
             "Corregido: la flecha de \"arrastrar para actualizar\" ya no queda pegada sobre el buscador.",
         ),
+        "1.5.6" to listOf(
+            "El tráiler se ve limpio, sin los controles ni el título de YouTube. Un toque pausa o reanuda; doble toque a la izquierda retrocede 10 s y a la derecha adelanta 10 s.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

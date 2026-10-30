@@ -2,6 +2,8 @@ package com.peli.app.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -318,6 +320,14 @@ private fun TrailerPlayer(key: String) {
         }
         return
     }
+    // Sin controles de YouTube: solo el video. Un toque pausa o sigue; doble toque a los lados salta 10 s.
+    var player by remember(key) { mutableStateOf<YouTubePlayer?>(null) }
+    var playing by remember(key) { mutableStateOf(true) }
+    var position by remember(key) { mutableStateOf(0f) }
+    var duration by remember(key) { mutableStateOf(0f) }
+    var hint by remember(key) { mutableStateOf<String?>(null) }
+    LaunchedEffect(hint) { if (hint != null) { kotlinx.coroutines.delay(700); hint = null } }
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
     AndroidView(
         modifier = Modifier.fillMaxWidth(),
         factory = { ctx ->
@@ -325,12 +335,24 @@ private fun TrailerPlayer(key: String) {
                 enableAutomaticInitialization = false
                 lifecycleOwner.lifecycle.addObserver(this)
                 // El botón de pantalla completa no está cableado: se oculta. El origen lo pone la biblioteca (el paquete de la app).
-                val options = IFramePlayerOptions.Builder(ctx).controls(1).rel(0).fullscreen(0).build()
+                val options = IFramePlayerOptions.Builder(ctx).controls(0).rel(0).fullscreen(0).ivLoadPolicy(3).ccLoadPolicy(0).build()
                 initialize(
                     object : AbstractYouTubePlayerListener() {
                         override fun onReady(youTubePlayer: YouTubePlayer) {
+                            player = youTubePlayer
                             youTubePlayer.loadVideo(key, 0f)
                         }
+
+                        override fun onStateChange(youTubePlayer: YouTubePlayer, state: PlayerConstants.PlayerState) {
+                            when (state) {
+                                PlayerConstants.PlayerState.PLAYING -> playing = true
+                                PlayerConstants.PlayerState.PAUSED, PlayerConstants.PlayerState.ENDED -> playing = false
+                                else -> {}
+                            }
+                        }
+
+                        override fun onCurrentSecond(youTubePlayer: YouTubePlayer, second: Float) { position = second }
+                        override fun onVideoDuration(youTubePlayer: YouTubePlayer, duration0: Float) { duration = duration0 }
 
                         override fun onError(youTubePlayer: YouTubePlayer, error: PlayerConstants.PlayerError) {
                             AppLog.w("Tráiler", "YouTube no reprodujo $key: $error")
@@ -354,4 +376,28 @@ private fun TrailerPlayer(key: String) {
             view.release()
         },
     )
+    // Capa transparente que recibe los toques (solo toques: los deslizamientos siguen a la ficha y al carrusel).
+    Box(
+        Modifier.matchParentSize().pointerInput(key) {
+            detectTapGestures(
+                onTap = {
+                    val p = player ?: return@detectTapGestures
+                    if (playing) { p.pause(); hint = "Pausa" } else { p.play(); hint = "Reproducir" }
+                },
+                onDoubleTap = { at ->
+                    val p = player ?: return@detectTapGestures
+                    val back = at.x < size.width / 2f
+                    val target = (position + if (back) -10f else 10f).coerceIn(0f, if (duration > 0f) duration - 1f else Float.MAX_VALUE)
+                    p.seekTo(target)
+                    position = target
+                    hint = if (back) "−10 s" else "+10 s"
+                },
+            )
+        },
+    ) {}
+    hint?.let {
+        Text(it, color = Color.White, style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.background(Color.Black.copy(alpha = 0.55f), RoundedCornerShape(12.dp)).padding(horizontal = 14.dp, vertical = 6.dp))
+    }
+    }
 }
