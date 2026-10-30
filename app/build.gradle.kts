@@ -8,7 +8,7 @@ plugins {
 }
 
 /** Única fuente de la versión: x.y.z con un dígito por campo (0.0.0 a 9.9.9). Usar scripts/bump-version.sh. */
-val appVersion = "1.4.6"
+val appVersion = "1.4.7"
 require(Regex("[0-9]\\.[0-9]\\.[0-9]").matches(appVersion)) { "appVersion debe ser x.y.z de un dígito (máx 9.9.9)" }
 val (vMajor, vMinor, vPatch) = appVersion.split(".").map { it.toInt() }
 
@@ -92,6 +92,13 @@ dependencies {
     implementation("com.squareup.retrofit2:converter-gson:2.11.0")
     implementation("com.google.code.gson:gson:2.10.1")
     implementation("io.coil-kt:coil-compose:2.6.0")
+
+    // Reproductor de YouTube dentro de la app (tráilers). Se usan las versiones de lifecycle y de Kotlin del proyecto:
+    // las que trae la biblioteca son más nuevas que las del compilador.
+    implementation("com.pierfrancescosoffritti.androidyoutubeplayer:core:13.0.0") {
+        exclude(group = "androidx.lifecycle")
+        exclude(group = "org.jetbrains.kotlin", module = "kotlin-stdlib")
+    }
 
     // Inicio de sesión con Google (Credential Manager).
     implementation("androidx.credentials:credentials:1.3.0")

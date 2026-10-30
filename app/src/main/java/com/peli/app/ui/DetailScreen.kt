@@ -18,9 +18,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import android.content.Intent
 import android.net.Uri
-import android.webkit.WebChromeClient
-import android.webkit.WebView
-import android.webkit.WebViewClient
+import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants
+import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.YouTubePlayer
+import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.listeners.AbstractYouTubePlayerListener
+import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.options.IFramePlayerOptions
+import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.views.YouTubePlayerView
 import com.peli.app.data.Trailers
 import com.peli.app.log.AppLog
 import androidx.compose.foundation.layout.aspectRatio
@@ -223,10 +225,9 @@ fun DetailScreen(entry: Entry, mine: Entry?, vm: MainViewModel, onBack: () -> Un
     }
 }
 
-/** Página del tráiler: reproductor incrustado de YouTube y, siempre, un botón para abrirlo en YouTube. */
+/** Página del tráiler: se reproduce aquí mismo (reproductor de YouTube incrustado). */
 @Composable
 private fun TrailerPage(state: MainViewModel.TrailerState?, active: Boolean, onRetry: () -> Unit) {
-    val context = LocalContext.current
     Box(
         Modifier.fillMaxSize().background(Color.Black).padding(bottom = 56.dp),
         contentAlignment = Alignment.Center,
@@ -243,34 +244,73 @@ private fun TrailerPage(state: MainViewModel.TrailerState?, active: Boolean, onR
                 Box(Modifier.height(8.dp))
                 TonalButton("Reintentar", onRetry)
             }
-            is MainViewModel.TrailerState.Ready -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                if (active) {
-                    AndroidView(
-                        modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f),
-                        factory = { ctx ->
-                            WebView(ctx).apply {
-                                settings.javaScriptEnabled = true
-                                webChromeClient = WebChromeClient()
-                                webViewClient = WebViewClient()
-                                setBackgroundColor(android.graphics.Color.BLACK)
-                                loadDataWithBaseURL("https://www.youtube.com", Trailers.embedHtml(state.key), "text/html", "utf-8", null)
-                            }
-                        },
-                        onRelease = { it.destroy() },
-                    )
-                }
-                Box(Modifier.height(12.dp))
-                TonalButton(
-                    "Abrir en YouTube",
-                    {
-                        try {
-                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Trailers.watchUrl(state.key))).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                        } catch (e: Exception) {
-                            AppLog.w("Tráiler", "no se pudo abrir YouTube", e)
-                        }
-                    },
-                )
+            is MainViewModel.TrailerState.Ready -> {
+                if (active) TrailerPlayer(state.key)
             }
         }
     }
+}
+
+/**
+ * Reproductor de YouTube dentro de la app. Si YouTube no deja reproducir ese video aquí (el dueño lo prohíbe fuera de
+ * YouTube), se explica y solo entonces se ofrece abrirlo en YouTube.
+ */
+@Composable
+private fun TrailerPlayer(key: String) {
+    val context = LocalContext.current
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    var problem by remember(key) { mutableStateOf<String?>(null) }
+    if (problem != null) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(24.dp)) {
+            Text(problem.orEmpty(), color = Color.White)
+            Box(Modifier.height(12.dp))
+            TonalButton(
+                "Abrir en YouTube",
+                {
+                    try {
+                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Trailers.watchUrl(key))).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    } catch (e: Exception) {
+                        AppLog.w("Tráiler", "no se pudo abrir YouTube", e)
+                    }
+                },
+            )
+        }
+        return
+    }
+    AndroidView(
+        modifier = Modifier.fillMaxWidth(),
+        factory = { ctx ->
+            YouTubePlayerView(ctx).apply {
+                enableAutomaticInitialization = false
+                lifecycleOwner.lifecycle.addObserver(this)
+                // El botón de pantalla completa no está cableado: se oculta. El origen lo pone la biblioteca (el paquete de la app).
+                val options = IFramePlayerOptions.Builder(ctx).controls(1).rel(0).fullscreen(0).build()
+                initialize(
+                    object : AbstractYouTubePlayerListener() {
+                        override fun onReady(youTubePlayer: YouTubePlayer) {
+                            youTubePlayer.loadVideo(key, 0f)
+                        }
+
+                        override fun onError(youTubePlayer: YouTubePlayer, error: PlayerConstants.PlayerError) {
+                            AppLog.w("Tráiler", "YouTube no reprodujo $key: $error")
+                            problem = when (error) {
+                                PlayerConstants.PlayerError.VIDEO_NOT_PLAYABLE_IN_EMBEDDED_PLAYER ->
+                                    "Su dueño no permite reproducir este tráiler fuera de YouTube."
+                                PlayerConstants.PlayerError.VIDEO_NOT_FOUND -> "Este tráiler ya no existe en YouTube."
+                                PlayerConstants.PlayerError.REQUEST_MISSING_HTTP_REFERER ->
+                                    "YouTube rechazó la reproducción dentro de la app."
+                                else -> "No se pudo reproducir el tráiler."
+                            }
+                        }
+                    },
+                    true,
+                    options,
+                )
+            }
+        },
+        onRelease = { view ->
+            lifecycleOwner.lifecycle.removeObserver(view)
+            view.release()
+        },
+    )
 }

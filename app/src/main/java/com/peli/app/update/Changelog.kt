@@ -186,6 +186,10 @@ object Changelog {
             "Al elegir un director se ven sus películas (con los demás filtros aplicados). Se guarda como los otros filtros hasta tocar «Quitar filtros».",
             "La lista de directores crece a medida que marcas y exploras películas.",
         ),
+        "1.4.7" to listOf(
+            "El tráiler ahora se reproduce dentro de la app con un reproductor de YouTube (sin botón para salir a YouTube).",
+            "Solo si YouTube no permite ese video fuera de su app, se explica el motivo y se ofrece abrirlo en YouTube.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

@@ -19,10 +19,4 @@ object Trailers {
 
     /** Dirección web del video (para abrirlo en YouTube). */
     fun watchUrl(key: String) = "https://www.youtube.com/watch?v=$key"
-
-    /** Página mínima con el reproductor incrustado de YouTube. */
-    fun embedHtml(key: String) =
-        "<html><body style=\"margin:0;background:#000\"><iframe src=\"https://www.youtube.com/embed/$key?rel=0&playsinline=1\" " +
-            "style=\"position:absolute;top:0;left:0;width:100%;height:100%;border:0\" " +
-            "allow=\"autoplay; encrypted-media; picture-in-picture\" allowfullscreen></iframe></body></html>"
 }

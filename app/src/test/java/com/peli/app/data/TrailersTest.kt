@@ -34,7 +34,6 @@ class TrailersTest {
 
     @Test fun `direcciones del video`() {
         assertEquals("https://www.youtube.com/watch?v=abc", Trailers.watchUrl("abc"))
-        assertTrue(Trailers.embedHtml("abc").contains("https://www.youtube.com/embed/abc"))
     }
 
     @Test fun `datos viejos sin id de director piden volver a consultar TMDB`() {
