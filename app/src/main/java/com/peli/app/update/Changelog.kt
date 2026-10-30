@@ -233,6 +233,9 @@ object Changelog {
         "1.5.9" to listOf(
             "La barra de filtros ya no salta completa por un roce hacia arriba: aparece poco a poco mientras sigues deslizando, y se esconde igual al bajar.",
         ),
+        "1.6.0" to listOf(
+            "Atrás con la lista desplazada: vuelve al comienzo y se recarga (como Instagram). Con un segundo Atrás se sale de la app.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

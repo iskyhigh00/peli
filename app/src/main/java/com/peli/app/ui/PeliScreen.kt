@@ -293,6 +293,16 @@ private fun Home(vm: MainViewModel, tab: Tab, onTabChange: (Tab) -> Unit, onOpen
         }
     }
     val canScrollMore by remember(activeList) { derivedStateOf { activeList?.canScrollForward == true } }
+    // Atrás con la lista desplazada: vuelve al comienzo y se recarga (como Instagram). Con otro Atrás recién se sale.
+    BackHandler(enabled = scrolled) {
+        AppLog.d("Navegación", "Atrás: de ${tab.name} desplazada al comienzo")
+        scope.launch { activeList?.animateScrollToItem(0) }
+        when (tab) {
+            Tab.Search -> vm.refreshSearch()
+            Tab.Together -> vm.refreshSync()
+            else -> {}
+        }
+    }
     val topScrim by animateFloatAsState(if (scrolled) 0.85f else 0f, tween(250), label = "topScrim")
     val bottomScrim by animateFloatAsState(if (canScrollMore) 0.7f else 0f, tween(250), label = "bottomScrim")
 
