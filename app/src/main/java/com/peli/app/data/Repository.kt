@@ -311,7 +311,7 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
     suspend fun trailerKey(movieId: Int): String? {
         synchronized(trailerCache) { if (trailerCache.containsKey(movieId)) return trailerCache[movieId] }
         val key = Trailers.pick(
-            api.videos(movieId).results.orEmpty().map { TrailerVideo(it.key, it.site, it.type, it.official, it.iso_639_1) },
+            api.videos(movieId).results.orEmpty().map { TrailerVideo(it.key, it.site, it.type, it.official, it.iso_639_1, it.iso_3166_1, it.name) },
         )
         synchronized(trailerCache) { trailerCache[movieId] = key }
         return key

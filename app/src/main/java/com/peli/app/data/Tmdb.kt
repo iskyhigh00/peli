@@ -53,6 +53,8 @@ data class TmdbVideo(
     val type: String? = null,
     val official: Boolean? = null,
     val iso_639_1: String? = null,
+    val iso_3166_1: String? = null,
+    val name: String? = null,
 )
 
 data class TmdbVideosPage(val results: List<TmdbVideo>? = null)

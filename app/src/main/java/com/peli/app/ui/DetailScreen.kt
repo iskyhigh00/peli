@@ -5,7 +5,16 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.graphics.graphicsLayer
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -92,47 +101,19 @@ fun DetailScreen(entry: Entry, mine: Entry?, vm: MainViewModel, onBack: () -> Un
     // El tráiler se pide al deslizar el cartel (página 2) y se quita al volver, para que deje de sonar.
     LaunchedEffect(pager.currentPage) { if (pager.currentPage == 1) vm.loadTrailer(entry.movieId) }
 
-    Box(Modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-            Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f).sharedPoster(entry.movieId)) {
-                HorizontalPager(state = pager, modifier = Modifier.fillMaxSize()) { page ->
-                    if (page == 0) {
-                        PosterImage(
-                            path = entry.posterPath,
-                            contentDescription = "Carátula de ${entry.title}",
-                            modifier = Modifier.fillMaxSize(),
-                            shape = RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp),
-                            onClick = { zoomed = true },
-                        )
-                    } else {
-                        TrailerPage(
-                            state = trailers[entry.movieId],
-                            active = pager.currentPage == 1,
-                            onRetry = { vm.loadTrailer(entry.movieId, force = true) },
-                        )
-                    }
-                }
-                // Puntos de página y pista de que se puede deslizar.
-                Column(Modifier.align(Alignment.BottomCenter).padding(bottom = 14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    if (pager.currentPage == 0) {
-                        Surface(shape = RoundedCornerShape(50), color = Color.Black.copy(alpha = 0.55f)) {
-                            Row(Modifier.padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                                Text("Desliza para ver el tráiler", style = MaterialTheme.typography.labelMedium, color = Color.White)
-                            }
-                        }
-                        Box(Modifier.height(8.dp))
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        repeat(2) { i ->
-                            Box(
-                                Modifier.size(7.dp).clip(CircleShape)
-                                    .background(if (i == pager.currentPage) Color.White else Color.White.copy(alpha = 0.4f)),
-                            )
-                        }
-                    }
-                }
-            }
+    val scroll = rememberScrollState()
+    val scope = rememberCoroutineScope()
+    // Con el tráiler a la vista el video queda fijo arriba (se lee la ficha mientras se sigue viendo); con el cartel, se va con el scroll.
+    val trailerMode = pager.currentPage == 1
+
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val headerHeight by animateDpAsState(
+            if (trailerMode) maxWidth * 9 / 16 else maxWidth * 3 / 2,
+            tween(250),
+            label = "headerHeight",
+        )
+        Column(Modifier.fillMaxSize().verticalScroll(scroll)) {
+            Spacer(Modifier.height(headerHeight))
             Column(
                 Modifier.padding(horizontal = ScreenHorizontalPadding, vertical = SectionSpacing),
                 verticalArrangement = Arrangement.spacedBy(SectionSpacing),
@@ -210,6 +191,59 @@ fun DetailScreen(entry: Entry, mine: Entry?, vm: MainViewModel, onBack: () -> Un
                 Box(Modifier.height(32.dp))
             }
         }
+        // Encabezado (cartel / tráiler): va encima del contenido; solo con el tráiler se queda fijo.
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(headerHeight)
+                .graphicsLayer { translationY = if (trailerMode) 0f else -scroll.value.toFloat() }
+                .draggable(
+                    orientation = Orientation.Vertical,
+                    state = rememberDraggableState { delta -> scope.launch { scroll.scrollBy(-delta) } },
+                )
+                .sharedPoster(entry.movieId),
+        ) {
+            HorizontalPager(state = pager, modifier = Modifier.fillMaxSize()) { page ->
+                if (page == 0) {
+                    PosterImage(
+                        path = entry.posterPath,
+                        contentDescription = "Carátula de ${entry.title}",
+                        modifier = Modifier.fillMaxSize(),
+                        shape = RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp),
+                        onClick = { zoomed = true },
+                    )
+                } else {
+                    TrailerPage(
+                        state = trailers[entry.movieId],
+                        active = pager.currentPage == 1,
+                        onRetry = { vm.loadTrailer(entry.movieId, force = true) },
+                    )
+                }
+            }
+            // Puntos de página (arriba con el tráiler, para no tapar sus controles) y pista de que se puede deslizar.
+            Column(
+                Modifier.align(if (trailerMode) Alignment.TopCenter else Alignment.BottomCenter).padding(vertical = if (trailerMode) 10.dp else 14.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                if (pager.currentPage == 0) {
+                    Surface(shape = RoundedCornerShape(50), color = Color.Black.copy(alpha = 0.55f)) {
+                        Row(Modifier.padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                            Text("Desliza para ver el tráiler", style = MaterialTheme.typography.labelMedium, color = Color.White)
+                        }
+                    }
+                    Box(Modifier.height(8.dp))
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    repeat(2) { i ->
+                        Box(
+                            Modifier.size(7.dp).clip(CircleShape)
+                                .background(if (i == pager.currentPage) Color.White else Color.White.copy(alpha = 0.4f)),
+                        )
+                    }
+                }
+            }
+        }
         IconButton(
             onClick = onBack,
             modifier = Modifier
@@ -229,7 +263,7 @@ fun DetailScreen(entry: Entry, mine: Entry?, vm: MainViewModel, onBack: () -> Un
 @Composable
 private fun TrailerPage(state: MainViewModel.TrailerState?, active: Boolean, onRetry: () -> Unit) {
     Box(
-        Modifier.fillMaxSize().background(Color.Black).padding(bottom = 56.dp),
+        Modifier.fillMaxSize().background(Color.Black),
         contentAlignment = Alignment.Center,
     ) {
         when (state) {
