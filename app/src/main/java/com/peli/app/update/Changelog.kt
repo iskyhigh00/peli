@@ -230,6 +230,9 @@ object Changelog {
         "1.5.8" to listOf(
             "\"Buscar actualización\" responde dentro de Ajustes (al día, versión nueva con su botón de actualizar, o el error). La franja de la pantalla principal queda solo para cuando la app detecta sola una versión nueva al abrirse.",
         ),
+        "1.5.9" to listOf(
+            "La barra de filtros ya no salta completa por un roce hacia arriba: aparece poco a poco mientras sigues deslizando, y se esconde igual al bajar.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

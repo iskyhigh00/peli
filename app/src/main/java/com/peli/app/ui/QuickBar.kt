@@ -1,12 +1,13 @@
 package com.peli.app.ui
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -28,26 +29,35 @@ import androidx.compose.ui.unit.dp
 import com.peli.app.ui.components.ScreenHorizontalPadding
 
 /**
- * Barra de filtros que reaparece al instante en cuanto se desliza la lista hacia arriba (aunque se esté lejos del
- * principio) y se esconde al seguir bajando. Al estar en la parte superior no hace falta: ahí ya se ven los filtros.
+ * Barra de filtros que va apareciendo a medida que se desliza la lista hacia arriba (aunque se esté lejos del
+ * principio): un roce mínimo solo asoma un pedazo, y para verla completa hay que seguir deslizando. Se esconde igual
+ * de gradual al volver a bajar. Al estar en la parte superior no hace falta: ahí ya se ven los filtros.
  */
 @Stable
 class QuickBar internal constructor(private val listState: LazyListState) {
-    private var goingUp by mutableStateOf(false)
+    /** Alto de la barra ya medido (px) y cuánto de ella se ve ahora (0..alto). */
+    internal var heightPx by mutableFloatStateOf(0f)
+    private var shownPx by mutableFloatStateOf(0f)
 
-    val visible: Boolean
-        get() = goingUp && !(listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset < NEAR_TOP_PX)
+    private val nearTop: Boolean
+        get() = listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset < NEAR_TOP_PX
 
-    /** Se engancha a la lista con `Modifier.nestedScroll(connection)`; solo observa la dirección, no consume nada. */
+    /** Píxeles visibles de la barra. */
+    val shown: Float get() = if (nearTop) 0f else shownPx.coerceIn(0f, heightPx)
+
+    /** Se engancha a la lista con `Modifier.nestedScroll(connection)`; solo observa el desplazamiento, no consume nada. */
     val connection = object : NestedScrollConnection {
         override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-            if (available.y > DEAD_ZONE_PX) goingUp = true else if (available.y < -DEAD_ZONE_PX) goingUp = false
+            val dy = available.y
+            if (dy == 0f) return Offset.Zero
+            // Solo el dedo hace aparecer la barra; un impulso (fling) tras un roce no la abre de golpe, pero sí la esconde.
+            if (dy > 0f && source != NestedScrollSource.UserInput) return Offset.Zero
+            shownPx = (shownPx + dy).coerceIn(0f, heightPx)
             return Offset.Zero
         }
     }
 
     private companion object {
-        const val DEAD_ZONE_PX = 3f
         const val NEAR_TOP_PX = 24
     }
 }
@@ -55,19 +65,24 @@ class QuickBar internal constructor(private val listState: LazyListState) {
 @Composable
 fun rememberQuickBar(listState: LazyListState): QuickBar = remember(listState) { QuickBar(listState) }
 
-/** Dibuja la barra fijada arriba del contenido mientras [QuickBar.visible]. */
+/** Dibuja la barra fijada arriba del contenido, asomando según [QuickBar.shown]. */
 @Composable
 fun BoxScope.QuickBarOverlay(bar: QuickBar, content: @Composable () -> Unit) {
-    AnimatedVisibility(
-        visible = bar.visible,
-        modifier = Modifier.align(Alignment.TopCenter),
-        enter = slideInVertically(tween(150)) { -it } + fadeIn(tween(150)),
-        exit = slideOutVertically(tween(150)) { -it } + fadeOut(tween(150)),
+    val density = LocalDensity.current
+    Box(
+        Modifier
+            .align(Alignment.TopCenter)
+            .fillMaxWidth()
+            .height(with(density) { bar.shown.toDp() })
+            .clipToBounds(),
     ) {
         Surface(
             color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
             shadowElevation = 6.dp,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .wrapContentHeight(Alignment.Bottom, unbounded = true)
+                .onSizeChanged { bar.heightPx = it.height.toFloat() },
         ) {
             Column(Modifier.padding(horizontal = ScreenHorizontalPadding, vertical = 8.dp)) { content() }
         }
