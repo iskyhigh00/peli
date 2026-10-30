@@ -26,6 +26,7 @@ import com.peli.app.ui.components.ItemSpacing
 import com.peli.app.ui.components.ScreenHorizontalPadding
 import com.peli.app.ui.components.SectionSpacing
 import com.peli.app.ui.components.TonalButton
+import com.peli.app.ui.components.UpdateBanner
 import com.peli.app.ui.theme.SheetShape
 
 @Composable
@@ -62,6 +63,9 @@ fun SettingsSheet(
     onToggle: (RatingSource) -> Unit,
     remindersOn: Boolean,
     onReminders: (Boolean) -> Unit,
+    update: MainViewModel.ManualUpdate,
+    progress: Int,
+    onInstall: (String) -> Unit,
     onCheckUpdate: () -> Unit,
     onMessage: (String) -> Unit,
     onDismiss: () -> Unit,
@@ -109,7 +113,26 @@ fun SettingsSheet(
             )
             HorizontalDivider(Modifier.padding(vertical = ItemSpacing))
             Text("Versión $APP_VERSION", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            TonalButton("Buscar actualización", onCheckUpdate, Modifier.fillMaxWidth().padding(top = 8.dp))
+            when (update) {
+                is MainViewModel.ManualUpdate.Available -> UpdateBanner(
+                    version = update.version,
+                    progress = progress,
+                    onUpdate = { onInstall(update.version) },
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+                else -> {
+                    val status = when (update) {
+                        MainViewModel.ManualUpdate.Checking -> "Buscando…"
+                        MainViewModel.ManualUpdate.UpToDate -> "Estás al día: tienes la última versión."
+                        is MainViewModel.ManualUpdate.Failed -> "No se pudo consultar: ${update.error ?: "sin conexión"}"
+                        else -> null
+                    }
+                    status?.let {
+                        Text(it, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 4.dp))
+                    }
+                    TonalButton("Buscar actualización", onCheckUpdate, Modifier.fillMaxWidth().padding(top = 8.dp))
+                }
+            }
             HorizontalDivider(Modifier.padding(vertical = ItemSpacing))
             LogSection(onMessage)
         }

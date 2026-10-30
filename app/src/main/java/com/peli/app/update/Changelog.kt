@@ -227,6 +227,9 @@ object Changelog {
         "1.5.7" to listOf(
             "El botón verde de Buscar ahora sirve para volver arriba (aparece al bajar por la lista). Descubrir queda solo en la barra de abajo.",
         ),
+        "1.5.8" to listOf(
+            "\"Buscar actualización\" responde dentro de Ajustes (al día, versión nueva con su botón de actualizar, o el error). La franja de la pantalla principal queda solo para cuando la app detecta sola una versión nueva al abrirse.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

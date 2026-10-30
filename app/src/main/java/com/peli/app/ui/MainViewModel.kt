@@ -318,6 +318,16 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
     /** Versión nueva disponible (null = al día o sin consultar). */
     val newVersion = MutableStateFlow<String?>(null)
 
+    /** Resultado de "Buscar actualización" en Ajustes: se muestra ahí mismo, sin tocar la franja de la pantalla principal. */
+    sealed interface ManualUpdate {
+        data object Idle : ManualUpdate
+        data object Checking : ManualUpdate
+        data object UpToDate : ManualUpdate
+        data class Available(val version: String) : ManualUpdate
+        data class Failed(val error: String?) : ManualUpdate
+    }
+    val manualUpdate = MutableStateFlow<ManualUpdate>(ManualUpdate.Idle)
+
     /** Progreso de descarga: -2 inactivo, -1 sin tamaño conocido, 0..100. */
     val progress = MutableStateFlow(-2)
 
@@ -1455,28 +1465,30 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
     // ---- Actualizaciones -----------------------------------------------------
 
     /** Al abrir la app es silencioso; manual (botón) informa también si está al día o falló. */
+    /** Al abrir la app (automática) avisa en la pantalla principal; desde Ajustes (manual) responde en Ajustes. */
     fun checkForUpdate(manual: Boolean) {
+        if (manual) {
+            if (manualUpdate.value == ManualUpdate.Checking) return
+            manualUpdate.value = ManualUpdate.Checking
+        }
         launch {
             AppLog.d("Actualizador", "consultando actualización (${if (manual) "manual" else "automática"})")
             val res = withContext(Dispatchers.IO) { Updater.checkLatest() }
             val v = res.version
             when {
-                v == null -> if (manual) message.value = "No se pudo consultar: ${res.error}"
-                Updater.isNewer(v, APP_VERSION) -> {
-                    newVersion.value = v
-                    if (manual) message.value = "Hay una versión nueva: v$v (tienes v$APP_VERSION)."
-                }
-                else -> {
-                    newVersion.value = null
-                    if (manual) message.value = "Estás al día (v$APP_VERSION)."
-                }
+                v == null -> if (manual) manualUpdate.value = ManualUpdate.Failed(res.error)
+                Updater.isNewer(v, APP_VERSION) -> if (manual) manualUpdate.value = ManualUpdate.Available(v) else newVersion.value = v
+                else -> if (manual) manualUpdate.value = ManualUpdate.UpToDate else newVersion.value = null
             }
         }
     }
 
-    fun installUpdate() {
+    /** Al cerrar Ajustes se olvida el resultado de la consulta manual. */
+    fun clearManualUpdate() { if (progress.value == -2) manualUpdate.value = ManualUpdate.Idle }
+
+    fun installUpdate(version: String? = null) {
         if (progress.value != -2) return   // ya se está descargando
-        val v = newVersion.value ?: return
+        val v = version ?: newVersion.value ?: return
         AppLog.i("Actualizador", "el usuario pidió instalar v$v")
         launch {
             progress.value = -1

@@ -240,6 +240,7 @@ private fun Home(vm: MainViewModel, tab: Tab, onTabChange: (Tab) -> Unit, onOpen
     val progress by vm.progress.collectAsState()
     val whatsNew by vm.whatsNew.collectAsState()
     val sources by vm.sources.collectAsState()
+    val manualUpdate by vm.manualUpdate.collectAsState()
     var showSettings by rememberSaveable { mutableStateOf(false) }
 
     // Avisos de estreno: el permiso de notificaciones (Android 13+) se pide una vez, y de nuevo si se activan en Ajustes.
@@ -464,9 +465,12 @@ private fun Home(vm: MainViewModel, tab: Tab, onTabChange: (Tab) -> Unit, onOpen
             onToggle = vm::toggleSource,
             remindersOn = remindersOn,
             onReminders = onReminders,
+            update = manualUpdate,
+            progress = progress,
+            onInstall = vm::installUpdate,
             onCheckUpdate = { vm.checkForUpdate(manual = true) },
             onMessage = { vm.message.value = it },
-            onDismiss = { showSettings = false },
+            onDismiss = { showSettings = false; vm.clearManualUpdate() },
         )
     }
 }
