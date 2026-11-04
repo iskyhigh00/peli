@@ -164,6 +164,16 @@ fun DetailScreen(entry: Entry, mine: Entry?, vm: MainViewModel, onBack: () -> Un
                         }
                     }
                 }
+                GlassCard {
+                    Text("Chuba y Pepa opinan", style = MaterialTheme.typography.titleMedium)
+                    com.peli.app.data.Pet.entries.forEach { pet ->
+                        val v = remember(entry.movieId, pet) { com.peli.app.data.PetTaste.score(pet, entry) }
+                        Column(Modifier.padding(top = 8.dp)) {
+                            Text("${pet.label} · ${v.score}/10", style = MaterialTheme.typography.titleSmall)
+                            Text(v.reason, style = MaterialTheme.typography.bodyMedium, color = scheme.onSurfaceVariant)
+                        }
+                    }
+                }
                 ReviewsSection(insights[entry.movieId], sources)
                 allFacts[entry.movieId]?.let { f ->
                     if (f.director != null || f.actors.isNotEmpty()) {

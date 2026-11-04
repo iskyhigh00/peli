@@ -373,6 +373,22 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
     suspend fun removeFriend(id: String) = Social.api.removeFriend(mapOf("p_friend" to id))
     suspend fun friends(): List<Friend> = Social.api.myFriends()
 
+    /**
+     * Películas candidatas para el gusto de una de las perritas: TMDB por sus géneros favoritos (distinta página cada vez),
+     * puntuadas con su gusto fijo. Devuelve las que le gustan, de mayor a menor nota.
+     */
+    suspend fun petPicks(pet: Pet, round: Int): List<Pair<Entry, PetVerdict>> {
+        val first = 1 + (round * 2) % 12
+        val found = LinkedHashMap<Int, Entry>()
+        for (page in listOf(first, first + 1, first + 2)) {
+            val res = attempt { api.discover(pet.discoverGenres, page, "popularity.desc", 600).results }.getOrDefault(emptyList())
+            res.forEach { m -> if (m.poster_path != null) found.putIfAbsent(m.id, m.toEntry(OWNER_ME)) }
+        }
+        val scored = found.values.map { it to PetTaste.score(pet, it) }.sortedByDescending { it.second.score }
+        val liked = scored.filter { it.second.likes }
+        return (if (liked.size >= 6) liked else scored.filter { it.second.score >= 7 }.ifEmpty { scored.take(8) }).take(15)
+    }
+
     suspend fun recommend(friendId: String, e: Entry) = Social.api.recommendMovie(
         mapOf("p_friend" to friendId, "p_movie" to e.movieId, "p_title" to e.title, "p_poster" to e.posterPath, "p_year" to e.year),
     )

@@ -704,6 +704,11 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
     }
 
     val recs by vm.recommendations.collectAsState()
+    var petShown by rememberSaveable { mutableStateOf("") }
+    val petSelected = com.peli.app.data.Pet.entries.firstOrNull { it.name == petShown }
+    val petMap by vm.petPicks.collectAsState()
+    val petLoading by vm.petLoading.collectAsState()
+    val petList = petSelected?.let { petMap[it] }.orEmpty()
     val both = remember(matches) { matches.filter { it.both } }
     val single = remember(matches) { matches.filter { !it.both } }
     fun mineOrNew(m: Match) = byId[m.entry.movieId] ?: m.entry.asUnmarked(OWNER_ME)
@@ -736,6 +741,44 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
                         contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                         modifier = Modifier.fillMaxSize(),
                     )
+                }
+            }
+            // Gustos de Chuba y Pepa: para cuando las películas propias aburren.
+            item(key = "mascotas") {
+                Column(verticalArrangement = Arrangement.spacedBy(ItemSpacing)) {
+                    Text("Cine con Chuba y Pepa", style = MaterialTheme.typography.titleLarge)
+                    Text(
+                        "Cada una tiene su gusto: lo que les gusta, si las perritas eligieran la película.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(CompactSpacing)) {
+                        com.peli.app.data.Pet.entries.forEach { p ->
+                            val on = petShown == p.name
+                            if (on) GradientButton(p.label, { petShown = ""; }, Modifier.weight(1f))
+                            else TonalButton(p.label, { petShown = p.name; vm.loadPetPicks(p) }, Modifier.weight(1f))
+                        }
+                    }
+                }
+            }
+            petSelected?.let { pet ->
+                if (petLoading && petList.isEmpty()) item(key = "mascota-carga") {
+                    Box(Modifier.fillMaxWidth().padding(vertical = SectionSpacing), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+                }
+                itemsIndexed(petList, key = { _, pv -> "mascota-${pet.name}-${pv.first.movieId}" }) { index, pv ->
+                    val e = pv.first
+                    MovieCard(
+                        e, byId[e.movieId], onOpen = { onOpen(e) },
+                        onWant = { vm.toggleWant(byId[e.movieId] ?: e) },
+                        onLiked = { vm.toggleLiked(byId[e.movieId] ?: e) },
+                        onDislike = { vm.toggleDislike(byId[e.movieId] ?: e) },
+                        badge = "${pet.label}: ${pv.second.score}/10 · ${pv.second.reason}",
+                        onRecommend = { vm.requestRecommend(e) },
+                        modifier = Modifier.animateItem().entrance(index, e.movieId),
+                    )
+                }
+                if (petList.isNotEmpty()) item(key = "mascota-mas") {
+                    TonalButton("Ver otras de ${pet.label}", { vm.loadPetPicks(pet, more = true) }, Modifier.fillMaxWidth())
                 }
             }
             // La cuenta, el ID y los amigos viven en Ajustes; aquí solo se avisa dónde.

@@ -792,6 +792,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
             ?: results.value.firstOrNull { it.movieId == id }
             ?: queue.value.firstOrNull { it.movieId == id }
             ?: partner.value.firstOrNull { it.movieId == id }
+            ?: petPicks.value.values.firstNotNullOfOrNull { l -> l.firstOrNull { it.first.movieId == id }?.first }
 
     // ---- Descubrir -----------------------------------------------------------
 
@@ -1176,6 +1177,32 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
     /** Películas que mis amigos me recomendaron y aún no descarté. */
     val recommendations = MutableStateFlow<List<Recommendation>>(emptyList())
     private var recsAt = 0L
+
+    /** Lo que le gusta a cada perrita (Chuba / Pepa), con su nota y su motivo. */
+    val petPicks = MutableStateFlow<Map<com.peli.app.data.Pet, List<Pair<Entry, com.peli.app.data.PetVerdict>>>>(emptyMap())
+    val petLoading = MutableStateFlow(false)
+    private val petRounds = HashMap<com.peli.app.data.Pet, Int>()
+
+    fun loadPetPicks(pet: com.peli.app.data.Pet, more: Boolean = false) {
+        if (petLoading.value) return
+        if (!more && petPicks.value[pet]?.isNotEmpty() == true) return
+        val round = (petRounds[pet] ?: 0) + if (more) 1 else 0
+        petRounds[pet] = round
+        petLoading.value = true
+        launch {
+            try {
+                val picks = repo.petPicks(pet, round)
+                petPicks.update { it + (pet to picks) }
+            } catch (ex: CancellationException) {
+                throw ex
+            } catch (ex: Exception) {
+                AppLog.w("Mascotas", "no se pudieron cargar las de ${pet.label}", ex)
+                message.value = "No se pudieron cargar las películas de ${pet.label}."
+            } finally {
+                petLoading.value = false
+            }
+        }
+    }
 
     /** Película que se está por recomendar cuando hay que elegir a qué amigo (la pantalla muestra la lista). */
     val recommendTarget = MutableStateFlow<Entry?>(null)
