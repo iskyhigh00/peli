@@ -270,6 +270,9 @@ object Changelog {
         "1.7.3" to listOf(
             "Calcomanía de los perritos, 3 veces más grande, a la derecha del encabezado (con borde blanco). Se va con la barra al desplazar. Se quitó el ícono pequeño de la barra, que hacía raro el desplazamiento.",
         ),
+        "1.7.4" to listOf(
+            "Juntos: se quitó el texto \"Ver pelis juntos\" sobre la foto; queda solo la foto.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

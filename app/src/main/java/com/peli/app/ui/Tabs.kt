@@ -736,19 +736,6 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
                         contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                         modifier = Modifier.fillMaxSize(),
                     )
-                    Box(
-                        Modifier.fillMaxSize().background(
-                            androidx.compose.ui.graphics.Brush.verticalGradient(
-                                listOf(androidx.compose.ui.graphics.Color.Transparent, com.peli.app.ui.components.WarmScrim.copy(alpha = 0.85f)),
-                            ),
-                        ),
-                    )
-                    Text(
-                        "Ver pelis juntos",
-                        style = MaterialTheme.typography.titleLarge,
-                        color = com.peli.app.ui.components.WarmAmber,
-                        modifier = Modifier.align(Alignment.BottomStart).padding(16.dp),
-                    )
                 }
             }
             // La cuenta, el ID y los amigos viven en Ajustes; aquí solo se avisa dónde.
