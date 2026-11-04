@@ -285,7 +285,10 @@ object Changelog {
             "Perfil de Chuba y de Pepa en Juntos, con cómo es cada una; al tocarlo se ven las películas que le gustan.",
         ),
         "1.7.8" to listOf(
-            "Avisos para preparar las películas del fin de semana: 2 el miércoles (12:00 y 19:30), 4 el jueves (9:00, 12:30, 17:00 y 20:00) y 1 el viernes en la mañana (9:00). Se pueden apagar en Ajustes.",
+            "Avisos para preparar las películas del fin de semana: 2 el miércoles (12:00 y 19:30), 4 el jueves (9:00, 12:30, 17:00 y 20:00) y 1 el viernes en la mañana (9:00). Vienen apagados: cada persona los activa en Ajustes, en \"Fin de semana\".",
+        ),
+        "1.7.9" to listOf(
+            "Los avisos de fin de semana ahora vienen apagados: se activan en Ajustes, en \"Fin de semana\", solo en el teléfono de quien los quiera.",
         ),
     )
 

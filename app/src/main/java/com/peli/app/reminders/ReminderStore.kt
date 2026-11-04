@@ -10,9 +10,9 @@ class ReminderStore(context: Context) {
         get() = prefs.getBoolean("enabled", true)
         set(value) = prefs.edit().putBoolean("enabled", value).apply()
 
-    /** Avisos de fin de semana (miércoles, jueves y viernes). */
+    /** Avisos de fin de semana (miércoles, jueves y viernes). Apagados por defecto: cada persona los activa en Ajustes. */
     var weekendEnabled: Boolean
-        get() = prefs.getBoolean("weekend", true)
+        get() = prefs.getBoolean("weekend", false)
         set(value) = prefs.edit().putBoolean("weekend", value).apply()
 
     /** Ya se pidió el permiso de notificaciones (no insistir en cada apertura). */
