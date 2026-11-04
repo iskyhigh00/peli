@@ -239,6 +239,9 @@ object Changelog {
         "1.6.1" to listOf(
             "Recomendar una película a un amigo: botón \"Recomendar a un amigo\" en el detalle. A tu amigo le aparece en Juntos (\"Te recomendaron\") con \"Quiero verla\" y \"Descartar\", y le llega una notificación. Requiere cuenta y ejecutar recommendations.sql en Supabase.",
         ),
+        "1.6.2" to listOf(
+            "En Valoraciones, la fila de tu pareja (o amigo) usa su nombre y aparece siempre que su lista esté cargada: su nota, o si le gustó, la vio, la quiere ver o aún no la marca.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

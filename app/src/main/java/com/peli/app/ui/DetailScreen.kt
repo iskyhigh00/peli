@@ -100,7 +100,10 @@ fun DetailScreen(entry: Entry, mine: Entry?, vm: MainViewModel, onBack: () -> Un
     val sources by vm.sources.collectAsState()
     val insights by vm.insights.collectAsState()
     val partner by vm.partner.collectAsState()
-    val partnerRating = remember(partner, entry.movieId) { partner.firstOrNull { it.movieId == entry.movieId }?.myRating ?: 0 }
+    val partnerEntry = remember(partner, entry.movieId) { partner.firstOrNull { it.movieId == entry.movieId } }
+    val friendList by vm.friends.collectAsState()
+    val activeFriendId by vm.activeFriend.collectAsState()
+    val partnerName = friendList.firstOrNull { it.friend_id == activeFriendId }?.username ?: "Mi pareja"
     LaunchedEffect(entry.movieId) { vm.loadInsights(entry.movieId); vm.loadFacts(entry.movieId) }
     val allFacts by vm.facts.collectAsState()
     val trailers by vm.trailers.collectAsState()
@@ -163,7 +166,9 @@ fun DetailScreen(entry: Entry, mine: Entry?, vm: MainViewModel, onBack: () -> Un
                     sources = sources,
                     tmdbFallback = entry.rating?.takeIf { it > 0 },
                     myRating = mine?.myRating ?: 0,
-                    partnerRating = partnerRating,
+                    partnerName = partnerName,
+                    partner = partnerEntry,
+                    hasPartner = partner.isNotEmpty(),
                     omdbAvailable = vm.omdbAvailable,
                     onRate = { vm.setMyRating(mine ?: entry, it) },
                     onRetry = { vm.loadInsights(entry.movieId, force = true) },

@@ -57,7 +57,7 @@ private fun RatingRow(line: RatingLine) {
                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
             )
         }
-        Text(line.value, style = MaterialTheme.typography.titleLarge)
+        Text(line.value, style = if (line.value.any { it.isDigit() }) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium)
         if (line.detail != null) {
             Text(line.detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
@@ -95,7 +95,9 @@ fun RatingsSection(
     sources: Set<RatingSource>,
     tmdbFallback: Double?,
     myRating: Int,
-    partnerRating: Int,
+    partnerName: String,
+    partner: com.peli.app.data.Entry?,
+    hasPartner: Boolean,
     omdbAvailable: Boolean,
     onRate: (Int) -> Unit,
     onRetry: () -> Unit,
@@ -136,8 +138,18 @@ fun RatingsSection(
                 }
             }
 
-            if (RatingSource.Partner in sources && partnerRating > 0) {
-                RatingRow(RatingLine("Mi pareja", "$partnerRating/10", null, scheme.tertiary))
+            if (RatingSource.Partner in sources && hasPartner) {
+                // Con la lista de tu pareja ya cargada siempre se muestra qué hizo con esta película (o que aún no la marcó).
+                val value = when {
+                    partner == null -> "Aún no la marca"
+                    partner.myRating > 0 -> "${partner.myRating}/10"
+                    partner.liked -> "Le gustó"
+                    partner.seen -> "La vio, sin nota"
+                    partner.disliked -> "No le interesa"
+                    partner.watchlist -> "Quiere verla"
+                    else -> "Aún no la marca"
+                }
+                RatingRow(RatingLine(partnerName, value, null, scheme.tertiary))
             }
         }
         Spacer(Modifier.height(ItemSpacing))
