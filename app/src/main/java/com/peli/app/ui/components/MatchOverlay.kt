@@ -41,6 +41,11 @@ import androidx.compose.ui.unit.dp
 import com.peli.app.data.Entry
 import com.peli.app.ui.theme.PeliTheme
 
+/** Colores cálidos de la foto (luz de lámpara) para los matches y la pestaña Juntos. */
+val WarmAmber = androidx.compose.ui.graphics.Color(0xFFF2B15A)
+val WarmCoral = androidx.compose.ui.graphics.Color(0xFFE8785F)
+val WarmScrim = androidx.compose.ui.graphics.Color(0xFF1B1210)
+
 /**
  * "¡Es un match!": aparece cuando a los dos nos interesa la misma película.
  * Entra con un resorte, vibra una vez y el corazón late mientras está abierta.
@@ -78,11 +83,18 @@ fun MatchOverlay(
     Box(
         Modifier
             .fillMaxSize()
-            .background(scheme.scrim.copy(alpha = 0.72f))
             // Absorbe los toques para que no lleguen a lo que hay debajo.
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {},
         contentAlignment = Alignment.Center,
     ) {
+        // Fondo: la foto, con un velo cálido y oscuro para que el texto se lea.
+        androidx.compose.foundation.Image(
+            painter = androidx.compose.ui.res.painterResource(com.peli.app.R.drawable.foto_sofa),
+            contentDescription = null,
+            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+            modifier = Modifier.fillMaxSize(),
+        )
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(WarmScrim.copy(alpha = 0.55f), WarmScrim.copy(alpha = 0.88f)))))
         GlassCard(
             Modifier
                 .padding(24.dp)
@@ -95,7 +107,7 @@ fun MatchOverlay(
             Icon(
                 Icons.Default.Favorite,
                 contentDescription = null,
-                tint = scheme.tertiary,
+                tint = WarmAmber,
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
                     .size(40.dp)
@@ -104,7 +116,7 @@ fun MatchOverlay(
             Text(
                 "¡Es un match!",
                 style = MaterialTheme.typography.displaySmall.copy(
-                    brush = Brush.horizontalGradient(listOf(scheme.primary, scheme.tertiary)),
+                    brush = Brush.horizontalGradient(listOf(WarmAmber, WarmCoral)),
                 ),
                 textAlign = TextAlign.Center,
                 modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 8.dp),

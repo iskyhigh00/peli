@@ -242,6 +242,9 @@ object Changelog {
         "1.6.3" to listOf(
             "En Valoraciones, la fila de tu pareja (o amigo) usa su nombre y aparece siempre que su lista esté cargada: su nota, o si le gustó, la vio, la quiere ver o aún no la marca.",
         ),
+        "1.6.4" to listOf(
+            "Foto de ustedes en la app: de fondo en los matches (con colores cálidos) y arriba en la pestaña Juntos.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

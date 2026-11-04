@@ -13,7 +13,9 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -724,6 +726,29 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
             contentPadding = screenContentPadding(),
             verticalArrangement = Arrangement.spacedBy(ItemSpacing),
         ) {
+            item(key = "foto") {
+                Box(Modifier.fillMaxWidth().height(190.dp).clip(MaterialTheme.shapes.extraLarge)) {
+                    androidx.compose.foundation.Image(
+                        painter = androidx.compose.ui.res.painterResource(com.peli.app.R.drawable.foto_sofa),
+                        contentDescription = null,
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                    Box(
+                        Modifier.fillMaxSize().background(
+                            androidx.compose.ui.graphics.Brush.verticalGradient(
+                                listOf(androidx.compose.ui.graphics.Color.Transparent, com.peli.app.ui.components.WarmScrim.copy(alpha = 0.85f)),
+                            ),
+                        ),
+                    )
+                    Text(
+                        "Ver pelis juntos",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = com.peli.app.ui.components.WarmAmber,
+                        modifier = Modifier.align(Alignment.BottomStart).padding(16.dp),
+                    )
+                }
+            }
             if (vm.googleAvailable) item {
                 GlassCard { AccountCardContent(vm, syncError) }
             }
