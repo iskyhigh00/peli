@@ -255,6 +255,9 @@ object Changelog {
         "1.6.8" to listOf(
             "Ícono sin fondo: solo los perritos y las palomitas. En algunos teléfonos el lanzador puede ponerle un fondo propio detrás.",
         ),
+        "1.6.9" to listOf(
+            "Botón de recomendar en cada película de las listas, junto a guardar, me gusta y no me gusta. Con un solo amigo se envía directo; con varios, eliges a quién.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

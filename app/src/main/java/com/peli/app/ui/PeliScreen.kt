@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
@@ -191,6 +192,29 @@ fun PeliScreen(vm: MainViewModel = viewModel()) {
                         }
                     }
                 }
+            }
+
+            // Elegir a qué amigo se recomienda (solo cuando hay más de uno).
+            val target by vm.recommendTarget.collectAsState()
+            val friendsNow by vm.friends.collectAsState()
+            target?.let { movie ->
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { vm.recommendTarget.value = null },
+                    title = { Text("¿A quién le recomiendas «${movie.title}»?") },
+                    text = {
+                        androidx.compose.foundation.layout.Column {
+                            friendsNow.filter { it.accepted }.forEach { f ->
+                                com.peli.app.ui.components.TonalButton(
+                                    f.username,
+                                    { vm.recommendTarget.value = null; vm.recommend(movie, f) },
+                                    Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                )
+                            }
+                        }
+                    },
+                    confirmButton = {},
+                    dismissButton = { androidx.compose.material3.TextButton(onClick = { vm.recommendTarget.value = null }) { Text("Cancelar") } },
+                )
             }
 
             crashReport?.let { report ->

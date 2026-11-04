@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.ThumbDown
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.ThumbUp
 import androidx.compose.material.icons.outlined.ThumbDown
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -232,6 +233,7 @@ fun MovieCard(
     onDislike: () -> Unit,
     modifier: Modifier = Modifier,
     badge: String? = null,
+    onRecommend: (() -> Unit)? = null,
 ) {
     val scheme = MaterialTheme.colorScheme
     val want = mine?.watchlist == true
@@ -309,6 +311,16 @@ fun MovieCard(
                         description = if (disliked) "Quitar ${entry.title} de las que no me gustan" else "No me gusta ${entry.title}",
                         checkedTint = scheme.error,
                     )
+                    if (onRecommend != null) {
+                        ToggleIconButton(
+                            checked = false,
+                            onClick = onRecommend,
+                            icon = Icons.Outlined.Share,
+                            checkedIcon = Icons.Outlined.Share,
+                            description = "Recomendar ${entry.title} a un amigo",
+                            checkedTint = scheme.tertiary,
+                        )
+                    }
                 }
             }
         }

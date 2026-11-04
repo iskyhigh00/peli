@@ -1175,6 +1175,19 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
     val recommendations = MutableStateFlow<List<Recommendation>>(emptyList())
     private var recsAt = 0L
 
+    /** Película que se está por recomendar cuando hay que elegir a qué amigo (la pantalla muestra la lista). */
+    val recommendTarget = MutableStateFlow<Entry?>(null)
+
+    /** Botón "Recomendar": sin amigos avisa, con uno la envía y con varios pide elegir. */
+    fun requestRecommend(e: Entry) {
+        val accepted = friends.value.filter { it.accepted }
+        when {
+            accepted.isEmpty() -> message.value = "Para recomendar necesitas iniciar sesión (en Ajustes) y tener un amigo agregado."
+            accepted.size == 1 -> recommend(e, accepted.first())
+            else -> recommendTarget.value = e
+        }
+    }
+
     /** Recomienda [e] a un amigo aceptado; el aviso le llega a su cuenta. */
     fun recommend(e: Entry, friend: Friend) {
         launch {

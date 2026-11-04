@@ -312,6 +312,7 @@ fun SearchTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Un
                         onWant = { vm.toggleWant(m ?: e) },
                         onLiked = { vm.toggleLiked(m ?: e) },
                         onDislike = { vm.toggleDislike(m ?: e) },
+                        onRecommend = { vm.requestRecommend(e) },
                         modifier = Modifier.animateItem().entrance(index, e.movieId),
                     )
                 }
@@ -654,6 +655,7 @@ fun MineTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Unit
                     onWant = { vm.toggleWant(e) },
                     onLiked = { vm.toggleLiked(e) },
                     onDislike = { vm.toggleDislike(e) },
+                    onRecommend = { vm.requestRecommend(e) },
                     modifier = Modifier.animateItem().entrance(index, e.movieId),
                 )
             }
@@ -858,6 +860,7 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
                                 onLiked = { vm.toggleLiked(mineOrNew(m)) },
                                 onDislike = { vm.toggleDislike(mineOrNew(m)) },
                                 badge = "Les interesa a las dos",
+                                onRecommend = { vm.requestRecommend(m.entry) },
                                 modifier = Modifier.animateItem().entrance(index, m.entry.movieId),
                             )
                         }
@@ -871,6 +874,7 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
                                 onLiked = { vm.toggleLiked(mineOrNew(m)) },
                                 onDislike = { vm.toggleDislike(mineOrNew(m)) },
                                 badge = if (m.iWant) "Te interesa a ti" else "Le interesa a tu pareja",
+                                onRecommend = { vm.requestRecommend(m.entry) },
                                 modifier = Modifier.animateItem().entrance(index, m.entry.movieId),
                             )
                         }
