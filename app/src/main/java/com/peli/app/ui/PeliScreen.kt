@@ -470,6 +470,7 @@ private fun Home(vm: MainViewModel, tab: Tab, onTabChange: (Tab) -> Unit, onOpen
     if (whatsNew.isNotEmpty()) WhatsNewSheet(whatsNew, onDismiss = vm::dismissWhatsNew)
     if (showSettings) {
         SettingsSheet(
+            vm = vm,
             sources = sources,
             omdbAvailable = vm.omdbAvailable,
             onToggle = vm::toggleSource,

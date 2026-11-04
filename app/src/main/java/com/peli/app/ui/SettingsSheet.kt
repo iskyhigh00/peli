@@ -16,6 +16,8 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
@@ -58,6 +60,7 @@ private fun SettingRow(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsSheet(
+    vm: MainViewModel,
     sources: Set<RatingSource>,
     omdbAvailable: Boolean,
     onToggle: (RatingSource) -> Unit,
@@ -86,6 +89,12 @@ fun SettingsSheet(
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Text("Ajustes", style = MaterialTheme.typography.headlineSmall)
+            if (vm.googleAvailable) {
+                val syncError by vm.syncError.collectAsState()
+                Text("Cuenta y amigos", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = ItemSpacing))
+                com.peli.app.ui.components.GlassCard { AccountCardContent(vm, syncError) }
+                HorizontalDivider(Modifier.padding(vertical = ItemSpacing))
+            }
             Text("Valoraciones y reseñas", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = ItemSpacing))
             Text(
                 "Elige de qué lugares quieres ver notas y reseñas en el detalle de cada película.",

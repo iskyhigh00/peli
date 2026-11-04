@@ -245,6 +245,10 @@ object Changelog {
         "1.6.4" to listOf(
             "Foto de ustedes en la app: de fondo en los matches (con colores cálidos) y arriba en la pestaña Juntos.",
         ),
+        "1.6.5" to listOf(
+            "Match: la foto ocupa toda la pantalla y es lo principal; la película queda abajo con sus botones.",
+            "La cuenta, el ID y los amigos pasaron de Juntos a Ajustes. Juntos queda solo con la foto, las recomendaciones y los matches.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

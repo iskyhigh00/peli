@@ -749,8 +749,13 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
                     )
                 }
             }
-            if (vm.googleAvailable) item {
-                GlassCard { AccountCardContent(vm, syncError) }
+            // La cuenta, el ID y los amigos viven en Ajustes; aquí solo se avisa dónde.
+            if (vm.googleAvailable && !hasProfile) item {
+                Text(
+                    "Para conectar con amigos usando tu cuenta, entra a Ajustes (arriba a la derecha).",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
             if (recs.isNotEmpty()) item(key = "recomendaciones") {
                 GlassCard {

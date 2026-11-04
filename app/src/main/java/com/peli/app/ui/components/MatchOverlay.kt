@@ -13,6 +13,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -85,68 +89,84 @@ fun MatchOverlay(
             .fillMaxSize()
             // Absorbe los toques para que no lleguen a lo que hay debajo.
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {},
-        contentAlignment = Alignment.Center,
     ) {
-        // Fondo: la foto, con un velo cálido y oscuro para que el texto se lea.
+        // La foto es lo principal: ocupa toda la pantalla.
         androidx.compose.foundation.Image(
             painter = androidx.compose.ui.res.painterResource(com.peli.app.R.drawable.foto_sofa),
             contentDescription = null,
             contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+            alignment = Alignment.TopCenter,
             modifier = Modifier.fillMaxSize(),
         )
-        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(WarmScrim.copy(alpha = 0.55f), WarmScrim.copy(alpha = 0.88f)))))
-        GlassCard(
-            Modifier
-                .padding(24.dp)
-                .graphicsLayer {
-                    scaleX = 0.6f + 0.4f * enter.value
-                    scaleY = 0.6f + 0.4f * enter.value
-                    alpha = enter.value.coerceIn(0f, 1f)
-                },
+        // Velo solo abajo (para leer la película) y un toque arriba (para leer el título); el centro queda limpio.
+        Box(
+            Modifier.fillMaxSize().background(
+                Brush.verticalGradient(
+                    0f to WarmScrim.copy(alpha = 0.55f),
+                    0.28f to androidx.compose.ui.graphics.Color.Transparent,
+                    0.55f to androidx.compose.ui.graphics.Color.Transparent,
+                    1f to WarmScrim.copy(alpha = 0.94f),
+                ),
+            ),
+        )
+        Column(
+            Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 24.dp).graphicsLayer { alpha = enter.value.coerceIn(0f, 1f) },
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Icon(
                 Icons.Default.Favorite,
                 contentDescription = null,
                 tint = WarmAmber,
-                modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
-                    .size(40.dp)
-                    .graphicsLayer { scaleX = beat.value; scaleY = beat.value },
+                modifier = Modifier.size(44.dp).graphicsLayer { scaleX = beat.value; scaleY = beat.value },
             )
             Text(
                 "¡Es un match!",
-                style = MaterialTheme.typography.displaySmall.copy(
-                    brush = Brush.horizontalGradient(listOf(WarmAmber, WarmCoral)),
+                style = MaterialTheme.typography.displayMedium.copy(
+                    color = androidx.compose.ui.graphics.Color.White,
+                    shadow = androidx.compose.ui.graphics.Shadow(WarmScrim, androidx.compose.ui.geometry.Offset(0f, 4f), 16f),
                 ),
                 textAlign = TextAlign.Center,
-                modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 8.dp),
+                modifier = Modifier.padding(top = 4.dp),
             )
-            Text(
-                "A los dos les interesa verla",
-                style = MaterialTheme.typography.bodyMedium,
-                color = scheme.onSurfaceVariant,
-                modifier = Modifier.align(Alignment.CenterHorizontally),
-            )
-            Spacer(Modifier.height(16.dp))
-            PosterImage(
-                entry.posterPath,
-                "Carátula de ${entry.title}",
-                Modifier.align(Alignment.CenterHorizontally).size(width = 160.dp, height = 240.dp),
-            )
-            Text(
-                entry.displayTitle,
-                style = MaterialTheme.typography.titleLarge,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-            )
-            if (more > 0) {
-                Text(
-                    if (more == 1) "y 1 match más" else "y $more matches más",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = scheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth(),
+        }
+        Column(
+            Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(horizontal = 24.dp, vertical = 20.dp)
+                .graphicsLayer {
+                    translationY = (1f - enter.value) * 120f
+                    alpha = enter.value.coerceIn(0f, 1f)
+                },
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                PosterImage(
+                    entry.posterPath,
+                    "Carátula de ${entry.title}",
+                    Modifier.size(width = 84.dp, height = 126.dp),
                 )
+                Column(Modifier.padding(start = 16.dp)) {
+                    Text(
+                        "A los dos les interesa verla",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = WarmAmber,
+                    )
+                    Text(
+                        entry.displayTitle,
+                        style = MaterialTheme.typography.titleLarge,
+                        color = androidx.compose.ui.graphics.Color.White,
+                        maxLines = 3,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                    if (more > 0) {
+                        Text(
+                            if (more == 1) "y 1 match más" else "y $more matches más",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.75f),
+                            modifier = Modifier.padding(top = 4.dp),
+                        )
+                    }
+                }
             }
             Spacer(Modifier.height(16.dp))
             GradientButton("Seguir buscando", onKeep, Modifier.fillMaxWidth())
