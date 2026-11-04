@@ -245,7 +245,7 @@ private fun RatingsPreview() {
         com.peli.app.ui.components.BrandBackground {
             Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(ItemSpacing)) {
                 val data = MovieInsights(7.4, 12_345, 7.2, 2_300, 91, 73, listOf(Review("ana", 9, "Una película que te deja pensando durante días. ".repeat(6), "2026-01-02")))
-                RatingsSection(InsightsState.Ready(data), RatingSource.entries.toSet(), 7.4, 8, 9, true, {}, {})
+                RatingsSection(InsightsState.Ready(data), RatingSource.entries.toSet(), 7.4, 8, "Ana", null, true, true, {}, {})
                 ReviewsSection(InsightsState.Ready(data), RatingSource.entries.toSet())
             }
         }
