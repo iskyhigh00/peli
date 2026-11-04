@@ -273,7 +273,7 @@ object Changelog {
         "1.7.4" to listOf(
             "Juntos: se quitó el texto \"Ver pelis juntos\" sobre la foto; queda solo la foto.",
         ),
-        "1.8.0" to listOf(
+        "1.7.5" to listOf(
             "Chuba y Pepa tienen cada una su gusto fijo por las películas (Chuba: dulce y familiar; Pepa: oscuro y tenso). En Juntos, \"Cine con Chuba y Pepa\" muestra las que le gustan a cada una, con su nota y el motivo; \"Ver otras\" trae más.",
             "En el detalle de cada película, \"Chuba y Pepa opinan\": su nota de 1 a 10 y por qué. La misma película siempre recibe la misma nota.",
         ),
