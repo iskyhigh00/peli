@@ -23,15 +23,15 @@ object Stickers {
         R.drawable.stk_b01, R.drawable.stk_b05, R.drawable.stk_b07, R.drawable.stk_b10,
     )
     val pepa = listOf(
-        R.drawable.stk_a02, R.drawable.stk_a04, R.drawable.stk_a06, R.drawable.stk_a09,
-        R.drawable.stk_b02, R.drawable.stk_b04, R.drawable.stk_b06, R.drawable.stk_b09,
+        R.drawable.stk_a02, R.drawable.stk_a04, R.drawable.stk_a06,
+        R.drawable.stk_b02, R.drawable.stk_b04, R.drawable.stk_b06,
     )
     val both = listOf(R.drawable.stk_a03, R.drawable.stk_a08, R.drawable.stk_b03, R.drawable.stk_b08)
 
     /** Todas, alternando a una, a la otra y a las dos juntas. */
     val all: List<Int> = buildList {
         for (i in 0 until 8) {
-            add(chuba[i]); add(pepa[i]); if (i % 2 == 1) add(both[i / 2])
+            add(chuba[i]); if (i < pepa.size) add(pepa[i]); if (i % 2 == 1) add(both[i / 2])
         }
     }
 

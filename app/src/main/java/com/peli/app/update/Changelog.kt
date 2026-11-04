@@ -296,6 +296,9 @@ object Changelog {
         "1.8.1" to listOf(
             "Los avisos de estreno y de recomendaciones de amigos vuelven a venir activados; solo los de fin de semana vienen apagados. Cada uno se puede cambiar en Ajustes.",
         ),
+        "1.8.2" to listOf(
+            "Se quitaron las 2 calcomanías de \"Estreno\" de Pepa, que tenían un error (le salían patas de más). Quedan 18.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"
