@@ -293,6 +293,9 @@ object Changelog {
         "1.8.0" to listOf(
             "Solo el aviso de estrenos en el cine viene activado para todos. Las recomendaciones de amigos y los avisos de fin de semana vienen apagados: cada persona los activa en Ajustes.",
         ),
+        "1.8.1" to listOf(
+            "Los avisos de estreno y de recomendaciones de amigos vuelven a venir activados; solo los de fin de semana vienen apagados. Cada uno se puede cambiar en Ajustes.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

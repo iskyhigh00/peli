@@ -10,9 +10,9 @@ class ReminderStore(context: Context) {
         get() = prefs.getBoolean("enabled", true)
         set(value) = prefs.edit().putBoolean("enabled", value).apply()
 
-    /** Aviso cuando un amigo te recomienda una película. Apagado por defecto. */
+    /** Aviso cuando un amigo te recomienda una película. Activado por defecto (solo le llega a quien recibe la recomendación). */
     var recsEnabled: Boolean
-        get() = prefs.getBoolean("recs", false)
+        get() = prefs.getBoolean("recs", true)
         set(value) = prefs.edit().putBoolean("recs", value).apply()
 
     /** Avisos de fin de semana (miércoles, jueves y viernes). Apagados por defecto: cada persona los activa en Ajustes. */
