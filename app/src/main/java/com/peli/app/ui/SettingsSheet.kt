@@ -106,7 +106,7 @@ fun SettingsSheet(
             HorizontalDivider(Modifier.padding(vertical = ItemSpacing))
             SettingRow(
                 title = "Avisos de estreno",
-                subtitle = "Una notificación cuando se acerca el estreno de una película de \"Quiero verla\": a una semana, el día anterior y el mismo día.",
+                subtitle = "Una notificación cuando se acerca el estreno de una película de \"Quiero verla\" (a una semana, el día anterior y el mismo día) y cuando un amigo te recomienda una película.",
                 checked = remindersOn,
                 enabled = true,
                 onChange = onReminders,

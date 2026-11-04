@@ -27,6 +27,7 @@ import com.peli.app.data.Profile
 import com.peli.app.data.Social
 import com.peli.app.data.SupabaseAuth
 import com.peli.app.data.Usernames
+import com.peli.app.data.Recommendation
 import com.peli.app.data.accountMessage
 import com.peli.app.data.accepts
 import com.peli.app.data.attempt
@@ -1169,6 +1170,55 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
     val accountEmail = MutableStateFlow(account.session?.email)
     val profile = MutableStateFlow(account.profile)
     val friends = MutableStateFlow<List<Friend>>(emptyList())
+
+    /** Películas que mis amigos me recomendaron y aún no descarté. */
+    val recommendations = MutableStateFlow<List<Recommendation>>(emptyList())
+    private var recsAt = 0L
+
+    /** Recomienda [e] a un amigo aceptado; el aviso le llega a su cuenta. */
+    fun recommend(e: Entry, friend: Friend) {
+        launch {
+            try {
+                repo.recommend(friend.friend_id, e)
+                AppLog.i("Amigos", "recomendada ${e.movieId} a ${friend.friend_id}")
+                message.value = "Le recomendaste «${e.title}» a ${friend.username}."
+            } catch (ex: CancellationException) {
+                throw ex
+            } catch (ex: Exception) {
+                AppLog.w("Amigos", "no se pudo recomendar", ex)
+                message.value = ex.accountMessage()
+            }
+        }
+    }
+
+    /** Se piden cada 30 s como máximo (la sincronización corre cada pocos segundos). */
+    private suspend fun refreshRecommendations() {
+        val now = System.currentTimeMillis()
+        if (now - recsAt < 30_000) return
+        recsAt = now
+        try {
+            recommendations.value = repo.recommendations()
+        } catch (ex: CancellationException) {
+            throw ex
+        } catch (ex: Exception) {
+            AppLog.d("Amigos", "sin recomendaciones: ${ex.message}")
+        }
+    }
+
+    fun dismissRecommendation(r: Recommendation) {
+        recommendations.update { l -> l.filter { it.id != r.id } }
+        launch {
+            try { repo.dismissRecommendation(r.id) } catch (ex: CancellationException) { throw ex } catch (ex: Exception) {
+                AppLog.w("Amigos", "no se pudo descartar la recomendación", ex)
+            }
+        }
+    }
+
+    /** "Quiero verla" desde una recomendación: se marca y se quita de la lista. */
+    fun wantRecommended(r: Recommendation) {
+        toggleWant(Entry(r.movie_id, com.peli.app.data.OWNER_ME, r.title, "", r.poster_path, r.year))
+        dismissRecommendation(r)
+    }
     val activeFriend = MutableStateFlow(account.activeFriend)
     val accountBusy = MutableStateFlow(false)
     val claim = MutableStateFlow<PendingClaim?>(null)
@@ -1334,6 +1384,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         accountEmail.value = null
         profile.value = null
         friends.value = emptyList()
+        recommendations.value = emptyList()
         activeFriend.value = null
         claim.value = null
         launch {
@@ -1363,6 +1414,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
                     return
                 }
                 friends.value = result.friends
+                refreshRecommendations()
                 val accepted = result.friends.filter { it.accepted }
                 when {
                     // El amigo elegido ya no es amigo: se deja de comparar.

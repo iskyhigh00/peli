@@ -236,6 +236,9 @@ object Changelog {
         "1.6.0" to listOf(
             "Atrás con la lista desplazada: vuelve al comienzo y se recarga (como Instagram). Con un segundo Atrás se sale de la app.",
         ),
+        "1.6.1" to listOf(
+            "Recomendar una película a un amigo: botón \"Recomendar a un amigo\" en el detalle. A tu amigo le aparece en Juntos (\"Te recomendaron\") con \"Quiero verla\" y \"Descartar\", y le llega una notificación. Requiere cuenta y ejecutar recommendations.sql en Supabase.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

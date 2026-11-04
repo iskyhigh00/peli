@@ -373,6 +373,12 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
     suspend fun removeFriend(id: String) = Social.api.removeFriend(mapOf("p_friend" to id))
     suspend fun friends(): List<Friend> = Social.api.myFriends()
 
+    suspend fun recommend(friendId: String, e: Entry) = Social.api.recommendMovie(
+        mapOf("p_friend" to friendId, "p_movie" to e.movieId, "p_title" to e.title, "p_poster" to e.posterPath, "p_year" to e.year),
+    )
+    suspend fun recommendations(): List<Recommendation> = Social.api.myRecommendations()
+    suspend fun dismissRecommendation(id: Long) = Social.api.dismissRecommendation(mapOf("p_id" to id))
+
     /** Candidatas ya buscadas en TMDB, sin lo que ya marqué, con su perfil y datos extra para puntuarlas. */
     class Pool(val candidates: List<Entry>, val meta: Map<Int, CandMeta>, val profile: Recommender.Profile)
 

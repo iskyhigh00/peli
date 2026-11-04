@@ -7,6 +7,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
@@ -111,6 +112,24 @@ fun DetailScreen(entry: Entry, mine: Entry?, vm: MainViewModel, onBack: () -> Un
     val scope = rememberCoroutineScope()
     // Con el tráiler a la vista el video queda fijo arriba (se lee la ficha mientras se sigue viendo); con el cartel, se va con el scroll.
     val trailerMode = pager.currentPage == 1
+    val allFriends by vm.friends.collectAsState()
+    val acceptedFriends = remember(allFriends) { allFriends.filter { it.accepted } }
+    var pickFriend by remember { mutableStateOf(false) }
+    if (pickFriend) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { pickFriend = false },
+            title = { Text("¿A quién se la recomiendas?") },
+            text = {
+                Column {
+                    acceptedFriends.forEach { f ->
+                        TonalButton(f.username, { pickFriend = false; vm.recommend(entry, f) }, Modifier.fillMaxWidth().padding(vertical = 4.dp))
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = { androidx.compose.material3.TextButton(onClick = { pickFriend = false }) { Text("Cancelar") } },
+        )
+    }
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         // Con el tráiler, el video queda debajo de la barra de estado (no se mezcla con la hora ni los íconos).
@@ -194,6 +213,20 @@ fun DetailScreen(entry: Entry, mine: Entry?, vm: MainViewModel, onBack: () -> Un
                         { vm.toggleDislike(mine ?: entry) },
                         Modifier.fillMaxWidth(),
                         icon = Icons.Default.ThumbDown,
+                    )
+                    TonalButton(
+                        "Recomendar a un amigo",
+                        {
+                            if (acceptedFriends.isEmpty()) {
+                                vm.message.value = "Para recomendar necesitas iniciar sesión y tener un amigo agregado (en Juntos)."
+                            } else if (acceptedFriends.size == 1) {
+                                vm.recommend(entry, acceptedFriends.first())
+                            } else {
+                                pickFriend = true
+                            }
+                        },
+                        Modifier.fillMaxWidth(),
+                        icon = Icons.Default.Share,
                     )
                 }
                 Box(Modifier.height(32.dp))

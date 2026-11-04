@@ -37,7 +37,9 @@ class ReminderWorker(private val context: Context, params: WorkerParameters) : C
         val today = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
         val due = Reminders.due(upcoming, today, store.notified)
         AppLog.i("Avisos", "revisadas ${upcoming.size} por estrenar; avisos nuevos: ${due.size}")
-        if (due.isEmpty()) return Result.success()
+        val recs = runCatching { if (com.peli.app.data.Social.currentUserId() != null) repo.recommendations() else emptyList() }
+            .getOrDefault(emptyList()).filter { "rec:${it.id}" !in store.notified }
+        if (due.isEmpty() && recs.isEmpty()) return Result.success()
         ensureChannel(context)
         val open = PendingIntent.getActivity(
             context, 0, Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
@@ -55,6 +57,17 @@ class ReminderWorker(private val context: Context, params: WorkerParameters) : C
                 .build()
             runCatching { NotificationManagerCompat.from(context).notify(r.entry.movieId, n) }
                 .onSuccess { recorded = recorded + Reminders.toRecord(r) }
+        }
+        recs.forEach { r ->
+            val n = NotificationCompat.Builder(context, CHANNEL)
+                .setSmallIcon(R.drawable.ic_stat_peli)
+                .setContentTitle("${r.from_name} te recomendó una película")
+                .setContentText(r.title)
+                .setContentIntent(open)
+                .setAutoCancel(true)
+                .build()
+            runCatching { NotificationManagerCompat.from(context).notify(1_000_000 + r.id.toInt(), n) }
+                .onSuccess { recorded = recorded + "rec:${r.id}" }
         }
         store.notified = recorded
         return Result.success()

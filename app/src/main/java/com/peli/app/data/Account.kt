@@ -40,6 +40,9 @@ data class Friend(val friend_id: String, val username: String, val status: Strin
     val accepted get() = status == "accepted"
 }
 
+/** Una película que un amigo me recomendó (de `my_recommendations`). */
+data class Recommendation(val id: Long, val from_name: String, val movie_id: Int, val title: String, val poster_path: String?, val year: String)
+
 /** Fila de `user_entries`: mis marcas, visibles solo para mí y mis amigos aceptados. */
 data class UserEntry(
     val user_id: String,
@@ -190,6 +193,8 @@ fun Throwable.accountMessage(): String {
             msg.contains("already_exists") -> "Ya tienes un nombre de usuario."
             msg.contains("no_profile") -> "Primero elige tu nombre de usuario."
             msg.contains("no_session") || code() == 401 -> "Tu sesión caducó. Inicia sesión de nuevo."
+            msg.contains("not_friends") -> "Solo puedes recomendar a un amigo ya aceptado."
+            msg.contains("recommend") && (pg == "PGRST202" || code() == 404) -> "Falta ejecutar recommendations.sql en Supabase."
             pg == "PGRST202" || pg == "42P01" || code() == 404 -> "Falta ejecutar accounts.sql en Supabase."
             else -> "Error del servidor (${code()}) $msg".trim()
         }
@@ -263,6 +268,15 @@ interface SocialApi {
 
     @POST("rest/v1/rpc/my_friends")
     suspend fun myFriends(@Body none: Map<String, String> = emptyMap()): List<Friend>
+
+    @POST("rest/v1/rpc/recommend_movie")
+    suspend fun recommendMovie(@Body body: Map<String, @JvmSuppressWildcards Any?>)
+
+    @POST("rest/v1/rpc/my_recommendations")
+    suspend fun myRecommendations(@Body none: Map<String, String> = emptyMap()): List<Recommendation>
+
+    @POST("rest/v1/rpc/dismiss_recommendation")
+    suspend fun dismissRecommendation(@Body body: Map<String, Long>)
 
     @Headers("Prefer: resolution=merge-duplicates,return=minimal")
     @POST("rest/v1/user_entries")

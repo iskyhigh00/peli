@@ -699,6 +699,7 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
         }
     }
 
+    val recs by vm.recommendations.collectAsState()
     val both = remember(matches) { matches.filter { it.both } }
     val single = remember(matches) { matches.filter { !it.both } }
     fun mineOrNew(m: Match) = byId[m.entry.movieId] ?: m.entry.asUnmarked(OWNER_ME)
@@ -725,6 +726,25 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
         ) {
             if (vm.googleAvailable) item {
                 GlassCard { AccountCardContent(vm, syncError) }
+            }
+            if (recs.isNotEmpty()) item(key = "recomendaciones") {
+                GlassCard {
+                    Column(verticalArrangement = Arrangement.spacedBy(ItemSpacing)) {
+                        Text("Te recomendaron", style = MaterialTheme.typography.titleMedium)
+                        recs.forEach { r ->
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text(
+                                    "${r.from_name} te recomendó «${r.title}»" + if (r.year.isNotBlank()) " (${r.year})" else "",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                )
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    GradientButton("Quiero verla", { vm.wantRecommended(r) }, Modifier.weight(1f))
+                                    TonalButton("Descartar", { vm.dismissRecommendation(r) }, Modifier.weight(1f))
+                                }
+                            }
+                        }
+                    }
+                }
             }
             if (!vm.googleAvailable || !hasProfile) item {
                 GlassCard {
