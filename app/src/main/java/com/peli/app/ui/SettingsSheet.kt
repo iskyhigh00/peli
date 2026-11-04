@@ -68,6 +68,8 @@ fun SettingsSheet(
     onReminders: (Boolean) -> Unit,
     weekendOn: Boolean,
     onWeekend: (Boolean) -> Unit,
+    recsOn: Boolean,
+    onRecs: (Boolean) -> Unit,
     update: MainViewModel.ManualUpdate,
     progress: Int,
     onInstall: (String) -> Unit,
@@ -117,10 +119,17 @@ fun SettingsSheet(
             HorizontalDivider(Modifier.padding(vertical = ItemSpacing))
             SettingRow(
                 title = "Avisos de estreno",
-                subtitle = "Una notificación cuando se acerca el estreno de una película de \"Quiero verla\" (a una semana, el día anterior y el mismo día) y cuando un amigo te recomienda una película.",
+                subtitle = "Una notificación cuando se acerca el estreno en el cine de una película de \"Quiero verla\": a una semana, el día anterior y el mismo día.",
                 checked = remindersOn,
                 enabled = true,
                 onChange = onReminders,
+            )
+            SettingRow(
+                title = "Recomendaciones de amigos",
+                subtitle = "Una notificación cuando un amigo te recomienda una película.",
+                checked = recsOn,
+                enabled = true,
+                onChange = onRecs,
             )
             SettingRow(
                 title = "Fin de semana",

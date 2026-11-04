@@ -31,14 +31,19 @@ class ReminderWorker(private val context: Context, params: WorkerParameters) : C
     override suspend fun doWork(): Result {
         val app = context.applicationContext as PeliApp
         val store = app.reminderStore
-        if (!store.enabled || !canNotify(context)) return Result.success()
+        if ((!store.enabled && !store.recsEnabled) || !canNotify(context)) return Result.success()
         val repo = app.repository
-        val upcoming = repo.refreshUpcomingWatchlist()
-        val today = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
-        val due = Reminders.due(upcoming, today, store.notified)
-        AppLog.i("Avisos", "revisadas ${upcoming.size} por estrenar; avisos nuevos: ${due.size}")
-        val recs = runCatching { if (com.peli.app.data.Social.currentUserId() != null) repo.recommendations() else emptyList() }
-            .getOrDefault(emptyList()).filter { "rec:${it.id}" !in store.notified }
+        // Estrenos: activados por defecto. Recomendaciones de amigos: apagadas hasta que cada persona las active.
+        val due = if (store.enabled) {
+            val upcoming = repo.refreshUpcomingWatchlist()
+            val today = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+            Reminders.due(upcoming, today, store.notified).also {
+                AppLog.i("Avisos", "revisadas ${upcoming.size} por estrenar; avisos nuevos: ${it.size}")
+            }
+        } else emptyList()
+        val recs = if (!store.recsEnabled) emptyList() else
+            runCatching { if (com.peli.app.data.Social.currentUserId() != null) repo.recommendations() else emptyList() }
+                .getOrDefault(emptyList()).filter { "rec:${it.id}" !in store.notified }
         if (due.isEmpty() && recs.isEmpty()) return Result.success()
         ensureChannel(context)
         val open = PendingIntent.getActivity(

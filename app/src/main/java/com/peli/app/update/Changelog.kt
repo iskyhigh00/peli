@@ -290,6 +290,9 @@ object Changelog {
         "1.7.9" to listOf(
             "Los avisos de fin de semana ahora vienen apagados: se activan en Ajustes, en \"Fin de semana\", solo en el teléfono de quien los quiera.",
         ),
+        "1.8.0" to listOf(
+            "Solo el aviso de estrenos en el cine viene activado para todos. Las recomendaciones de amigos y los avisos de fin de semana vienen apagados: cada persona los activa en Ajustes.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

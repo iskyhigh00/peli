@@ -287,6 +287,12 @@ private fun Home(vm: MainViewModel, tab: Tab, onTabChange: (Tab) -> Unit, onOpen
             requestIfNeeded()
         }
     }
+    var recsOn by remember { mutableStateOf(reminderStore.recsEnabled) }
+    val onRecs: (Boolean) -> Unit = { on ->
+        recsOn = on
+        reminderStore.recsEnabled = on
+        if (on) requestIfNeeded()
+    }
     var weekendOn by remember { mutableStateOf(reminderStore.weekendEnabled) }
     val onWeekend: (Boolean) -> Unit = { on ->
         weekendOn = on
@@ -540,6 +546,8 @@ private fun Home(vm: MainViewModel, tab: Tab, onTabChange: (Tab) -> Unit, onOpen
             onReminders = onReminders,
             weekendOn = weekendOn,
             onWeekend = onWeekend,
+            recsOn = recsOn,
+            onRecs = onRecs,
             update = manualUpdate,
             progress = progress,
             onInstall = vm::installUpdate,
