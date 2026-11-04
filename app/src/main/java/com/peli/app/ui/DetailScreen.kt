@@ -155,6 +155,15 @@ fun DetailScreen(entry: Entry, mine: Entry?, vm: MainViewModel, onBack: () -> Un
                     onRate = { vm.setMyRating(mine ?: entry, it) },
                     onRetry = { vm.loadInsights(entry.movieId, force = true) },
                 )
+                val awardLines = remember(allFacts[entry.movieId]) { com.peli.app.data.Awards.summary(allFacts[entry.movieId]) }
+                if (awardLines.isNotEmpty()) {
+                    GlassCard {
+                        Text("Premios", style = MaterialTheme.typography.titleMedium)
+                        awardLines.forEach {
+                            Text(it, style = MaterialTheme.typography.bodyLarge, color = scheme.onSurfaceVariant)
+                        }
+                    }
+                }
                 ReviewsSection(insights[entry.movieId], sources)
                 allFacts[entry.movieId]?.let { f ->
                     if (f.director != null || f.actors.isNotEmpty()) {

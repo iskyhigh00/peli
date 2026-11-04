@@ -261,6 +261,9 @@ object Changelog {
         "1.7.0" to listOf(
             "Ahora puedes marcar una película como \"Quiero verla\" y también \"Ya la vi\", \"Me gustó\" o con nota, a la vez (para volver a verla). Solo \"No me gusta\" sigue siendo incompatible con \"Quiero verla\".",
         ),
+        "1.7.1" to listOf(
+            "Sección \"Premios\" en el detalle de la película, bajo las valoraciones: Óscares ganados o nominaciones, y el total de premios y nominaciones (solo si los tiene).",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

@@ -268,6 +268,8 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
                 InsightsState.Failed(e.message ?: e.javaClass.simpleName)
             }
             insights.update { it + (movieId to state) }
+            // Al cargar las valoraciones se guardan también los premios (OMDb): se refrescan para el resumen del detalle.
+            repo.cachedFacts(listOf(movieId))[movieId]?.let { f -> facts.update { it + (movieId to f) } }
         }
     }
 

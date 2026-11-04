@@ -56,4 +56,20 @@ object Awards {
         val nominations = maxOf(nominationsTotal.firstNumber(t), leadNominated.firstNumber(t), oscarNoms)
         return Parsed(oscarWins, oscarNoms, wins, nominations)
     }
+
+    /** Resumen corto de premios para el detalle; vacío si no hay datos de OMDb o no tiene premios. */
+    fun summary(f: MovieFacts?): List<String> {
+        if (f == null || !f.hasOmdb) return emptyList()
+        val lines = mutableListOf<String>()
+        when {
+            f.oscarWins > 0 -> lines += "Ganó ${f.oscarWins} ${if (f.oscarWins == 1) "Óscar" else "Óscares"}"
+            f.oscarNominations > 0 -> lines += "Nominada a ${f.oscarNominations} ${if (f.oscarNominations == 1) "Óscar" else "Óscares"}"
+        }
+        val totals = listOfNotNull(
+            f.wins.takeIf { it > 0 }?.let { "$it ${if (it == 1) "premio" else "premios"}" },
+            f.nominations.takeIf { it > 0 }?.let { "$it ${if (it == 1) "nominación" else "nominaciones"}" },
+        )
+        if (totals.isNotEmpty()) lines += totals.joinToString(" · ")
+        return lines
+    }
 }
