@@ -6,33 +6,34 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PetTasteTest {
-    private val animation = listOf(16, 10751)
-    private val thriller = listOf(53, 9648)
+    private val action = listOf(28, 12)
+    private val drama = listOf(18, 10749)
     private val horror = listOf(27)
-    private val musical = listOf(10402, 10749)
+    private val war = listOf(10752, 28)
 
     @Test fun `la misma pelicula siempre recibe la misma nota`() {
-        val a = PetTaste.score(Pet.Chuba, 123, animation, 2001, 7.5)
-        val b = PetTaste.score(Pet.Chuba, 123, animation, 2001, 7.5)
+        val a = PetTaste.score(Pet.Chuba, 123, action, 2005, 7.5)
+        val b = PetTaste.score(Pet.Chuba, 123, action, 2005, 7.5)
         assertEquals(a, b)
     }
 
-    @Test fun `Chuba prefiere lo dulce y Pepa lo tenso`() {
-        val chubaAnim = PetTaste.score(Pet.Chuba, 10, animation, 2000, 7.6).score
-        val chubaThr = PetTaste.score(Pet.Chuba, 10, thriller, 2000, 7.6).score
-        val pepaAnim = PetTaste.score(Pet.Pepa, 10, animation, 2000, 7.6).score
-        val pepaThr = PetTaste.score(Pet.Pepa, 10, thriller, 2000, 7.6).score
-        assertTrue("$chubaAnim > $chubaThr", chubaAnim > chubaThr)
-        assertTrue("$pepaThr > $pepaAnim", pepaThr > pepaAnim)
+    @Test fun `Chuba prefiere la accion y Pepa lo calmado`() {
+        val chubaAction = PetTaste.score(Pet.Chuba, 10, action, 2006, 7.2).score
+        val chubaDrama = PetTaste.score(Pet.Chuba, 10, drama, 2006, 7.2).score
+        val pepaAction = PetTaste.score(Pet.Pepa, 10, action, 2006, 7.2).score
+        val pepaDrama = PetTaste.score(Pet.Pepa, 10, drama, 2006, 7.2).score
+        assertTrue("$chubaAction > $chubaDrama", chubaAction > chubaDrama)
+        assertTrue("$pepaDrama > $pepaAction", pepaDrama > pepaAction)
     }
 
-    @Test fun `el terror limita la nota de Chuba y los musicales no entusiasman a Pepa`() {
-        assertTrue(PetTaste.score(Pet.Chuba, 5, horror, 2015, 8.5).score <= 3)
-        assertFalse(PetTaste.score(Pet.Pepa, 5, musical, 2015, 7.0).likes)
+    @Test fun `el terror y la guerra espantan a Pepa`() {
+        assertTrue(PetTaste.score(Pet.Pepa, 5, horror, 2015, 8.5).score <= 3)
+        assertFalse(PetTaste.score(Pet.Pepa, 5, war, 2015, 7.5).likes)
+        assertTrue(PetTaste.score(Pet.Chuba, 5, action, 2008, 7.5).likes || PetTaste.score(Pet.Chuba, 6, action, 2008, 7.5).likes)
     }
 
     @Test fun `tienen gustos distintos en un catalogo variado`() {
-        val genresPool = listOf(animation, thriller, horror, musical, listOf(35), listOf(18), listOf(878), listOf(10749), listOf(80), listOf(10751))
+        val genresPool = listOf(action, drama, horror, war, listOf(35), listOf(18), listOf(878), listOf(10749), listOf(80), listOf(10751))
         val different = (1..40).count { id ->
             val g = genresPool[id % genresPool.size]
             PetTaste.score(Pet.Chuba, id, g, 1990 + id % 30, 6.0 + (id % 30) / 10.0).score !=

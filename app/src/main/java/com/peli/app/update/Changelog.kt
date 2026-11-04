@@ -277,6 +277,9 @@ object Changelog {
             "Chuba y Pepa tienen cada una su gusto fijo por las películas (Chuba: dulce y familiar; Pepa: oscuro y tenso). En Juntos, \"Cine con Chuba y Pepa\" muestra las que le gustan a cada una, con su nota y el motivo; \"Ver otras\" trae más.",
             "En el detalle de cada película, \"Chuba y Pepa opinan\": su nota de 1 a 10 y por qué. La misma película siempre recibe la misma nota.",
         ),
+        "1.7.6" to listOf(
+            "Chuba y Pepa con su verdadera personalidad: Chuba (inquieta, siempre con hambre) prefiere acción y aventuras; Pepa (tranquila, huye del ruido y del peligro) prefiere drama, romance y lo calmado.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

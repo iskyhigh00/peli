@@ -5,8 +5,8 @@ import kotlin.math.exp
 
 /** Las dos críticas de la casa. Cada una tiene su propio gusto fijo: la misma película siempre recibe la misma nota. */
 enum class Pet(val label: String, val seed: Long, val discoverGenres: String) {
-    Chuba("Chuba", 7919L, "16|10751|10749|35|10402"),
-    Pepa("Pepa", 104729L, "53|9648|27|80|878"),
+    Chuba("Chuba", 7919L, "28|12|35|16|10752"),
+    Pepa("Pepa", 104729L, "18|10749|14|10751|99"),
 }
 
 data class PetVerdict(val pet: Pet, val score: Int, val reason: String) {
@@ -24,23 +24,29 @@ object PetTaste {
         10752 to "las de guerra", 37 to "los westerns",
     )
 
-    /** Chuba: tierna y tranquila. Ama lo dulce y luminoso; el terror y lo violento le dan miedo. Época favorita: fines de los 90. */
+    /**
+     * Chuba: inquieta, ávida y de mucha energía (persigue moscas y perros, ladra primero, corre desesperada en la playa).
+     * Le gusta la acción, las persecuciones y lo que se mueve; se aburre con lo lento y hablado. Época favorita: 2000s.
+     */
     private val chuba = mapOf(
-        16 to 3.0, 10751 to 3.0, 10749 to 2.5, 35 to 2.0, 10402 to 2.0, 14 to 1.5, 12 to 1.0, 18 to 0.5, 99 to 0.5,
-        28 to -0.5, 37 to -0.5, 80 to -1.0, 53 to -1.5, 10752 to -2.0, 27 to -3.0,
+        28 to 3.0, 12 to 3.0, 35 to 2.0, 16 to 1.5, 878 to 1.5, 53 to 1.5, 10752 to 1.0, 80 to 1.0, 37 to 1.0, 10751 to 0.5,
+        14 to 0.5, 9648 to -1.0, 10402 to -0.5, 18 to -1.5, 10749 to -1.5, 36 to -1.5, 99 to -2.0,
     )
 
-    /** Pepa: alerta e intensa. Le gusta lo oscuro, lo tenso y lo que hace pensar; el romance y los musicales la aburren. Época favorita: años 2010. */
+    /**
+     * Pepa: tranquila, le gusta su espacio, el ruido la molesta y cuando hay peligro arranca. Prefiere lo calmado, lo
+     * emotivo y lo cálido; huye del ruido, la violencia y el susto. Le gustan los clásicos. Época favorita: años 90.
+     */
     private val pepa = mapOf(
-        53 to 3.0, 9648 to 3.0, 80 to 2.5, 878 to 2.5, 27 to 2.5, 28 to 1.5, 12 to 1.0, 10752 to 1.0, 18 to 0.8,
-        36 to 0.5, 14 to 0.5, 35 to -0.5, 16 to -1.0, 10751 to -1.5, 10749 to -2.0, 10402 to -2.0,
+        18 to 3.0, 10749 to 3.0, 14 to 2.0, 10751 to 2.0, 99 to 2.0, 10402 to 1.5, 16 to 1.5, 35 to 1.5, 36 to 1.0, 9648 to 1.0,
+        12 to 0.5, 878 to -0.5, 80 to -1.0, 53 to -1.5, 28 to -2.0, 10752 to -2.5, 27 to -3.0,
     )
 
     private fun weights(p: Pet) = if (p == Pet.Chuba) chuba else pepa
-    private fun favoriteYear(p: Pet) = if (p == Pet.Chuba) 1998.0 else 2012.0
-    private fun yearSpread(p: Pet) = if (p == Pet.Chuba) 14.0 else 11.0
-    private fun exigence(p: Pet) = if (p == Pet.Chuba) 0.7 else 1.2          // cuánto pesa la nota del público
-    private fun pivot(p: Pet) = if (p == Pet.Chuba) 6.8 else 7.2
+    private fun favoriteYear(p: Pet) = if (p == Pet.Chuba) 2008.0 else 1992.0
+    private fun yearSpread(p: Pet) = if (p == Pet.Chuba) 12.0 else 20.0
+    private fun exigence(p: Pet) = if (p == Pet.Chuba) 0.5 else 0.9          // cuánto pesa la nota del público
+    private fun pivot(p: Pet) = if (p == Pet.Chuba) 6.4 else 7.0
 
     /** Ruido estable entre -1 y 1: el "estado de ánimo" de esa perrita con esa película, siempre el mismo. */
     private fun mood(pet: Pet, movieId: Int): Double {
@@ -66,8 +72,8 @@ object PetTaste {
         }
         var raw = 5.5 + 1.1 * g + quality + era + 0.7 * mood(pet, movieId)
         // Lo que de verdad no soportan limita la nota.
-        if (genreIds.any { it == 27 } && pet == Pet.Chuba) raw = minOf(raw, 3.0)
-        if (rating != null && rating in 0.1..5.9 && pet == Pet.Pepa) raw = minOf(raw, 4.0)
+        if (pet == Pet.Pepa && 27 in genreIds) raw = minOf(raw, 3.0)          // el susto la hace arrancar
+        if (pet == Pet.Chuba && genreIds == listOf(99)) raw = minOf(raw, 4.0)  // un documental sentada no es lo suyo
         val score = raw.coerceIn(1.0, 10.0).let { Math.round(it).toInt() }.coerceIn(1, 10)
         return PetVerdict(pet, score, reason(pet, score, best, worst, rating, year))
     }
@@ -78,16 +84,25 @@ object PetTaste {
     private fun reason(pet: Pet, score: Int, best: Pair<Int, Double>?, worst: Pair<Int, Double>?, rating: Double?, year: Int?): String {
         val bestName = best?.takeIf { it.second >= 1.5 }?.let { names[it.first] }
         val worstName = worst?.takeIf { it.second <= -1.5 }?.let { names[it.first] }
-        return when {
-            score >= 9 && bestName != null -> if (pet == Pet.Chuba) "Le fascina ${bestName}" else "Es de ${bestName}: justo lo suyo"
-            score >= LIKE_FROM && bestName != null -> "Le gusta ${bestName}"
-            score >= LIKE_FROM && rating != null && rating >= 7.5 -> "Muy bien calificada, la aprueba"
-            score >= LIKE_FROM -> "Se ve buena según su olfato"
-            score <= 3 && worstName != null -> if (pet == Pet.Chuba) "Le dan miedo o pena ${worstName}" else "Le aburre ${worstName}"
-            score <= 4 && rating != null && rating in 0.1..6.0 -> "La nota del público no la convence"
-            worstName != null -> "No es lo suyo: ${worstName}"
-            year != null && abs(year - (if (pet == Pet.Chuba) 1998 else 2012)) > 25 -> "Le pilla de otra época"
-            else -> "Ni fu ni fa"
+        val loud = worst?.first in setOf(28, 10752, 27, 53)
+        return if (pet == Pet.Chuba) when {
+            score >= 9 && best?.first in setOf(28, 12) -> "Pura persecución y adrenalina (ojo con los tobillos)"
+            score >= 9 && bestName != null -> "Le fascina ${bestName}: no para de moverse"
+            score >= LIKE_FROM && bestName != null -> "Tiene movimiento: le gusta ${bestName}"
+            score >= LIKE_FROM -> "Se ve entretenida, corre a verla"
+            score <= 3 && worstName != null -> "Se aburre con ${worstName}: va por comida"
+            worstName != null -> "Muy quieta para ella: ${worstName}"
+            rating != null && rating in 0.1..5.5 -> "Ni la comida la entusiasma con esa nota"
+            else -> "Ni fu ni fa, mejor un snack"
+        } else when {
+            score >= 9 && bestName != null -> "Tranquila y a su espacio: le encanta ${bestName}"
+            score >= LIKE_FROM && bestName != null -> "Le gusta ${bestName}, para verla acurrucada"
+            score >= LIKE_FROM -> "Se ve calmada, la aprueba"
+            score <= 3 && loud -> "Mucho ruido o peligro: ella arranca"
+            score <= 3 && worstName != null -> "No es lo suyo: ${worstName}"
+            worstName != null -> "Le aburre ${worstName}"
+            year != null && year > 2018 -> "Muy moderna y ruidosa para ella"
+            else -> "Ni fu ni fa, prefiere su rincón"
         }
     }
 }

@@ -748,7 +748,7 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
                 Column(verticalArrangement = Arrangement.spacedBy(ItemSpacing)) {
                     Text("Cine con Chuba y Pepa", style = MaterialTheme.typography.titleLarge)
                     Text(
-                        "Cada una tiene su gusto: lo que les gusta, si las perritas eligieran la película.",
+                        "Chuba, inquieta y siempre con hambre, quiere acción y correteo. Pepa, tranquila y de su espacio, prefiere lo calmado. Lo que verían si ellas eligieran.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
