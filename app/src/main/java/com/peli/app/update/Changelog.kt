@@ -267,6 +267,9 @@ object Changelog {
         "1.7.2" to listOf(
             "El ícono de la app aparece arriba a la izquierda, pequeño y discreto.",
         ),
+        "1.7.3" to listOf(
+            "Calcomanía de los perritos, 3 veces más grande, a la derecha del encabezado (con borde blanco). Se va con la barra al desplazar. Se quitó el ícono pequeño de la barra, que hacía raro el desplazamiento.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

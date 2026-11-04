@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
@@ -69,6 +70,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
@@ -364,14 +366,6 @@ private fun Home(vm: MainViewModel, tab: Tab, onTabChange: (Tab) -> Unit, onOpen
                             }
                         }
                     },
-                    navigationIcon = {
-                        // El ícono de la app, discreto, arriba a la izquierda.
-                        androidx.compose.foundation.Image(
-                            painter = androidx.compose.ui.res.painterResource(com.peli.app.R.mipmap.ic_launcher),
-                            contentDescription = null,
-                            modifier = Modifier.padding(start = 16.dp).size(40.dp),
-                        )
-                    },
                     actions = {
                         IconButton(onClick = { showSettings = true }) {
                             Icon(Icons.Default.Settings, contentDescription = "Ajustes")
@@ -423,6 +417,23 @@ private fun Home(vm: MainViewModel, tab: Tab, onTabChange: (Tab) -> Unit, onOpen
         }
 
         SystemBarScrims(topAlpha = topScrim, bottomAlpha = bottomScrim)
+
+        // Calcomanía grande a la derecha del encabezado: se va con la barra al desplazar y se desvanece.
+        androidx.compose.foundation.Image(
+            painter = androidx.compose.ui.res.painterResource(com.peli.app.R.drawable.sticker),
+            contentDescription = null,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .statusBarsPadding()
+                .padding(top = 76.dp, end = 14.dp)
+                .size(width = 120.dp, height = 114.dp)
+                .graphicsLayer {
+                    val st = scrollBehavior.state
+                    translationY = st.heightOffset
+                    alpha = (1f - st.collapsedFraction * 2.2f).coerceIn(0f, 1f)
+                    rotationZ = -5f
+                },
+        )
 
         // FAB extendido: se colapsa a FAB normal al hacer scroll.
         AnimatedVisibility(
