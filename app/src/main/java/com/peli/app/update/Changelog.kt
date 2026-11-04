@@ -252,6 +252,9 @@ object Changelog {
         "1.6.7" to listOf(
             "Nuevo ícono de la app: los dos perritos con las palomitas, sin fondo propio, sobre un azul noche con un resplandor cálido. También como ícono adaptable y de color único (temas de Android 13).",
         ),
+        "1.6.8" to listOf(
+            "Ícono sin fondo: solo los perritos y las palomitas. En algunos teléfonos el lanzador puede ponerle un fondo propio detrás.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"
