@@ -75,29 +75,35 @@ object PetTaste {
         if (pet == Pet.Pepa && 27 in genreIds) raw = minOf(raw, 3.0)          // el susto la hace arrancar
         if (pet == Pet.Chuba && genreIds == listOf(99)) raw = minOf(raw, 4.0)  // un documental sentada no es lo suyo
         val score = raw.coerceIn(1.0, 10.0).let { Math.round(it).toInt() }.coerceIn(1, 10)
-        return PetVerdict(pet, score, reason(pet, score, best, worst, rating, year))
+        return PetVerdict(pet, score, reason(pet, movieId, score, best, worst, rating, year))
     }
 
     fun score(pet: Pet, e: Entry): PetVerdict =
         score(pet, e.movieId, e.genreIds, e.year.toIntOrNull(), e.rating)
 
-    private fun reason(pet: Pet, score: Int, best: Pair<Int, Double>?, worst: Pair<Int, Double>?, rating: Double?, year: Int?): String {
+    /** Varía la frase según la película (siempre la misma para una misma película). */
+    private fun pick(movieId: Int, vararg options: String) = options[Math.floorMod(movieId, options.size)]
+
+    private fun reason(pet: Pet, movieId: Int, score: Int, best: Pair<Int, Double>?, worst: Pair<Int, Double>?, rating: Double?, year: Int?): String {
         val bestName = best?.takeIf { it.second >= 1.5 }?.let { names[it.first] }
         val worstName = worst?.takeIf { it.second <= -1.5 }?.let { names[it.first] }
         val loud = worst?.first in setOf(28, 10752, 27, 53)
         return if (pet == Pet.Chuba) when {
-            score >= 9 && best?.first in setOf(28, 12) -> "Pura persecución y adrenalina (ojo con los tobillos)"
-            score >= 9 && bestName != null -> "Le fascina ${bestName}: no para de moverse"
-            score >= LIKE_FROM && bestName != null -> "Tiene movimiento: le gusta ${bestName}"
-            score >= LIKE_FROM -> "Se ve entretenida, corre a verla"
+            score >= 9 && best?.first in setOf(28, 12) -> pick(
+                movieId, "Pura persecución y adrenalina (ojo con los tobillos)", "Carreras y explosiones: se vuelve loca",
+                "Corre tras cada escena de acción", "Ni se sienta: tanta aventura la emociona",
+            )
+            score >= 9 && bestName != null -> pick(movieId, "Le fascina ${bestName}: no para de moverse", "Se la come con la mirada: ${bestName}", "Ladra de emoción: ${bestName}")
+            score >= LIKE_FROM && bestName != null -> pick(movieId, "Tiene movimiento: le gusta ${bestName}", "Le mueve la cola: ${bestName}")
+            score >= LIKE_FROM -> pick(movieId, "Se ve entretenida, corre a verla", "Hay snacks de por medio, la aprueba")
             score <= 3 && worstName != null -> "Se aburre con ${worstName}: va por comida"
             worstName != null -> "Muy quieta para ella: ${worstName}"
             rating != null && rating in 0.1..5.5 -> "Ni la comida la entusiasma con esa nota"
             else -> "Ni fu ni fa, mejor un snack"
         } else when {
-            score >= 9 && bestName != null -> "Tranquila y a su espacio: le encanta ${bestName}"
-            score >= LIKE_FROM && bestName != null -> "Le gusta ${bestName}, para verla acurrucada"
-            score >= LIKE_FROM -> "Se ve calmada, la aprueba"
+            score >= 9 && bestName != null -> pick(movieId, "Tranquila y a su espacio: le encanta ${bestName}", "Para verla acurrucada: ${bestName}", "Se queda quietita con ${bestName}")
+            score >= LIKE_FROM && bestName != null -> pick(movieId, "Le gusta ${bestName}, para verla acurrucada", "Buena para su rincón: ${bestName}")
+            score >= LIKE_FROM -> pick(movieId, "Se ve calmada, la aprueba", "Sin ruido ni sustos: va bien")
             score <= 3 && loud -> "Mucho ruido o peligro: ella arranca"
             score <= 3 && worstName != null -> "No es lo suyo: ${worstName}"
             worstName != null -> "Le aburre ${worstName}"

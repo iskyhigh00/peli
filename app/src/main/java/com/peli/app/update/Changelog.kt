@@ -299,6 +299,10 @@ object Changelog {
         "1.8.2" to listOf(
             "Se quitaron las 2 calcomanías de \"Estreno\" de Pepa, que tenían un error (le salían patas de más). Quedan 18.",
         ),
+        "1.8.3" to listOf(
+            "En Juntos, al elegir a Chuba o a Pepa y bajar por su lista, sus calcomanías se quedan fijas arriba (con un botón para ocultarlas).",
+            "Los motivos de las notas de Chuba y Pepa ahora varían de una película a otra en vez de repetir la misma frase.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

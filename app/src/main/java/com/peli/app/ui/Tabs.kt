@@ -30,6 +30,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -67,6 +69,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -908,6 +911,40 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
                             )
                         }
                     }
+                }
+            }
+        }
+        // Con una perrita elegida, al bajar por su lista sus calcomanías se quedan arriba.
+        val pinPet by remember {
+            derivedStateOf { listState.layoutInfo.visibleItemsInfo.none { it.key == "mascotas" } && listState.firstVisibleItemIndex > 0 }
+        }
+        androidx.compose.animation.AnimatedVisibility(
+            visible = petSelected != null && pinPet,
+            modifier = Modifier.align(Alignment.TopCenter),
+            enter = androidx.compose.animation.slideInVertically { -it } + androidx.compose.animation.fadeIn(),
+            exit = androidx.compose.animation.slideOutVertically { -it } + androidx.compose.animation.fadeOut(),
+        ) {
+            val pinned = petSelected ?: com.peli.app.data.Pet.Chuba
+            androidx.compose.material3.Surface(
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+                shadowElevation = 6.dp,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Row(
+                    Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    RotatingSticker(Stickers.of(pinned), Modifier.size(84.dp), periodMs = 9_000, offset = 1)
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(pinned.label, style = MaterialTheme.typography.titleLarge)
+                        Text(
+                            "Lo que le gusta a ${pinned.label}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    TonalButton("Ocultar", { petShown = "" })
                 }
             }
         }
