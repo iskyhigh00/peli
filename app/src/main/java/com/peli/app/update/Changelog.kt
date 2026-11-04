@@ -249,6 +249,9 @@ object Changelog {
             "Match: la foto ocupa toda la pantalla y es lo principal; la película queda abajo con sus botones.",
             "La cuenta, el ID y los amigos pasaron de Juntos a Ajustes. Juntos queda solo con la foto, las recomendaciones y los matches.",
         ),
+        "1.6.6" to listOf(
+            "Nuevo ícono de la app: los dos perritos con las palomitas, sin fondo propio, sobre un azul noche con un resplandor cálido. También como ícono adaptable y de color único (temas de Android 13).",
+        ),
     )
 
     private const val PREFS = "peli_prefs"
