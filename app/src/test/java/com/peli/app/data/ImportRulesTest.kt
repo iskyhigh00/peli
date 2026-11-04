@@ -12,7 +12,7 @@ class ImportRulesTest {
         val out = ImportRules.sanitize(listOf(entry(1, watchlist = true, myRating = 8), entry(2, liked = true, seen = true)))!!
         assertEquals(2, out.size)
         assertTrue(out.all { it.owner == OWNER_PARTNER })
-        assertTrue(out[0].seen && !out[0].watchlist)      // nota + pendiente: manda la nota
+        assertTrue(out[0].seen && out[0].watchlist)       // nota + pendiente: la vi y quiero volver a verla
     }
 
     @Test fun duplicatesAndEmptyMarksAreDropped() {

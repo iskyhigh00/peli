@@ -73,32 +73,31 @@ fun Entry.asUnmarked(owner: String) = copy(
 /**
  * Repara estados incoherentes de forma conservadora (datos importados o antiguos):
  * la nota implica "la vi"; "me gustó" implica "la vi" y no es "no me gusta"; "no me gusta" no está en "quiero verla".
+ * "Quiero verla" puede convivir con "la vi" / "me gustó" / una nota: es querer volver a verla.
  */
 fun Entry.normalized(): Entry {
     var e = copy(myRating = myRating.coerceIn(0, 10))
-    if (e.myRating > 0) e = e.copy(seen = true, watchlist = false)
-    if (e.liked) e = e.copy(seen = true, watchlist = false, disliked = false)
+    if (e.myRating > 0) e = e.copy(seen = true)
+    if (e.liked) e = e.copy(seen = true, disliked = false)
     if (e.disliked) e = e.copy(liked = false, watchlist = false)
-    if (e.watchlist) e = e.copy(seen = false, liked = false, disliked = false, myRating = 0)
     return e
 }
 
 // Transiciones de estado: cada acción deja el estado consistente (p. ej. "me gustó" implica "la vi").
-// "Quiero verla" es una película pendiente: no puede conservar una nota ni estar vista.
+// "Quiero verla" se combina con "la vi" y "me gustó" (volver a verla); solo choca con "no me gusta".
 fun Entry.toggleWatch() =
-    if (watchlist) copy(watchlist = false)
-    else copy(watchlist = true, seen = false, liked = false, disliked = false, myRating = 0)
+    if (watchlist) copy(watchlist = false) else copy(watchlist = true, disliked = false)
 
 fun Entry.toggleLiked() =
-    if (liked) copy(liked = false) else copy(liked = true, seen = true, watchlist = false, disliked = false)
+    if (liked) copy(liked = false) else copy(liked = true, seen = true, disliked = false)
 
 fun Entry.toggleSeen() =
-    if (seen) copy(seen = false, liked = false, myRating = 0) else copy(seen = true, watchlist = false)
+    if (seen) copy(seen = false, liked = false, myRating = 0) else copy(seen = true)
 
-/** Califica con 1..10 (0 quita la nota). Calificar implica que ya la vi y la saca de "quiero verla". */
+/** Califica con 1..10 (0 quita la nota). Calificar implica que ya la vi; no toca "quiero verla". */
 fun Entry.withRating(score: Int): Entry {
     val n = score.coerceIn(0, 10)
-    return if (n == 0) copy(myRating = 0) else copy(myRating = n, seen = true, watchlist = false)
+    return if (n == 0) copy(myRating = 0) else copy(myRating = n, seen = true)
 }
 
 fun Entry.toggleDisliked() =
@@ -106,6 +105,7 @@ fun Entry.toggleDisliked() =
 
 /** Texto corto del estado actual (para chips). Null si no hay marca. */
 fun Entry.stateLabel(): String? = when {
+    watchlist && (seen || liked) -> "La vi · quiero verla otra vez"
     watchlist -> "Quiero verla"
     liked -> "La vi · me gustó"
     disliked && seen -> "La vi · no me gustó"

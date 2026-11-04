@@ -258,6 +258,9 @@ object Changelog {
         "1.6.9" to listOf(
             "Botón de recomendar en cada película de las listas, junto a guardar, me gusta y no me gusta. Con un solo amigo se envía directo; con varios, eliges a quién.",
         ),
+        "1.7.0" to listOf(
+            "Ahora puedes marcar una película como \"Quiero verla\" y también \"Ya la vi\", \"Me gustó\" o con nota, a la vez (para volver a verla). Solo \"No me gusta\" sigue siendo incompatible con \"Quiero verla\".",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

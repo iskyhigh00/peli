@@ -815,9 +815,9 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
             if (answer != Answer.Skip) {
                 val previous = repo.snapshot(e.movieId)
                 when (answer) {
-                    Answer.Want -> applyAndPush(e) { it.copy(watchlist = true, seen = false, liked = false, disliked = false) }
+                    Answer.Want -> applyAndPush(e) { it.copy(watchlist = true, disliked = false) }
                     Answer.SeenLiked -> askRating(
-                        applyAndPush(e) { it.copy(liked = true, seen = true, watchlist = false, disliked = false) },
+                        applyAndPush(e) { it.copy(liked = true, seen = true, disliked = false) },
                     )
                     Answer.NotInterested -> applyAndPush(e) { it.copy(disliked = true, liked = false, watchlist = false) }
                     Answer.Skip -> Unit
