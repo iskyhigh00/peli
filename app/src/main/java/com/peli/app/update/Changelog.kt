@@ -284,6 +284,9 @@ object Changelog {
             "Las 20 calcomanías de Chuba y Pepa: aparecen de una en una en el encabezado (cambian cada 20 s y al cambiar de pestaña), en el perfil de cada una en Juntos y en su opinión de cada película.",
             "Perfil de Chuba y de Pepa en Juntos, con cómo es cada una; al tocarlo se ven las películas que le gustan.",
         ),
+        "1.7.8" to listOf(
+            "Avisos para preparar las películas del fin de semana: 2 el miércoles (12:00 y 19:30), 4 el jueves (9:00, 12:30, 17:00 y 20:00) y 1 el viernes en la mañana (9:00). Se pueden apagar en Ajustes.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

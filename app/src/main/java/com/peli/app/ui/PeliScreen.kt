@@ -287,6 +287,13 @@ private fun Home(vm: MainViewModel, tab: Tab, onTabChange: (Tab) -> Unit, onOpen
             requestIfNeeded()
         }
     }
+    var weekendOn by remember { mutableStateOf(reminderStore.weekendEnabled) }
+    val onWeekend: (Boolean) -> Unit = { on ->
+        weekendOn = on
+        reminderStore.weekendEnabled = on
+        if (on) { com.peli.app.reminders.WeekendAlarm.schedule(appContext); requestIfNeeded() }
+        else com.peli.app.reminders.WeekendAlarm.cancel(appContext)
+    }
     val onReminders: (Boolean) -> Unit = { on ->
         remindersOn = on
         reminderStore.enabled = on
@@ -531,6 +538,8 @@ private fun Home(vm: MainViewModel, tab: Tab, onTabChange: (Tab) -> Unit, onOpen
             onToggle = vm::toggleSource,
             remindersOn = remindersOn,
             onReminders = onReminders,
+            weekendOn = weekendOn,
+            onWeekend = onWeekend,
             update = manualUpdate,
             progress = progress,
             onInstall = vm::installUpdate,

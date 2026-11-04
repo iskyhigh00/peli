@@ -28,6 +28,7 @@ class PeliApp : Application() {
         CrashReporter.install(this)
         Social.store = account
         ReminderWorker.schedule(this)
+        if (reminderStore.weekendEnabled) com.peli.app.reminders.WeekendAlarm.schedule(this)
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
             private fun name(a: Activity) = a.javaClass.simpleName
             override fun onActivityCreated(a: Activity, state: Bundle?) =

@@ -66,6 +66,8 @@ fun SettingsSheet(
     onToggle: (RatingSource) -> Unit,
     remindersOn: Boolean,
     onReminders: (Boolean) -> Unit,
+    weekendOn: Boolean,
+    onWeekend: (Boolean) -> Unit,
     update: MainViewModel.ManualUpdate,
     progress: Int,
     onInstall: (String) -> Unit,
@@ -119,6 +121,13 @@ fun SettingsSheet(
                 checked = remindersOn,
                 enabled = true,
                 onChange = onReminders,
+            )
+            SettingRow(
+                title = "Fin de semana",
+                subtitle = "Te recuerda preparar las películas del fin de semana: 2 avisos el miércoles, 4 el jueves y 1 el viernes en la mañana.",
+                checked = weekendOn,
+                enabled = true,
+                onChange = onWeekend,
             )
             HorizontalDivider(Modifier.padding(vertical = ItemSpacing))
             Text("Versión $APP_VERSION", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
