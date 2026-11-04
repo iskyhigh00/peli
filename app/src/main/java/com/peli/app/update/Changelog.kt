@@ -280,6 +280,10 @@ object Changelog {
         "1.7.6" to listOf(
             "Chuba y Pepa con su verdadera personalidad: Chuba (inquieta, siempre con hambre) prefiere acción y aventuras; Pepa (tranquila, huye del ruido y del peligro) prefiere drama, romance y lo calmado.",
         ),
+        "1.7.7" to listOf(
+            "Las 20 calcomanías de Chuba y Pepa: aparecen de una en una en el encabezado (cambian cada 20 s y al cambiar de pestaña), en el perfil de cada una en Juntos y en su opinión de cada película.",
+            "Perfil de Chuba y de Pepa en Juntos, con cómo es cada una; al tocarlo se ven las películas que le gustan.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

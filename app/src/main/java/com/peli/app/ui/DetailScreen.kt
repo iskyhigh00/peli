@@ -168,9 +168,17 @@ fun DetailScreen(entry: Entry, mine: Entry?, vm: MainViewModel, onBack: () -> Un
                     Text("Chuba y Pepa opinan", style = MaterialTheme.typography.titleMedium)
                     com.peli.app.data.Pet.entries.forEach { pet ->
                         val v = remember(entry.movieId, pet) { com.peli.app.data.PetTaste.score(pet, entry) }
-                        Column(Modifier.padding(top = 8.dp)) {
-                            Text("${pet.label} · ${v.score}/10", style = MaterialTheme.typography.titleSmall)
-                            Text(v.reason, style = MaterialTheme.typography.bodyMedium, color = scheme.onSurfaceVariant)
+                        Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            val pics = Stickers.of(pet)
+                            androidx.compose.foundation.Image(
+                                painter = androidx.compose.ui.res.painterResource(pics[Math.floorMod(entry.movieId, pics.size)]),
+                                contentDescription = null,
+                                modifier = Modifier.size(64.dp),
+                            )
+                            Column(Modifier.padding(start = 12.dp)) {
+                                Text("${pet.label} · ${v.score}/10", style = MaterialTheme.typography.titleSmall)
+                                Text(v.reason, style = MaterialTheme.typography.bodyMedium, color = scheme.onSurfaceVariant)
+                            }
                         }
                     }
                 }

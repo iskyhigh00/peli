@@ -61,6 +61,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -418,22 +419,32 @@ private fun Home(vm: MainViewModel, tab: Tab, onTabChange: (Tab) -> Unit, onOpen
 
         SystemBarScrims(topAlpha = topScrim, bottomAlpha = bottomScrim)
 
-        // Calcomanía grande a la derecha del encabezado: se va con la barra al desplazar y se desvanece.
-        androidx.compose.foundation.Image(
-            painter = androidx.compose.ui.res.painterResource(com.peli.app.R.drawable.sticker),
-            contentDescription = null,
+        // Calcomanía grande a la derecha del encabezado: va cambiando (cada 20 s y al cambiar de pestaña), una a la vez.
+        var stickerStep by remember { mutableIntStateOf((0 until 20).random()) }
+        LaunchedEffect(Unit) { while (true) { kotlinx.coroutines.delay(20_000); stickerStep++ } }
+        LaunchedEffect(tab) { stickerStep++ }
+        androidx.compose.animation.Crossfade(
+            targetState = Stickers.all[Math.floorMod(stickerStep, Stickers.all.size)],
+            animationSpec = tween(700),
+            label = "headerSticker",
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .statusBarsPadding()
                 .padding(top = 76.dp, end = 14.dp)
-                .size(width = 120.dp, height = 114.dp)
+                .size(width = 124.dp, height = 124.dp)
                 .graphicsLayer {
                     val st = scrollBehavior.state
                     translationY = st.heightOffset
                     alpha = (1f - st.collapsedFraction * 2.2f).coerceIn(0f, 1f)
                     rotationZ = -5f
                 },
-        )
+        ) { res ->
+            androidx.compose.foundation.Image(
+                painter = androidx.compose.ui.res.painterResource(res),
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
 
         // FAB extendido: se colapsa a FAB normal al hacer scroll.
         AnimatedVisibility(

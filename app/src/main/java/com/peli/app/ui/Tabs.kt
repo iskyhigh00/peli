@@ -748,16 +748,15 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
                 Column(verticalArrangement = Arrangement.spacedBy(ItemSpacing)) {
                     Text("Cine con Chuba y Pepa", style = MaterialTheme.typography.titleLarge)
                     Text(
-                        "Chuba, inquieta y siempre con hambre, quiere acción y correteo. Pepa, tranquila y de su espacio, prefiere lo calmado. Lo que verían si ellas eligieran.",
+                        "Lo que verían si ellas eligieran.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(CompactSpacing)) {
-                        com.peli.app.data.Pet.entries.forEach { p ->
-                            val on = petShown == p.name
-                            if (on) GradientButton(p.label, { petShown = ""; }, Modifier.weight(1f))
-                            else TonalButton(p.label, { petShown = p.name; vm.loadPetPicks(p) }, Modifier.weight(1f))
-                        }
+                    com.peli.app.data.Pet.entries.forEach { p ->
+                        val on = petShown == p.name
+                        PetProfileCard(p, open = on, onClick = {
+                            if (on) petShown = "" else { petShown = p.name; vm.loadPetPicks(p) }
+                        })
                     }
                 }
             }
