@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Explore
@@ -362,6 +363,14 @@ private fun Home(vm: MainViewModel, tab: Tab, onTabChange: (Tab) -> Unit, onOpen
                                 )
                             }
                         }
+                    },
+                    navigationIcon = {
+                        // El ícono de la app, discreto, arriba a la izquierda.
+                        androidx.compose.foundation.Image(
+                            painter = androidx.compose.ui.res.painterResource(com.peli.app.R.mipmap.ic_launcher),
+                            contentDescription = null,
+                            modifier = Modifier.padding(start = 16.dp).size(40.dp),
+                        )
                     },
                     actions = {
                         IconButton(onClick = { showSettings = true }) {

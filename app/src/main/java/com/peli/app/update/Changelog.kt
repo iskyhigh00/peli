@@ -264,6 +264,9 @@ object Changelog {
         "1.7.1" to listOf(
             "Sección \"Premios\" en el detalle de la película, bajo las valoraciones: Óscares ganados o nominaciones, y el total de premios y nominaciones (solo si los tiene).",
         ),
+        "1.7.2" to listOf(
+            "El ícono de la app aparece arriba a la izquierda, pequeño y discreto.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"
