@@ -319,6 +319,9 @@ object Changelog {
         "1.8.8" to listOf(
             "Las listas de Chuba y Pepa ahora cambian solas: cada 6 horas piden otras películas y otro orden (y \"Ver otras\" trae más al instante), en vez de mostrar siempre las mismas.",
         ),
+        "1.8.9" to listOf(
+            "El comienzo de las listas de Chuba y Pepa también cambia: las de nota 9 y 10 se mezclan entre sí en cada ronda, en vez de quedar siempre las mismas arriba.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

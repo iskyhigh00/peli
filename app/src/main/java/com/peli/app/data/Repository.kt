@@ -380,7 +380,7 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
     suspend fun petPicks(pet: Pet, round: Int): List<Pair<Entry, PetVerdict>> {
         // Cada ronda (cada 6 horas o al tocar «Ver otras») pide otras páginas y otro orden: la lista cambia con el tiempo.
         val rnd = java.util.Random(pet.seed * 31 + round)
-        val pages = (1..14).toMutableList().also { it.shuffle(rnd) }.take(3)
+        val pages = (1..14).toMutableList().also { it.shuffle(rnd) }.take(4)
         val sort = listOf("popularity.desc", "vote_count.desc")[rnd.nextInt(2)]
         val found = LinkedHashMap<Int, Entry>()
         for (page in pages) {
@@ -389,8 +389,9 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
         }
         // Misma nota → el orden depende de la ronda, así las que empatan en 10/10 no salen siempre en el mismo lugar.
         fun mix(id: Int): Int { var h = id * -1640531527 + round * 40503; h = h xor (h ushr 15); h *= 0x2c1b3c6d; return h xor (h ushr 12) }
+        // Las de 9 y 10 se mezclan entre sí (así el comienzo de la lista cambia en cada ronda); las de 8 o menos van después.
         val scored = found.values.map { it to PetTaste.score(pet, it) }
-            .sortedWith(compareByDescending<Pair<Entry, PetVerdict>> { it.second.score }.thenBy { mix(it.first.movieId) })
+            .sortedWith(compareByDescending<Pair<Entry, PetVerdict>> { minOf(it.second.score, 9) }.thenBy { mix(it.first.movieId) })
         val liked = scored.filter { it.second.likes }
         return (if (liked.size >= 6) liked else scored.filter { it.second.score >= 7 }.ifEmpty { scored.take(8) }).take(15)
     }
