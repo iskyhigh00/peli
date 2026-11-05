@@ -198,6 +198,10 @@ fun PeliScreen(vm: MainViewModel = viewModel()) {
                 }
             }
 
+            // La nota se pide aquí (no en Home) para que salga también con el detalle abierto.
+            val ratePrompt by vm.ratePrompt.collectAsState()
+            ratePrompt?.let { RatePromptSheet(it, onRate = vm::rateFromPrompt, onSkip = vm::dismissRatePrompt) }
+
             // Elegir a qué amigo se recomienda (solo cuando hay más de uno).
             val target by vm.recommendTarget.collectAsState()
             val friendsNow by vm.friends.collectAsState()
@@ -533,8 +537,6 @@ private fun Home(vm: MainViewModel, tab: Tab, onTabChange: (Tab) -> Unit, onOpen
         )
     }
 
-    val ratePrompt by vm.ratePrompt.collectAsState()
-    ratePrompt?.let { RatePromptSheet(it, onRate = vm::rateFromPrompt, onSkip = vm::dismissRatePrompt) }
     val claim by vm.claim.collectAsState()
     claim?.let { ClaimGuestDialog(it, onChoose = vm::claimGuestCollection) }
     val safe by vm.safe.collectAsState()

@@ -325,6 +325,9 @@ object Changelog {
         "1.9.0" to listOf(
             "El gusto de Chuba y Pepa ahora también mira las palabras clave de cada película: la violencia, las peleas y el ruido bajan la nota de Pepa (aunque el género diga drama, como El club de la pelea), y los perros suben la de las dos.",
         ),
+        "1.9.1" to listOf(
+            "Al marcar «La vi y me gustó» dentro de una película, la nota se pide ahí mismo, sin tener que salir.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"
