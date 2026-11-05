@@ -313,6 +313,9 @@ object Changelog {
         "1.8.6" to listOf(
             "Botón \"Actualizar títulos de mis películas\" en Ajustes: vuelve a descargar ahora el título y la sinopsis de lo que ya tienes marcado, en el idioma elegido.",
         ),
+        "1.8.7" to listOf(
+            "20 calcomanías nuevas de Chuba y Pepa (cámara, astronauta, detective, pirata, magas, vaquera, princesa y más): ahora hay 38 que van rotando, en otro orden cada vez que abres la app.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"
