@@ -100,37 +100,69 @@ object PetTaste {
     /** Varía la frase según la película (siempre la misma para una misma película). */
     private fun pick(movieId: Int, vararg options: String) = options[Math.floorMod(movieId, options.size)]
 
+    // Comentarios en primera persona: lo que diría cada una de esta película en concreto.
+    private val chubaLikes = mapOf(
+        28 to listOf("¡Persecuciones! Yo corro con ellos, ¿quién pilla primero la mosca?", "Tanta acción y yo sentada... mejor corro por el living", "Golpes y carreras: ladro a la pantalla antes que la Pepa"),
+        12 to listOf("Aventura: yo ya estoy en la playa corriendo como loca", "¡Viaje y peligro! Yo me lanzo primero", "Quiero salir a explorar, ¿hay snacks en el camino?"),
+        35 to listOf("Me hace mover la cola, hasta me olvido de la comida (casi)", "Risas y desorden: mi tipo de tarde"),
+        16 to listOf("Colores y movimiento: se me van los ojos tras cada dibujo", "Todo se mueve, y yo persigo lo que se mueve"),
+        878 to listOf("Naves y cosas que vuelan: ¡yo las persigo!", "Mucho futuro y mucho movimiento, me gusta"),
+        53 to listOf("Tensión y corridas: yo igual me quedo con las orejas paradas", "Misterio con persecución, me tiene alerta"),
+        10752 to listOf("Mucho correr y gritar: me siento parte del grupo", "Ruido y acción: yo sí me quedo"),
+        80 to listOf("Fugas y persecuciones, como cuando me escapo tras un perro", "Hay carreras y trampas: ¡yo también me escapo!"),
+    )
+    private val chubaDislikes = mapOf(
+        18 to listOf("Todos hablan y hablan y yo sin comida, me aburro", "Mucho drama quieto, yo mejor busco un snack", "Drama: me duermo antes que se muera alguien"),
+        10749 to listOf("Puro beso y suspiro, sin carreras: me voy a la cocina", "Romance sin perseguir a nadie: no es lo mío"),
+        99 to listOf("Un documental sentada no se puede, ¡me muero de aburrimiento!", "Nada se mueve, yo me paro a ladrarle a alguien"),
+        36 to listOf("Mucha historia hablada, ¿dónde está la comida?", "Vestidos y charlas largas: me aburro"),
+        9648 to listOf("Tanto misterio quieto, yo prefiero perseguir moscas"),
+        10402 to listOf("Cantan mucho y no corren: me voy a mirar la ventana"),
+    )
+    private val pepaLikes = mapOf(
+        18 to listOf("Un drama tranquilo, mi manta y mi rincón: perfecto", "Me emociona y nadie grita: quiero verla acurrucada", "Es sentida y calmada, justo lo que quiero esta tarde"),
+        10749 to listOf("Romance suave, cariño sin que me lo hagan a la fuerza", "Historia de amor y silencio: me quedo quietita", "Qué lindo todo, me acurruco hasta el final"),
+        14 to listOf("Magia sin ruido: me gusta soñar en mi rincón", "Fantasía bonita, sin sustos"),
+        10751 to listOf("Familia y calma: para ver a mi ritmo", "Cálida y sin peligro: la aprobada de la casa"),
+        99 to listOf("Cosas reales y calmadas, me quedo mirando tranquila", "Un documental sin ruido: lo veo en mi espacio"),
+        10402 to listOf("Música suave: me hace querer echarme a escuchar", "Canciones lindas y sin gritos, me gusta"),
+        16 to listOf("Dibujos lindos y tranquilos, me los miro de a poco"),
+        35 to listOf("Risas suaves, sin sobresaltos: me gusta"),
+    )
+    private val pepaDislikes = mapOf(
+        27 to listOf("¡Sustos! Ni la miro, yo arranco a esconderme", "Terror: me meto bajo la cama y no salgo"),
+        10752 to listOf("Bombas y gritos: ¡yo arranco!", "Guerra: demasiado ruido, me voy a otra pieza"),
+        28 to listOf("Tiros y golpes: me tapo las orejas y arranco", "Tanta explosión me hace buscar la puerta"),
+        53 to listOf("Tanta tensión me tiene nerviosa, prefiero mi rincón", "Peligro todo el rato: yo me escondo"),
+        80 to listOf("Violencia y gente mala: me voy a mi espacio", "Crimen y gritos: no es para mí"),
+        878 to listOf("Máquinas y ruido: demasiado para mi gusto"),
+    )
+
     private fun reason(
         pet: Pet, movieId: Int, score: Int, best: Pair<Int, Double>?, worst: Pair<Int, Double>?, rating: Double?, year: Int?,
         loudHit: Boolean, dogHit: Boolean,
     ): String {
-        val bestName = best?.takeIf { it.second >= 1.5 }?.let { names[it.first] }
-        val worstName = worst?.takeIf { it.second <= -1.5 }?.let { names[it.first] }
-        val loud = worst?.first in setOf(28, 10752, 27, 53)
+        val likes = if (pet == Pet.Chuba) chubaLikes else pepaLikes
+        val dislikes = if (pet == Pet.Chuba) chubaDislikes else pepaDislikes
+        val liked = score >= LIKE_FROM
+        val bad = score <= 5
         return if (pet == Pet.Chuba) when {
-            dogHit && score >= LIKE_FROM -> pick(movieId, "¡Hay perros! Los persigue con la mirada", "Salen perritos: no se la pierde")
-            score >= 9 && best?.first in setOf(28, 12) -> pick(
-                movieId, "Pura persecución y adrenalina (ojo con los tobillos)", "Carreras y explosiones: se vuelve loca",
-                "Corre tras cada escena de acción", "Ni se sienta: tanta aventura la emociona",
-            )
-            score >= 9 && bestName != null -> pick(movieId, "Le fascina ${bestName}: no para de moverse", "Se la come con la mirada: ${bestName}", "Ladra de emoción: ${bestName}")
-            score >= LIKE_FROM && bestName != null -> pick(movieId, "Tiene movimiento: le gusta ${bestName}", "Le mueve la cola: ${bestName}")
-            score >= LIKE_FROM -> pick(movieId, "Se ve entretenida, corre a verla", "Hay snacks de por medio, la aprueba")
-            score <= 3 && worstName != null -> "Se aburre con ${worstName}: va por comida"
-            worstName != null -> "Muy quieta para ella: ${worstName}"
-            rating != null && rating in 0.1..5.5 -> "Ni la comida la entusiasma con esa nota"
-            else -> "Ni fu ni fa, mejor un snack"
+            dogHit && liked -> pick(movieId, "¡HAY PERROS! Los miro y ladro con ganas", "Sale un perro: ya estoy ladrándole a la pantalla", "Perritos: me paro y los persigo con la mirada")
+            liked && best != null && likes[best.first] != null -> likes.getValue(best.first).let { pick(movieId, *it.toTypedArray()) }
+            liked -> pick(movieId, "Se ve entretenida, la veo si hay snacks", "Algo se mueve en pantalla, ¡me quedo!")
+            bad && worst != null && dislikes[worst.first] != null -> dislikes.getValue(worst.first).let { pick(movieId, *it.toTypedArray()) }
+            bad && rating != null && rating in 0.1..5.5 -> pick(movieId, "Ni la comida me anima con esa mala nota", "Mala y aburrida: me voy por un snack")
+            bad -> pick(movieId, "Me aburro rápido, mejor me voy a la cocina", "Nada pasa: ¿dónde está mi comida?")
+            else -> pick(movieId, "Ni fu ni fa, la veo con un snack", "Me da lo mismo, si hay comida me quedo", "Un rato la miro y luego me voy a perseguir moscas")
         } else when {
-            loudHit && score <= 7 -> pick(movieId, "Pelea, violencia y ruido: ella arranca", "Demasiado ruido y golpes para ella")
-            dogHit && score >= LIKE_FROM -> pick(movieId, "Salen perritos y hay calma: se queda quietita", "Con perritos de por medio, se acurruca")
-            score >= 9 && bestName != null -> pick(movieId, "Tranquila y a su espacio: le encanta ${bestName}", "Para verla acurrucada: ${bestName}", "Se queda quietita con ${bestName}")
-            score >= LIKE_FROM && bestName != null -> pick(movieId, "Le gusta ${bestName}, para verla acurrucada", "Buena para su rincón: ${bestName}")
-            score >= LIKE_FROM -> pick(movieId, "Se ve calmada, la aprueba", "Sin ruido ni sustos: va bien")
-            score <= 3 && loud -> "Mucho ruido o peligro: ella arranca"
-            score <= 3 && worstName != null -> "No es lo suyo: ${worstName}"
-            worstName != null -> "Le aburre ${worstName}"
-            year != null && year > 2018 -> "Muy moderna y ruidosa para ella"
-            else -> "Ni fu ni fa, prefiere su rincón"
+            loudHit && score <= 7 -> pick(movieId, "Peleas, violencia y ruido: yo arranco", "Demasiado ruido y golpes, me escondo y arranco")
+            dogHit && liked -> pick(movieId, "Sale un perrito y hay calma: me quedo quietita", "Con un perro por ahí me acurruco feliz")
+            liked && best != null && likes[best.first] != null -> likes.getValue(best.first).let { pick(movieId, *it.toTypedArray()) }
+            liked -> pick(movieId, "Se ve calmada, la apruebo desde mi rincón", "Sin ruido ni sustos: me gusta")
+            bad && worst != null && dislikes[worst.first] != null -> dislikes.getValue(worst.first).let { pick(movieId, *it.toTypedArray()) }
+            bad -> pick(movieId, "Mucho ruido o peligro: yo arranco", "Prefiero mi espacio, no me llama")
+            year != null && year > 2018 -> pick(movieId, "Muy moderna y ruidosa para mí, prefiero mi rincón", "Tanto ruido nuevo... no me dejan tranquila")
+            else -> pick(movieId, "Ni fu ni fa, prefiero mi rincón", "La veo un ratito y me voy, que no me molesten")
         }
     }
 }

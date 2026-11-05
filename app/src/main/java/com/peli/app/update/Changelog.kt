@@ -328,6 +328,9 @@ object Changelog {
         "1.9.1" to listOf(
             "Al marcar «La vi y me gustó» dentro de una película, la nota se pide ahí mismo, sin tener que salir.",
         ),
+        "1.9.2" to listOf(
+            "Los comentarios de Chuba y Pepa ahora hablan en primera persona y según el género de cada película (Chuba con la comida y las persecuciones, Pepa con el ruido, los sustos y su rincón).",
+        ),
     )
 
     private const val PREFS = "peli_prefs"
