@@ -337,6 +337,9 @@ object Changelog {
         "1.9.4" to listOf(
             "Las tarjetas de las listas muestran un broche diminuto sobre la carátula: trofeo dorado si la película ganó premios, verde si solo tiene nominaciones (cuando ya se conocen sus premios).",
         ),
+        "1.9.5" to listOf(
+            "Los avisos llevan una calcomanía distinta de Chuba y Pepa cada vez (la recomendación semanal usa la de la perrita que recomienda).",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

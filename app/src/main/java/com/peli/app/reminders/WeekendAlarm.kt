@@ -59,6 +59,7 @@ object WeekendAlarm {
             .setSmallIcon(R.drawable.ic_stat_peli)
             .setContentTitle(title)
             .setContentText(text)
+            .setLargeIcon(NotifySticker.bitmap(context, System.currentTimeMillis() / 60_000L + id))
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setContentIntent(open)
             .setAutoCancel(true)
