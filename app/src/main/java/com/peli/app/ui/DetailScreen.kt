@@ -167,7 +167,7 @@ fun DetailScreen(entry: Entry, mine: Entry?, vm: MainViewModel, onBack: () -> Un
                 GlassCard {
                     Text("Chuba y Pepa opinan", style = MaterialTheme.typography.titleMedium)
                     com.peli.app.data.Pet.entries.forEach { pet ->
-                        val v = remember(entry.movieId, pet) { com.peli.app.data.PetTaste.score(pet, entry) }
+                        val v = remember(entry.movieId, pet, allFacts[entry.movieId]) { com.peli.app.data.PetTaste.score(pet, entry, allFacts[entry.movieId]?.keywords.orEmpty()) }
                         Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                             val pics = Stickers.of(pet)
                             androidx.compose.foundation.Image(

@@ -56,7 +56,23 @@ object PetTaste {
         return m * 2 - 1
     }
 
-    fun score(pet: Pet, movieId: Int, genreIds: List<Int>, year: Int?, rating: Double?): PetVerdict {
+    /** Palabras clave de TMDB que delatan una película ruidosa o violenta aunque su género diga "drama". */
+    private val loudWords = listOf(
+        "violen", "gore", "murder", "serial killer", "brutal", "gun", "shootout", "explosion", "torture", "massacre",
+        "gang", "fight", "assassin", "bomb", "monster", "zombie", "demon", "haunt", "slasher", "battle", "revenge", "kill",
+    )
+    /** Lo que a Chuba le mueve la cola: persecuciones, carreras, comida, playa y perros. */
+    private val energyWords = listOf("chase", "race", "racing", "explosion", "fight", "heist", "beach", "surf", "food", "cooking", "dog")
+    /** Lo que a Pepa le da calma: perros, amistad, naturaleza y familia. */
+    private val cozyWords = listOf("dog", "friendship", "nature", "family", "love", "cat")
+
+    fun score(pet: Pet, movieId: Int, genreIds: List<Int>, year: Int?, rating: Double?, keywords: List<String> = emptyList()): PetVerdict {
+        val kw = keywords.map { it.lowercase() }
+        fun hits(words: List<String>) = words.count { w -> kw.any { it.contains(w) } }
+        val loudHit = hits(loudWords)
+        val dogHit = kw.any { it.contains("dog") }
+        val kwAdj = if (pet == Pet.Chuba) minOf(1.5, 0.6 * hits(energyWords))
+        else -minOf(5.0, 1.8 * loudHit) + minOf(1.2, 0.6 * hits(cozyWords))
         val w = weights(pet)
         val gw = genreIds.mapNotNull { id -> w[id]?.let { id to it } }
         val mean = if (genreIds.isEmpty()) 0.0 else genreIds.sumOf { w[it] ?: 0.0 } / genreIds.size
@@ -70,25 +86,29 @@ object PetTaste {
             val d = (year - favoriteYear(pet)) / yearSpread(pet)
             exp(-d * d) - 0.4
         }
-        var raw = 5.5 + 1.1 * g + quality + era + 0.7 * mood(pet, movieId)
+        var raw = 5.5 + 1.1 * g + quality + era + 0.7 * mood(pet, movieId) + kwAdj
         // Lo que de verdad no soportan limita la nota.
         if (pet == Pet.Pepa && 27 in genreIds) raw = minOf(raw, 3.0)          // el susto la hace arrancar
         if (pet == Pet.Chuba && genreIds == listOf(99)) raw = minOf(raw, 4.0)  // un documental sentada no es lo suyo
         val score = raw.coerceIn(1.0, 10.0).let { Math.round(it).toInt() }.coerceIn(1, 10)
-        return PetVerdict(pet, score, reason(pet, movieId, score, best, worst, rating, year))
+        return PetVerdict(pet, score, reason(pet, movieId, score, best, worst, rating, year, loudHit > 0, dogHit))
     }
 
-    fun score(pet: Pet, e: Entry): PetVerdict =
-        score(pet, e.movieId, e.genreIds, e.year.toIntOrNull(), e.rating)
+    fun score(pet: Pet, e: Entry, keywords: List<String> = emptyList()): PetVerdict =
+        score(pet, e.movieId, e.genreIds, e.year.toIntOrNull(), e.rating, keywords)
 
     /** Varía la frase según la película (siempre la misma para una misma película). */
     private fun pick(movieId: Int, vararg options: String) = options[Math.floorMod(movieId, options.size)]
 
-    private fun reason(pet: Pet, movieId: Int, score: Int, best: Pair<Int, Double>?, worst: Pair<Int, Double>?, rating: Double?, year: Int?): String {
+    private fun reason(
+        pet: Pet, movieId: Int, score: Int, best: Pair<Int, Double>?, worst: Pair<Int, Double>?, rating: Double?, year: Int?,
+        loudHit: Boolean, dogHit: Boolean,
+    ): String {
         val bestName = best?.takeIf { it.second >= 1.5 }?.let { names[it.first] }
         val worstName = worst?.takeIf { it.second <= -1.5 }?.let { names[it.first] }
         val loud = worst?.first in setOf(28, 10752, 27, 53)
         return if (pet == Pet.Chuba) when {
+            dogHit && score >= LIKE_FROM -> pick(movieId, "¡Hay perros! Los persigue con la mirada", "Salen perritos: no se la pierde")
             score >= 9 && best?.first in setOf(28, 12) -> pick(
                 movieId, "Pura persecución y adrenalina (ojo con los tobillos)", "Carreras y explosiones: se vuelve loca",
                 "Corre tras cada escena de acción", "Ni se sienta: tanta aventura la emociona",
@@ -101,6 +121,8 @@ object PetTaste {
             rating != null && rating in 0.1..5.5 -> "Ni la comida la entusiasma con esa nota"
             else -> "Ni fu ni fa, mejor un snack"
         } else when {
+            loudHit && score <= 7 -> pick(movieId, "Pelea, violencia y ruido: ella arranca", "Demasiado ruido y golpes para ella")
+            dogHit && score >= LIKE_FROM -> pick(movieId, "Salen perritos y hay calma: se queda quietita", "Con perritos de por medio, se acurruca")
             score >= 9 && bestName != null -> pick(movieId, "Tranquila y a su espacio: le encanta ${bestName}", "Para verla acurrucada: ${bestName}", "Se queda quietita con ${bestName}")
             score >= LIKE_FROM && bestName != null -> pick(movieId, "Le gusta ${bestName}, para verla acurrucada", "Buena para su rincón: ${bestName}")
             score >= LIKE_FROM -> pick(movieId, "Se ve calmada, la aprueba", "Sin ruido ni sustos: va bien")

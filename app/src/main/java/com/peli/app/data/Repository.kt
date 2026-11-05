@@ -390,7 +390,15 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
         // Misma nota → el orden depende de la ronda, así las que empatan en 10/10 no salen siempre en el mismo lugar.
         fun mix(id: Int): Int { var h = id * -1640531527 + round * 40503; h = h xor (h ushr 15); h *= 0x2c1b3c6d; return h xor (h ushr 12) }
         // Las de 9 y 10 se mezclan entre sí (así el comienzo de la lista cambia en cada ronda); las de 8 o menos van después.
-        val scored = found.values.map { it to PetTaste.score(pet, it) }
+        // Primera pasada con los géneros; a las 30 mejores se les miran las palabras clave (violencia, ruido, perros...) y se puntúan de nuevo.
+        val firstPass = found.values.map { it to PetTaste.score(pet, it) }.sortedByDescending { it.second.score }.take(30)
+        val ids = firstPass.map { it.first.movieId }
+        val have = cachedFacts(ids).toMutableMap()
+        val fetched = coroutineScope {
+            ids.filter { have[it]?.needsTmdb != false }.map { id -> async { id to attempt { ensureFacts(id, false) }.getOrNull() } }.awaitAll()
+        }
+        fetched.forEach { (id, f) -> if (f != null) have[id] = f }
+        val scored = firstPass.map { (e, _) -> e to PetTaste.score(pet, e, have[e.movieId]?.keywords.orEmpty()) }
             .sortedWith(compareByDescending<Pair<Entry, PetVerdict>> { minOf(it.second.score, 9) }.thenBy { mix(it.first.movieId) })
         val liked = scored.filter { it.second.likes }
         return (if (liked.size >= 6) liked else scored.filter { it.second.score >= 7 }.ifEmpty { scored.take(8) }).take(15)

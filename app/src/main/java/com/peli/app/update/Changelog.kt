@@ -322,6 +322,9 @@ object Changelog {
         "1.8.9" to listOf(
             "El comienzo de las listas de Chuba y Pepa también cambia: las de nota 9 y 10 se mezclan entre sí en cada ronda, en vez de quedar siempre las mismas arriba.",
         ),
+        "1.9.0" to listOf(
+            "El gusto de Chuba y Pepa ahora también mira las palabras clave de cada película: la violencia, las peleas y el ruido bajan la nota de Pepa (aunque el género diga drama, como El club de la pelea), y los perros suben la de las dos.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

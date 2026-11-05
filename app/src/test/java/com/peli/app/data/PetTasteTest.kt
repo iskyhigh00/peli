@@ -55,4 +55,20 @@ class PetTasteTest {
         val v = PetTaste.score(Pet.Pepa, 99, emptyList(), null, null)
         assertTrue(v.score in 1..10)
     }
+
+    @Test fun `una pelea o violencia espanta a Pepa aunque el genero sea drama`() {
+        val calm = PetTaste.score(Pet.Pepa, 550, listOf(18), 1999, 8.4)
+        val violent = PetTaste.score(Pet.Pepa, 550, listOf(18), 1999, 8.4, listOf("fight", "violence", "anarchism"))
+        assertTrue("${violent.score} < ${calm.score}", violent.score < calm.score)
+        assertFalse(violent.likes)
+        assertTrue(violent.reason.contains("ruido") || violent.reason.contains("arranca"))
+    }
+
+    @Test fun `los perros gustan a las dos`() {
+        for (pet in Pet.entries) {
+            val plain = PetTaste.score(pet, 77, listOf(35), 2005, 7.0).score
+            val withDog = PetTaste.score(pet, 77, listOf(35), 2005, 7.0, listOf("dog", "friendship")).score
+            assertTrue("$pet $withDog >= $plain", withDog >= plain)
+        }
+    }
 }
