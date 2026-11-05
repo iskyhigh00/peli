@@ -331,6 +331,9 @@ object Changelog {
         "1.9.2" to listOf(
             "Los comentarios de Chuba y Pepa ahora hablan en primera persona y según el género de cada película (Chuba con la comida y las persecuciones, Pepa con el ruido, los sustos y su rincón).",
         ),
+        "1.9.3" to listOf(
+            "Chuba y Pepa opinan con más de sus manías: Chuba persigue perros y ladra primero; Pepa mira de lejos, se esconde con el ruido, se queda en la cabecera y se va relajando de a poco.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"
