@@ -62,6 +62,8 @@ data class TmdbVideosPage(val results: List<TmdbVideo>? = null)
 data class TmdbDetails(
     val id: Int,
     val original_title: String? = null,
+    val title: String? = null,
+    val overview: String? = null,
     val release_date: String? = null,
     val vote_average: Double? = null,
     val vote_count: Int? = null,
@@ -117,7 +119,7 @@ interface TmdbApi {
     @GET("movie/{id}/videos")
     suspend fun videos(
         @Path("id") id: Int,
-        @Query("language") language: String = "es-ES",
+        @Query("language") language: String = Lang.tag,
         @Query("include_video_language") include: String = "es,en,null",
     ): TmdbVideosPage
 
@@ -134,7 +136,7 @@ interface TmdbApi {
                     val original = chain.request().url
                     val url = original.newBuilder()
                         .addQueryParameter("api_key", BuildConfig.TMDB_API_KEY)
-                        .apply { if (original.queryParameter("language") == null) addQueryParameter("language", "es-ES") }
+                        .apply { if (original.queryParameter("language") == null) addQueryParameter("language", Lang.tag) }
                         .build()
                     chain.proceed(chain.request().newBuilder().url(url).build())
                 }

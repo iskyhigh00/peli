@@ -307,6 +307,9 @@ object Changelog {
             "Al recomendar una película a un amigo, la app siempre muestra a quién se la envías (aunque tengas un solo amigo) antes de enviarla.",
             "Chuba y Pepa recomiendan: unos 3 días a la semana, al azar, una de las dos te recomienda una película según su gusto, con nota y explicación (aviso y tarjeta en Juntos). Viene apagado: se activa en Ajustes, en \"Chuba y Pepa recomiendan\".",
         ),
+        "1.8.5" to listOf(
+            "Títulos y sinopsis en español de Latinoamérica (antes se pedían en español de España, con títulos como \"Resacón\" en vez de \"¿Qué pasó ayer?\"). En Ajustes puedes elegir Latinoamérica, Chile o España. Lo que ya tenías marcado se actualiza solo, de a poco.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

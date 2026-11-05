@@ -293,6 +293,7 @@ private fun Home(vm: MainViewModel, tab: Tab, onTabChange: (Tab) -> Unit, onOpen
         reminderStore.recsEnabled = on
         if (on) requestIfNeeded()
     }
+    var language by remember { mutableStateOf(com.peli.app.data.Lang.tag) }
     var petsOn by remember { mutableStateOf(reminderStore.petsEnabled) }
     val onPets: (Boolean) -> Unit = { on ->
         petsOn = on
@@ -556,6 +557,8 @@ private fun Home(vm: MainViewModel, tab: Tab, onTabChange: (Tab) -> Unit, onOpen
             onRecs = onRecs,
             petsOn = petsOn,
             onPets = onPets,
+            language = language,
+            onLanguage = { language = it; vm.setLanguage(it) },
             update = manualUpdate,
             progress = progress,
             onInstall = vm::installUpdate,

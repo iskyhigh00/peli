@@ -590,6 +590,31 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
         }
     }
 
+    /**
+     * Vuelve a pedir título y sinopsis de lo que marqué en el idioma elegido (cuando cambia de España a Latinoamérica, etc.).
+     * Devuelve true si todas se pudieron actualizar; si una tanda entera falla (sin red) se detiene y queda para después.
+     */
+    suspend fun refreshTexts(marked: List<Entry>): Boolean {
+        var allOk = true
+        for (chunk in marked.map { it.movieId }.distinct().chunked(BACKGROUND_BATCH)) {
+            val results = coroutineScope {
+                chunk.map { id ->
+                    async {
+                        gate.withPermit {
+                            val d = attempt { api.details(id) }.getOrNull()
+                            val title = d?.title?.trim().orEmpty()
+                            if (d != null && title.isNotEmpty()) dao.setTexts(OWNER_ME, id, title, d.overview.orEmpty())
+                            d != null
+                        }
+                    }
+                }.awaitAll()
+            }
+            if (results.none { it }) return false
+            if (results.any { !it }) allOk = false
+        }
+        return allOk
+    }
+
     /** Datos extra de las [ENRICH_TOP] mejores candidatas (por puntaje sin ellos); el resto usa solo lo guardado. */
     private suspend fun candidateFacts(usable: List<Pair<Entry, CandMeta>>, profile: Recommender.Profile): Map<Int, MovieFacts> {
         if (usable.isEmpty()) return emptyMap()

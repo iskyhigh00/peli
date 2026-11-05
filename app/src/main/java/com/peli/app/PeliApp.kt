@@ -27,6 +27,7 @@ class PeliApp : Application() {
         AppLog.init(this)
         CrashReporter.install(this)
         Social.store = account
+        com.peli.app.data.Lang.tag = languagePrefs.tag
         ReminderWorker.schedule(this)
         if (reminderStore.weekendEnabled) com.peli.app.reminders.WeekendAlarm.schedule(this)
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
@@ -71,6 +72,7 @@ class PeliApp : Application() {
 
     val exposure by lazy { ExposureStore(this) }
     val filterStore by lazy { FilterStore(this) }
+    val languagePrefs by lazy { com.peli.app.data.LanguagePrefs(this) }
     val reminderStore by lazy { ReminderStore(this) }
     val account by lazy { AccountStore(this) }
     val pairing by lazy { PairingStore(this) }

@@ -391,6 +391,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         // Datos extra (palabras clave, director, reparto) de lo que ya marqué: se completan de a poco en segundo plano.
         launch(Dispatchers.IO) {
             delay(ENRICH_DELAY_MS)
+            refreshTextsIfNeeded()
             attempt { repo.backfillOriginalTitles(repo.mine.first()) }
                 .onFailure { AppLog.w("Datos", "no se pudieron completar los títulos originales", it) }
             attempt { repo.enrichMarked(repo.mine.first()) }
@@ -1203,6 +1204,26 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
                 petLoading.value = false
             }
         }
+    }
+
+    /** Si los títulos y sinopsis guardados no están en el idioma elegido, se vuelven a pedir (de a poco, sin tocar mis marcas). */
+    private suspend fun refreshTextsIfNeeded() {
+        val prefs = peli.languagePrefs
+        if (prefs.textsTag == com.peli.app.data.Lang.tag) return
+        val tag = com.peli.app.data.Lang.tag
+        val ok = attempt { repo.refreshTexts(repo.mine.first()) }.getOrDefault(false)
+        AppLog.i("Idioma", "textos de mis películas en $tag: ${if (ok) "actualizados" else "pendientes"}")
+        if (ok && tag == com.peli.app.data.Lang.tag) prefs.textsTag = tag
+    }
+
+    /** Cambia el idioma de títulos y sinopsis: de ahora en adelante se piden así y lo ya guardado se actualiza. */
+    fun setLanguage(tag: String) {
+        if (tag == com.peli.app.data.Lang.tag) return
+        com.peli.app.data.Lang.tag = tag
+        peli.languagePrefs.tag = tag
+        message.value = "Títulos y sinopsis en ${com.peli.app.data.Lang.options.first { it.first == tag }.second}."
+        launch(Dispatchers.IO) { refreshTextsIfNeeded() }
+        refreshSearch()
     }
 
     /** Recomendaciones al azar de Chuba y Pepa (las guarda el aviso semanal). */

@@ -72,6 +72,8 @@ fun SettingsSheet(
     onRecs: (Boolean) -> Unit,
     petsOn: Boolean,
     onPets: (Boolean) -> Unit,
+    language: String,
+    onLanguage: (String) -> Unit,
     update: MainViewModel.ManualUpdate,
     progress: Int,
     onInstall: (String) -> Unit,
@@ -133,6 +135,21 @@ fun SettingsSheet(
                 enabled = true,
                 onChange = onRecs,
             )
+            Text("Idioma de títulos y sinopsis", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
+            Text(
+                "Las traducciones vienen de TMDB. Latinoamérica usa los títulos de México, que son los más parecidos a los de toda la región; los títulos de España son distintos.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(Modifier.padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                com.peli.app.data.Lang.options.forEach { (tag, name) ->
+                    androidx.compose.material3.FilterChip(
+                        selected = tag == language,
+                        onClick = { onLanguage(tag) },
+                        label = { Text(name) },
+                    )
+                }
+            }
             SettingRow(
                 title = "Chuba y Pepa recomiendan",
                 subtitle = "Unos 3 días a la semana, al azar, Chuba o Pepa te recomiendan una película según su gusto, con su explicación.",
