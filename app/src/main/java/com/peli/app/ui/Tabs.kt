@@ -712,6 +712,8 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
     val petMap by vm.petPicks.collectAsState()
     val petLoading by vm.petLoading.collectAsState()
     val petList = petSelected?.let { petMap[it] }.orEmpty()
+    val petRecList by vm.petRecs.collectAsState()
+    LaunchedEffect(Unit) { vm.refreshPetRecs() }
     val both = remember(matches) { matches.filter { it.both } }
     val single = remember(matches) { matches.filter { !it.both } }
     fun mineOrNew(m: Match) = byId[m.entry.movieId] ?: m.entry.asUnmarked(OWNER_ME)
@@ -744,6 +746,39 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
                         contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                         modifier = Modifier.fillMaxSize(),
                     )
+                }
+            }
+            // Recomendaciones al azar de Chuba y Pepa durante la semana.
+            if (petRecList.isNotEmpty()) item(key = "pet-recs") {
+                Column(verticalArrangement = Arrangement.spacedBy(ItemSpacing)) {
+                    Text("Te recomiendan Chuba y Pepa", style = MaterialTheme.typography.titleLarge)
+                    petRecList.take(3).forEach { r ->
+                        val pet = r.petEnum
+                        GlassCard(onClick = { onOpen(r.toEntry()) }, onClickLabel = "Ver ${r.title}") {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                val pics = Stickers.of(pet)
+                                androidx.compose.foundation.Image(
+                                    painter = androidx.compose.ui.res.painterResource(pics[Math.floorMod(r.movieId, pics.size)]),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(88.dp),
+                                )
+                                Spacer(Modifier.width(12.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text("${pet.label} te recomienda", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                                    Text(r.title, style = MaterialTheme.typography.titleMedium)
+                                    Text(
+                                        "${r.score}/10 · ${r.reason}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
+                                        GradientButton("Quiero verla", { vm.toggleWant(byId[r.movieId] ?: r.toEntry()); vm.dismissPetRec(r) }, Modifier.weight(1f))
+                                        TonalButton("Descartar", { vm.dismissPetRec(r) }, Modifier.weight(1f))
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
             // Gustos de Chuba y Pepa: para cuando las películas propias aburren.

@@ -31,6 +31,10 @@ class ReminderWorker(private val context: Context, params: WorkerParameters) : C
     override suspend fun doWork(): Result {
         val app = context.applicationContext as PeliApp
         val store = app.reminderStore
+        // Recomendación al azar de Chuba o Pepa (solo algunos días de la semana).
+        if (store.petsEnabled && canNotify(context)) {
+            runCatching { petRecommendation(app, store) }.onFailure { AppLog.w("Avisos", "falló la recomendación de las perritas", it) }
+        }
         if ((!store.enabled && !store.recsEnabled) || !canNotify(context)) return Result.success()
         val repo = app.repository
         // Estrenos: activados por defecto. Recomendaciones de amigos: apagadas hasta que cada persona las active.
@@ -76,6 +80,38 @@ class ReminderWorker(private val context: Context, params: WorkerParameters) : C
         }
         store.notified = recorded
         return Result.success()
+    }
+
+    private suspend fun petRecommendation(app: PeliApp, store: ReminderStore) {
+        val now = System.currentTimeMillis()
+        if (!com.peli.app.data.PetWeekly.due(now, store.petLastDay)) return
+        val pet = com.peli.app.data.PetWeekly.petFor(now)
+        val week = java.util.Calendar.getInstance().get(java.util.Calendar.WEEK_OF_YEAR)
+        val sent = store.petSentIds
+        val (entry, verdict) = app.repository.petPicks(pet, week).firstOrNull { it.first.movieId !in sent } ?: return
+        val rec = com.peli.app.data.PetRec(
+            pet = pet.name, movieId = entry.movieId, title = entry.displayTitle, posterPath = entry.posterPath, year = entry.year,
+            genres = entry.genres, rating = entry.rating, score = verdict.score, reason = verdict.reason, at = now,
+        )
+        store.petRecs = (listOf(rec) + store.petRecs).take(6)
+        store.petSentIds = sent + entry.movieId
+        store.petLastDay = com.peli.app.data.PetWeekly.dayKey(now)
+        ensureChannel(context)
+        val (title, text) = com.peli.app.data.PetWeekly.message(rec)
+        val open = PendingIntent.getActivity(
+            context, 2, Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val n = NotificationCompat.Builder(context, CHANNEL)
+            .setSmallIcon(R.drawable.ic_stat_peli)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setContentIntent(open)
+            .setAutoCancel(true)
+            .build()
+        runCatching { NotificationManagerCompat.from(context).notify(3_000_000 + entry.movieId % 100_000, n) }
+        AppLog.i("Avisos", "${pet.label} recomienda ${entry.title} (${verdict.score}/10)")
     }
 
     companion object {

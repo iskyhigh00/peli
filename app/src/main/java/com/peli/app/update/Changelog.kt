@@ -303,6 +303,10 @@ object Changelog {
             "En Juntos, al elegir a Chuba o a Pepa y bajar por su lista, sus calcomanías se quedan fijas arriba (con un botón para ocultarlas).",
             "Los motivos de las notas de Chuba y Pepa ahora varían de una película a otra en vez de repetir la misma frase.",
         ),
+        "1.8.4" to listOf(
+            "Al recomendar una película a un amigo, la app siempre muestra a quién se la envías (aunque tengas un solo amigo) antes de enviarla.",
+            "Chuba y Pepa recomiendan: unos 3 días a la semana, al azar, una de las dos te recomienda una película según su gusto, con nota y explicación (aviso y tarjeta en Juntos). Viene apagado: se activa en Ajustes, en \"Chuba y Pepa recomiendan\".",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

@@ -792,6 +792,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
             ?: results.value.firstOrNull { it.movieId == id }
             ?: queue.value.firstOrNull { it.movieId == id }
             ?: partner.value.firstOrNull { it.movieId == id }
+            ?: petRecs.value.firstOrNull { it.movieId == id }?.toEntry()
             ?: petPicks.value.values.firstNotNullOfOrNull { l -> l.firstOrNull { it.first.movieId == id }?.first }
 
     // ---- Descubrir -----------------------------------------------------------
@@ -1204,6 +1205,16 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         }
     }
 
+    /** Recomendaciones al azar de Chuba y Pepa (las guarda el aviso semanal). */
+    val petRecs = MutableStateFlow<List<com.peli.app.data.PetRec>>(emptyList())
+
+    fun refreshPetRecs() { petRecs.value = peli.reminderStore.petRecs }
+
+    fun dismissPetRec(rec: com.peli.app.data.PetRec) {
+        peli.reminderStore.petRecs = peli.reminderStore.petRecs.filter { it.movieId != rec.movieId }
+        refreshPetRecs()
+    }
+
     /** Película que se está por recomendar cuando hay que elegir a qué amigo (la pantalla muestra la lista). */
     val recommendTarget = MutableStateFlow<Entry?>(null)
 
@@ -1212,8 +1223,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         val accepted = friends.value.filter { it.accepted }
         when {
             accepted.isEmpty() -> message.value = "Para recomendar necesitas iniciar sesión (en Ajustes) y tener un amigo agregado."
-            accepted.size == 1 -> recommend(e, accepted.first())
-            else -> recommendTarget.value = e
+            else -> recommendTarget.value = e   // siempre se muestra a quién (aunque haya un solo amigo)
         }
     }
 

@@ -293,6 +293,12 @@ private fun Home(vm: MainViewModel, tab: Tab, onTabChange: (Tab) -> Unit, onOpen
         reminderStore.recsEnabled = on
         if (on) requestIfNeeded()
     }
+    var petsOn by remember { mutableStateOf(reminderStore.petsEnabled) }
+    val onPets: (Boolean) -> Unit = { on ->
+        petsOn = on
+        reminderStore.petsEnabled = on
+        if (on) requestIfNeeded()
+    }
     var weekendOn by remember { mutableStateOf(reminderStore.weekendEnabled) }
     val onWeekend: (Boolean) -> Unit = { on ->
         weekendOn = on
@@ -548,6 +554,8 @@ private fun Home(vm: MainViewModel, tab: Tab, onTabChange: (Tab) -> Unit, onOpen
             onWeekend = onWeekend,
             recsOn = recsOn,
             onRecs = onRecs,
+            petsOn = petsOn,
+            onPets = onPets,
             update = manualUpdate,
             progress = progress,
             onInstall = vm::installUpdate,
