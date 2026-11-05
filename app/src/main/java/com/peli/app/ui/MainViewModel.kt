@@ -1184,12 +1184,17 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
     val petPicks = MutableStateFlow<Map<com.peli.app.data.Pet, List<Pair<Entry, com.peli.app.data.PetVerdict>>>>(emptyMap())
     val petLoading = MutableStateFlow(false)
     private val petRounds = HashMap<com.peli.app.data.Pet, Int>()
+    private val petSlots = HashMap<com.peli.app.data.Pet, Int>()
 
     fun loadPetPicks(pet: com.peli.app.data.Pet, more: Boolean = false) {
         if (petLoading.value) return
-        if (!more && petPicks.value[pet]?.isNotEmpty() == true) return
-        val round = (petRounds[pet] ?: 0) + if (more) 1 else 0
-        petRounds[pet] = round
+        // La base cambia cada 6 horas (día y franja); «Ver otras» suma una ronda más.
+        val slot = (System.currentTimeMillis() / (6 * 3_600_000L)).toInt()
+        if (!more && petPicks.value[pet]?.isNotEmpty() == true && petSlots[pet] == slot) return
+        val extra = if (petSlots[pet] == slot) (petRounds[pet] ?: 0) + if (more) 1 else 0 else 0
+        petSlots[pet] = slot
+        petRounds[pet] = extra
+        val round = slot * 16 + extra
         petLoading.value = true
         launch {
             try {

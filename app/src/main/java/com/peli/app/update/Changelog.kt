@@ -316,6 +316,9 @@ object Changelog {
         "1.8.7" to listOf(
             "20 calcomanías nuevas de Chuba y Pepa (cámara, astronauta, detective, pirata, magas, vaquera, princesa y más): ahora hay 38 que van rotando, en otro orden cada vez que abres la app.",
         ),
+        "1.8.8" to listOf(
+            "Las listas de Chuba y Pepa ahora cambian solas: cada 6 horas piden otras películas y otro orden (y \"Ver otras\" trae más al instante), en vez de mostrar siempre las mismas.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"
