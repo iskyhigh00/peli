@@ -172,8 +172,11 @@ fun PeliScreen(vm: MainViewModel = viewModel()) {
                     transitionSpec = { fadeIn(tween(300)) togetherWith fadeOut(tween(200)) },
                     label = "detailTransition",
                 ) { entry ->
+                    val cardFactsMap by vm.facts.collectAsState()
+                    val cardFacts = remember(cardFactsMap) { com.peli.app.ui.components.CardFacts(cardFactsMap, vm::cachedBadge) }
                     CompositionLocalProvider(
                         LocalShared provides null,
+                        com.peli.app.ui.components.LocalCardFacts provides cardFacts,
                     ) {
                         if (entry == null) {
                             // Conserva pestañas, scroll y barra superior mientras se mira una película.

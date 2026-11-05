@@ -334,6 +334,9 @@ object Changelog {
         "1.9.3" to listOf(
             "Chuba y Pepa opinan con más de sus manías: Chuba persigue perros y ladra primero; Pepa mira de lejos, se esconde con el ruido, se queda en la cabecera y se va relajando de a poco.",
         ),
+        "1.9.4" to listOf(
+            "Las tarjetas de las listas muestran un broche diminuto sobre la carátula: trofeo dorado si la película ganó premios, verde si solo tiene nominaciones (cuando ya se conocen sus premios).",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

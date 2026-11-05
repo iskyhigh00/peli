@@ -278,6 +278,16 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
     /** Datos extra (director, reparto) de las películas cuyo detalle se abrió. */
     val facts = MutableStateFlow<Map<Int, com.peli.app.data.MovieFacts>>(emptyMap())
 
+    private val badgeAsked = HashSet<Int>()
+
+    /** Lee de lo guardado (sin red) los datos de una tarjeta que se ve, para su broche de premios. */
+    fun cachedBadge(movieId: Int) {
+        if (!badgeAsked.add(movieId) || movieId in facts.value) return
+        launch(Dispatchers.IO) {
+            repo.cachedFacts(listOf(movieId))[movieId]?.takeIf { it.hasOmdb }?.let { f -> facts.update { it + (movieId to f) } }
+        }
+    }
+
     fun loadFacts(movieId: Int) {
         launch(Dispatchers.IO) {
             repo.cachedFacts(listOf(movieId))[movieId]?.let { f -> facts.update { it + (movieId to f) } }

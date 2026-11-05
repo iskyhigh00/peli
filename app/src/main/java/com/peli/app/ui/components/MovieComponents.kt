@@ -24,6 +24,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.ThumbUp
@@ -248,11 +251,14 @@ fun MovieCard(
         onClickLabel = "Ver detalle de ${entry.title}",
     ) {
         Row {
-            PosterImage(
-                path = entry.posterPath,
-                contentDescription = "Carátula de ${entry.title}",
-                modifier = Modifier.width(96.dp).aspectRatio(2f / 3f).sharedPoster(entry.movieId),
-            )
+            Box(Modifier.width(96.dp)) {
+                PosterImage(
+                    path = entry.posterPath,
+                    contentDescription = "Carátula de ${entry.title}",
+                    modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f).sharedPoster(entry.movieId),
+                )
+                AwardPin(entry.movieId, Modifier.align(Alignment.TopEnd).padding(5.dp))
+            }
             Spacer(Modifier.width(16.dp))
             Column(Modifier.weight(1f)) {
                 Text(
@@ -349,5 +355,37 @@ private fun MovieCardPreview() {
                 MovieCard(sampleEntry.copy(title = "Estreno futuro", watchlist = false, year = "2099", releaseDate = "2099-01-15"), null, {}, {}, {}, {})
             }
         }
+    }
+}
+
+
+/** Datos guardados de las películas (para el broche de premios) y cómo pedir los de una tarjeta que se ve. */
+class CardFacts(val facts: Map<Int, com.peli.app.data.MovieFacts>, val request: (Int) -> Unit)
+
+val LocalCardFacts = androidx.compose.runtime.staticCompositionLocalOf<CardFacts?> { null }
+
+/**
+ * Broche diminuto sobre la carátula: trofeo verde si la película tiene nominaciones, dorado si ganó algo.
+ * Solo aparece cuando ya se conocen sus premios (no gasta consultas nuevas).
+ */
+@Composable
+fun AwardPin(movieId: Int, modifier: Modifier = Modifier) {
+    val cf = LocalCardFacts.current ?: return
+    androidx.compose.runtime.LaunchedEffect(movieId) { cf.request(movieId) }
+    val f = cf.facts[movieId] ?: return
+    val won = f.oscarWins > 0 || f.wins > 0
+    val nominated = f.oscarNominations > 0 || f.nominations > 0
+    if (!f.hasOmdb || (!won && !nominated)) return
+    val tint = if (won) androidx.compose.ui.graphics.Color(0xFFFFC94A) else androidx.compose.ui.graphics.Color(0xFF5EE0A0)
+    val label = if (f.oscarWins > 0) "Ganó Óscar" else if (f.oscarNominations > 0) "Nominada al Óscar" else if (won) "Con premios" else "Con nominaciones"
+    Box(
+        modifier
+            .size(20.dp)
+            .clip(androidx.compose.foundation.shape.CircleShape)
+            .background(androidx.compose.ui.graphics.Color(0xCC0B0A14))
+            .border(1.dp, tint.copy(alpha = 0.85f), androidx.compose.foundation.shape.CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(Icons.Filled.EmojiEvents, contentDescription = label, tint = tint, modifier = Modifier.size(12.dp))
     }
 }
