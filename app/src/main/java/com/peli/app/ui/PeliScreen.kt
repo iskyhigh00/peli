@@ -559,6 +559,7 @@ private fun Home(vm: MainViewModel, tab: Tab, onTabChange: (Tab) -> Unit, onOpen
             onPets = onPets,
             language = language,
             onLanguage = { language = it; vm.setLanguage(it) },
+            onRefreshTitles = vm::refreshTitlesNow,
             update = manualUpdate,
             progress = progress,
             onInstall = vm::installUpdate,

@@ -1216,6 +1216,18 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         if (ok && tag == com.peli.app.data.Lang.tag) prefs.textsTag = tag
     }
 
+    /** Botón de Ajustes: vuelve a pedir ahora los títulos y sinopsis de lo que tengo marcado, sin esperar. */
+    fun refreshTitlesNow() {
+        val tag = com.peli.app.data.Lang.tag
+        message.value = "Actualizando los títulos de tus películas…"
+        launch(Dispatchers.IO) {
+            val marked = repo.mine.first()
+            val ok = attempt { repo.refreshTexts(marked) }.getOrDefault(false)
+            if (ok && tag == com.peli.app.data.Lang.tag) peli.languagePrefs.textsTag = tag
+            message.value = if (ok) "Listo: se actualizaron los títulos de ${marked.size} películas." else "No se pudieron actualizar todos (¿sin conexión?). Prueba de nuevo."
+        }
+    }
+
     /** Cambia el idioma de títulos y sinopsis: de ahora en adelante se piden así y lo ya guardado se actualiza. */
     fun setLanguage(tag: String) {
         if (tag == com.peli.app.data.Lang.tag) return

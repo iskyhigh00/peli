@@ -74,6 +74,7 @@ fun SettingsSheet(
     onPets: (Boolean) -> Unit,
     language: String,
     onLanguage: (String) -> Unit,
+    onRefreshTitles: () -> Unit,
     update: MainViewModel.ManualUpdate,
     progress: Int,
     onInstall: (String) -> Unit,
@@ -150,6 +151,7 @@ fun SettingsSheet(
                     )
                 }
             }
+            TonalButton("Actualizar títulos de mis películas", onRefreshTitles, Modifier.fillMaxWidth().padding(bottom = 8.dp))
             SettingRow(
                 title = "Chuba y Pepa recomiendan",
                 subtitle = "Unos 3 días a la semana, al azar, Chuba o Pepa te recomiendan una película según su gusto, con su explicación.",

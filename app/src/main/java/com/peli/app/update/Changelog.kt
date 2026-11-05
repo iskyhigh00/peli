@@ -310,6 +310,9 @@ object Changelog {
         "1.8.5" to listOf(
             "Títulos y sinopsis en español de Latinoamérica (antes se pedían en español de España, con títulos como \"Resacón\" en vez de \"¿Qué pasó ayer?\"). En Ajustes puedes elegir Latinoamérica, Chile o España. Lo que ya tenías marcado se actualiza solo, de a poco.",
         ),
+        "1.8.6" to listOf(
+            "Botón \"Actualizar títulos de mis películas\" en Ajustes: vuelve a descargar ahora el título y la sinopsis de lo que ya tienes marcado, en el idioma elegido.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"
