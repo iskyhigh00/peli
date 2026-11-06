@@ -340,6 +340,9 @@ object Changelog {
         "1.9.5" to listOf(
             "Los avisos llevan una calcomanía distinta de Chuba y Pepa cada vez (la recomendación semanal usa la de la perrita que recomienda).",
         ),
+        "1.9.6" to listOf(
+            "Los botones «Quiero verla» y «Descartar» de las recomendaciones ya no se cortan: van uno bajo el otro, con el texto completo.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

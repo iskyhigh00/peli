@@ -771,9 +771,9 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
-                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
-                                        GradientButton("Quiero verla", { vm.toggleWant(byId[r.movieId] ?: r.toEntry()); vm.dismissPetRec(r) }, Modifier.weight(1f))
-                                        TonalButton("Descartar", { vm.dismissPetRec(r) }, Modifier.weight(1f))
+                                    androidx.compose.foundation.layout.Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
+                                        GradientButton("Quiero verla", { vm.toggleWant(byId[r.movieId] ?: r.toEntry()); vm.dismissPetRec(r) }, Modifier.fillMaxWidth())
+                                        TonalButton("Descartar", { vm.dismissPetRec(r) }, Modifier.fillMaxWidth())
                                     }
                                 }
                             }
@@ -836,9 +836,9 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
                                     "${r.from_name} te recomendó «${r.title}»" + if (r.year.isNotBlank()) " (${r.year})" else "",
                                     style = MaterialTheme.typography.bodyLarge,
                                 )
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    GradientButton("Quiero verla", { vm.wantRecommended(r) }, Modifier.weight(1f))
-                                    TonalButton("Descartar", { vm.dismissRecommendation(r) }, Modifier.weight(1f))
+                                androidx.compose.foundation.layout.Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    GradientButton("Quiero verla", { vm.wantRecommended(r) }, Modifier.fillMaxWidth())
+                                    TonalButton("Descartar", { vm.dismissRecommendation(r) }, Modifier.fillMaxWidth())
                                 }
                             }
                         }
