@@ -353,6 +353,9 @@ object Changelog {
             "En Ajustes, «Generar enlaces de los matches» arma la lista de enlaces de búsqueda de todos los matches que aún no tienes disponibles (para copiar o compartir).",
             "En Juntos, cada película tiene un botón para marcarla «Disponible» (arrendada, comprada o en una plataforma).",
         ),
+        "2.0.0" to listOf(
+            "Corrige la compilación de la versión 1.9.9: incluye la lista de enlaces de los matches (Ajustes) y la marca «Disponible» en Juntos.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"
