@@ -1243,6 +1243,27 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         }
     }
 
+    /** Películas marcadas como «disponible» (arrendadas, compradas o en una plataforma). */
+    val available = MutableStateFlow(peli.availablePrefs.ids)
+
+    fun toggleAvailable(movieId: Int) {
+        val next = available.value.let { if (movieId in it) it - movieId else it + movieId }
+        available.value = next
+        peli.availablePrefs.ids = next
+    }
+
+    /**
+     * Los enlaces de búsqueda de los matches (a los dos les interesa) que aún no están disponibles, por título original,
+     * uno por línea. null si no hay enlace configurado o no hay matches pendientes.
+     */
+    fun matchLinks(): String? {
+        val own = mine.value.associateBy { it.movieId }
+        val titles = matches.value.filter { it.both && it.entry.movieId !in available.value }.map { m ->
+            (own[m.entry.movieId]?.originalTitle ?: m.entry.originalTitle)?.takeIf { it.isNotBlank() } ?: m.entry.title
+        }
+        return com.peli.app.data.SearchLink.list(searchLink.value, titles).takeIf { it.isNotEmpty() }?.joinToString("\n")
+    }
+
     /** Plantilla del enlace de búsqueda del botón del detalle (se edita en Ajustes). */
     val searchLink = MutableStateFlow(peli.searchLinkPrefs.template)
 

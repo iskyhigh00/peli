@@ -26,4 +26,8 @@ object SearchLink {
     /** Nombre corto del sitio para el botón ("justwatch.com"). */
     fun host(template: String): String? =
         runCatching { URI(template.trim().replace(PLACEHOLDER, "x")).host?.removePrefix("www.") }.getOrNull()?.takeIf { it.isNotBlank() }
+
+    /** Un enlace por título (en el orden dado), sin repetidos ni títulos que no arman enlace. */
+    fun list(template: String, titles: List<String>): List<String> =
+        titles.mapNotNull { build(template, it) }.distinct()
 }

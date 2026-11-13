@@ -168,6 +168,44 @@ fun SettingsSheet(
                 keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Uri),
             )
             androidx.compose.material3.TextButton(onClick = { vm.setSearchLink(com.peli.app.data.SearchLink.DEFAULT) }) { Text("Restablecer") }
+            var linksText by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
+            val linksContext = androidx.compose.ui.platform.LocalContext.current
+            TonalButton(
+                "Generar enlaces de los matches",
+                {
+                    val text = vm.matchLinks()
+                    if (text == null) onMessage("No hay matches pendientes o falta el enlace de búsqueda.") else linksText = text
+                },
+                Modifier.fillMaxWidth(),
+            )
+            linksText?.let { text ->
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { linksText = null },
+                    title = { Text("Matches por ver (${text.lines().size})") },
+                    text = {
+                        Column(Modifier.verticalScroll(rememberScrollState())) {
+                            androidx.compose.foundation.text.selection.SelectionContainer { Text(text, style = MaterialTheme.typography.bodySmall) }
+                        }
+                    },
+                    confirmButton = {
+                        androidx.compose.material3.TextButton(onClick = {
+                            val cm = linksContext.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                            cm.setPrimaryClip(android.content.ClipData.newPlainText("Enlaces", text))
+                            onMessage("Enlaces copiados.")
+                            linksText = null
+                        }) { Text("Copiar") }
+                    },
+                    dismissButton = {
+                        androidx.compose.material3.TextButton(onClick = {
+                            val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(android.content.Intent.EXTRA_TEXT, text)
+                            }
+                            linksContext.startActivity(android.content.Intent.createChooser(send, "Enviar enlaces"))
+                        }) { Text("Compartir") }
+                    },
+                )
+            }
             TonalButton("Actualizar títulos de mis películas", onRefreshTitles, Modifier.fillMaxWidth().padding(bottom = 8.dp))
             SettingRow(
                 title = "Chuba y Pepa recomiendan",

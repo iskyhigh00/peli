@@ -27,6 +27,11 @@ class SearchLinkTest {
         assertNull(SearchLink.build("https://x.org/{titulo}", "   "))
     }
 
+    @Test fun `lista de enlaces sin repetidos`() {
+        val l = SearchLink.list("https://x.org/{titulo}/ok", listOf("Up", "Heat", "Up", " "))
+        assertEquals(listOf("https://x.org/Up/ok", "https://x.org/Heat/ok"), l)
+    }
+
     @Test fun `nombre corto del sitio`() {
         assertEquals("justwatch.com", SearchLink.host(SearchLink.DEFAULT))
         assertNull(SearchLink.host("no es una direccion"))

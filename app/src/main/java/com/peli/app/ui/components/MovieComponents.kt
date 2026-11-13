@@ -36,6 +36,8 @@ import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.ThumbUp
 import androidx.compose.material.icons.outlined.ThumbDown
 import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -237,6 +239,9 @@ fun MovieCard(
     modifier: Modifier = Modifier,
     badge: String? = null,
     onRecommend: (() -> Unit)? = null,
+    /** Solo en Juntos: marca la película como ya disponible (arrendada, comprada o en una plataforma). */
+    available: Boolean = false,
+    onAvailable: (() -> Unit)? = null,
 ) {
     val scheme = MaterialTheme.colorScheme
     val want = mine?.watchlist == true
@@ -276,10 +281,11 @@ fun MovieCard(
                 if (meta.isNotBlank()) {
                     Text(meta, style = MaterialTheme.typography.labelMedium, color = scheme.onSurfaceVariant)
                 }
-                if (entry.isUpcoming || badge != null || state != null) {
+                if (entry.isUpcoming || badge != null || state != null || available) {
                     Spacer(Modifier.height(4.dp))
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         if (entry.isUpcoming) UpcomingChip()
+                        if (available) StatusChip("Disponible", accent = scheme.secondary)
                         if (badge != null) StatusChip(badge)
                         if (state != null && mine != null) StatusChip(state, accent = stateAccent(mine))
                     }
@@ -317,6 +323,16 @@ fun MovieCard(
                         description = if (disliked) "Quitar ${entry.title} de las que no me gustan" else "No me gusta ${entry.title}",
                         checkedTint = scheme.error,
                     )
+                    if (onAvailable != null) {
+                        ToggleIconButton(
+                            checked = available,
+                            onClick = onAvailable,
+                            icon = Icons.Outlined.CheckCircle,
+                            checkedIcon = Icons.Filled.CheckCircle,
+                            description = if (available) "Quitar «disponible» de ${entry.title}" else "Marcar ${entry.title} como disponible (arrendada, comprada o en una plataforma)",
+                            checkedTint = scheme.secondary,
+                        )
+                    }
                     if (onRecommend != null) {
                         ToggleIconButton(
                             checked = false,

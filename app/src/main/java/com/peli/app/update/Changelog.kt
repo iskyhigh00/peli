@@ -349,6 +349,10 @@ object Changelog {
         "1.9.8" to listOf(
             "El botón de búsqueda usa el título original de la película, no el traducido.",
         ),
+        "1.9.9" to listOf(
+            "En Ajustes, «Generar enlaces de los matches» arma la lista de enlaces de búsqueda de todos los matches que aún no tienes disponibles (para copiar o compartir).",
+            "En Juntos, cada película tiene un botón para marcarla «Disponible» (arrendada, comprada o en una plataforma).",
+        ),
     )
 
     private const val PREFS = "peli_prefs"
