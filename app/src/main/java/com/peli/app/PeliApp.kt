@@ -73,6 +73,7 @@ class PeliApp : Application() {
     val exposure by lazy { ExposureStore(this) }
     val filterStore by lazy { FilterStore(this) }
     val languagePrefs by lazy { com.peli.app.data.LanguagePrefs(this) }
+    val searchLinkPrefs by lazy { com.peli.app.data.SearchLinkPrefs(this) }
     val reminderStore by lazy { ReminderStore(this) }
     val account by lazy { AccountStore(this) }
     val pairing by lazy { PairingStore(this) }

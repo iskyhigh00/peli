@@ -151,6 +151,23 @@ fun SettingsSheet(
                     )
                 }
             }
+            Text("Enlace de búsqueda", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
+            Text(
+                "Botón al final de cada película que abre este enlace con su nombre. Escribe la dirección completa y pon {titulo} donde va el nombre. Si lo dejas vacío, el botón no aparece.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            val searchLink by vm.searchLink.collectAsState()
+            androidx.compose.material3.OutlinedTextField(
+                value = searchLink,
+                onValueChange = vm::setSearchLink,
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                label = { Text("Dirección") },
+                placeholder = { Text(com.peli.app.data.SearchLink.DEFAULT) },
+                singleLine = false,
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Uri),
+            )
+            androidx.compose.material3.TextButton(onClick = { vm.setSearchLink(com.peli.app.data.SearchLink.DEFAULT) }) { Text("Restablecer") }
             TonalButton("Actualizar títulos de mis películas", onRefreshTitles, Modifier.fillMaxWidth().padding(bottom = 8.dp))
             SettingRow(
                 title = "Chuba y Pepa recomiendan",

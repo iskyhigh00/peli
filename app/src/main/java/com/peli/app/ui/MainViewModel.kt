@@ -1243,6 +1243,14 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         }
     }
 
+    /** Plantilla del enlace de búsqueda del botón del detalle (se edita en Ajustes). */
+    val searchLink = MutableStateFlow(peli.searchLinkPrefs.template)
+
+    fun setSearchLink(template: String) {
+        searchLink.value = template
+        peli.searchLinkPrefs.template = template
+    }
+
     /** Cambia el idioma de títulos y sinopsis: de ahora en adelante se piden así y lo ya guardado se actualiza. */
     fun setLanguage(tag: String) {
         if (tag == com.peli.app.data.Lang.tag) return

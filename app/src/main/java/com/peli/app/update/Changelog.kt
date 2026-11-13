@@ -343,6 +343,9 @@ object Changelog {
         "1.9.6" to listOf(
             "Los botones «Quiero verla» y «Descartar» de las recomendaciones ya no se cortan: van uno bajo el otro, con el texto completo.",
         ),
+        "1.9.7" to listOf(
+            "Nuevo botón de búsqueda al final de cada película. Su enlace se configura en Ajustes (con {titulo} donde va el nombre) y por defecto busca en JustWatch.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

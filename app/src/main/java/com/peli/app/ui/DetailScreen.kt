@@ -33,6 +33,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import android.content.Intent
+import androidx.compose.material.icons.filled.Search
 import android.net.Uri
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.YouTubePlayer
@@ -228,6 +229,17 @@ fun DetailScreen(entry: Entry, mine: Entry?, vm: MainViewModel, onBack: () -> Un
                         Modifier.fillMaxWidth(),
                         icon = Icons.Default.ThumbDown,
                     )
+                    val searchTemplate by vm.searchLink.collectAsState()
+                    val searchUrl = remember(searchTemplate, entry.title) { com.peli.app.data.SearchLink.build(searchTemplate, entry.title) }
+                    if (searchUrl != null) {
+                        val ctx = LocalContext.current
+                        TonalButton(
+                            "Buscar en ${com.peli.app.data.SearchLink.host(searchTemplate) ?: "el enlace"}",
+                            { runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(searchUrl)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } },
+                            Modifier.fillMaxWidth(),
+                            icon = Icons.Default.Search,
+                        )
+                    }
                     TonalButton(
                         "Recomendar a un amigo",
                         { vm.requestRecommend(entry) },
