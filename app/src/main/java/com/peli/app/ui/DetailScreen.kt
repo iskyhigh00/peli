@@ -230,7 +230,9 @@ fun DetailScreen(entry: Entry, mine: Entry?, vm: MainViewModel, onBack: () -> Un
                         icon = Icons.Default.ThumbDown,
                     )
                     val searchTemplate by vm.searchLink.collectAsState()
-                    val searchUrl = remember(searchTemplate, entry.title) { com.peli.app.data.SearchLink.build(searchTemplate, entry.title) }
+                    // Se busca por el título original (el de TMDB en su idioma de origen); si aún no se conoce, el que se muestra.
+                    val searchTitle = (entry.originalTitle ?: mine?.originalTitle)?.takeIf { it.isNotBlank() } ?: entry.title
+                    val searchUrl = remember(searchTemplate, searchTitle) { com.peli.app.data.SearchLink.build(searchTemplate, searchTitle) }
                     if (searchUrl != null) {
                         val ctx = LocalContext.current
                         TonalButton(

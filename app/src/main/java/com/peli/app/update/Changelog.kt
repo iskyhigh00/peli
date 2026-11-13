@@ -346,6 +346,9 @@ object Changelog {
         "1.9.7" to listOf(
             "Nuevo botón de búsqueda al final de cada película. Su enlace se configura en Ajustes (con {titulo} donde va el nombre) y por defecto busca en JustWatch.",
         ),
+        "1.9.8" to listOf(
+            "El botón de búsqueda usa el título original de la película, no el traducido.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"
