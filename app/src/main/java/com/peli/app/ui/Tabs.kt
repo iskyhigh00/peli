@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
@@ -380,6 +381,10 @@ fun DiscoverTab(vm: MainViewModel) {
     val current = queue.firstOrNull()
     val navInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val scroll = rememberScrollState()
+    val videoOn by vm.discoverVideo.collectAsState()
+    val trailers by vm.trailers.collectAsState()
+    // El tráiler de la tarjeta de arriba se pide al mostrarla (el de la siguiente, apenas pasa a ser la de arriba).
+    LaunchedEffect(current?.movieId, videoOn) { if (videoOn) current?.let { vm.loadTrailer(it.movieId) } }
 
     // La tarjeta de arriba cuenta como mostrada una vez por presentación (no la precargada ni una recomposición).
     LaunchedEffect(current?.movieId) { current?.let(vm::onDiscoverCardShown) }
@@ -431,6 +436,7 @@ fun DiscoverTab(vm: MainViewModel) {
                             ) {
                                 DiscoverCardBody(
                                     e = e,
+                                    trailerKey = if (videoOn) (trailers[e.movieId] as? MainViewModel.TrailerState.Ready)?.key else null,
                                     partnerWants = e.movieId in partnerWants,
                                     poster = if (compact) Modifier.fillMaxWidth().height(260.dp) else Modifier.fillMaxWidth().weight(1f),
                                     onZoom = { zoomed = e },
@@ -541,12 +547,25 @@ private fun Modifier.swipeToSkip(key: Any, onSkip: () -> Unit): Modifier {
 @Composable
 private fun ColumnScope.DiscoverCardBody(
     e: Entry,
+    trailerKey: String?,
     partnerWants: Boolean,
     poster: Modifier,
     onZoom: () -> Unit,
     onSkip: () -> Unit,
 ) {
-    PosterImage(e.posterPath, "Carátula de ${e.title}", poster, contentScale = ContentScale.Fit, onClick = onZoom)
+    var videoFailed by remember(e.movieId) { mutableStateOf(false) }
+    if (trailerKey != null && !videoFailed) {
+        // El tráiler (en silencio) en lugar de la carátula; si YouTube no lo deja reproducir aquí, vuelve la carátula.
+        Box(
+            Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(MaterialTheme.shapes.large).background(androidx.compose.ui.graphics.Color.Black),
+            contentAlignment = Alignment.Center,
+        ) {
+            TrailerPlayer(trailerKey, startMuted = true, onProblem = { videoFailed = true })
+        }
+        Spacer(Modifier.weight(1f))
+    } else {
+        PosterImage(e.posterPath, "Carátula de ${e.title}", poster, contentScale = ContentScale.Fit, onClick = onZoom)
+    }
     Spacer(Modifier.height(12.dp))
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(

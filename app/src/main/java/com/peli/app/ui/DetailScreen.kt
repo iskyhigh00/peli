@@ -34,6 +34,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import android.content.Intent
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.automirrored.filled.VolumeOff
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import android.net.Uri
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.YouTubePlayer
@@ -358,10 +360,11 @@ private fun TrailerPage(state: MainViewModel.TrailerState?, active: Boolean, top
  * YouTube), se explica y solo entonces se ofrece abrirlo en YouTube.
  */
 @Composable
-private fun TrailerPlayer(key: String) {
+internal fun TrailerPlayer(key: String, startMuted: Boolean = false, onProblem: (() -> Unit)? = null) {
     val context = LocalContext.current
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     var problem by remember(key) { mutableStateOf<String?>(null) }
+    LaunchedEffect(problem) { if (problem != null) onProblem?.invoke() }
     if (problem != null) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(24.dp)) {
             Text(problem.orEmpty(), color = Color.White)
@@ -385,6 +388,7 @@ private fun TrailerPlayer(key: String) {
     var position by remember(key) { mutableStateOf(0f) }
     var duration by remember(key) { mutableStateOf(0f) }
     var hint by remember(key) { mutableStateOf<String?>(null) }
+    var muted by remember(key) { mutableStateOf(startMuted) }
     LaunchedEffect(hint) { if (hint != null) { kotlinx.coroutines.delay(700); hint = null } }
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
     AndroidView(
@@ -399,6 +403,7 @@ private fun TrailerPlayer(key: String) {
                     object : AbstractYouTubePlayerListener() {
                         override fun onReady(youTubePlayer: YouTubePlayer) {
                             player = youTubePlayer
+                            if (startMuted) youTubePlayer.mute()
                             youTubePlayer.loadVideo(key, 0f)
                         }
 
@@ -457,6 +462,22 @@ private fun TrailerPlayer(key: String) {
     hint?.let {
         Text(it, color = Color.White, style = MaterialTheme.typography.titleMedium,
             modifier = Modifier.background(Color.Black.copy(alpha = 0.55f), RoundedCornerShape(12.dp)).padding(horizontal = 14.dp, vertical = 6.dp))
+    }
+    if (startMuted) {
+        IconButton(
+            onClick = {
+                val p = player ?: return@IconButton
+                if (muted) p.unMute() else p.mute()
+                muted = !muted
+            },
+            modifier = Modifier.align(Alignment.BottomEnd).padding(6.dp).background(Color.Black.copy(alpha = 0.55f), CircleShape),
+        ) {
+            Icon(
+                if (muted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp,
+                contentDescription = if (muted) "Activar sonido" else "Silenciar",
+                tint = Color.White,
+            )
+        }
     }
     }
 }

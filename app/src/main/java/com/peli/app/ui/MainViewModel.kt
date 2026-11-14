@@ -310,6 +310,14 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
     val splashVisible = MutableStateFlow(peli.welcomePrefs.text.isNotBlank() && account.activeFriend == null)
     private var welcomeLoaded = false
 
+    /** Descubrir muestra el tráiler en vez de la carátula (se apaga en Ajustes para ahorrar datos). */
+    val discoverVideo = MutableStateFlow(peli.uiPrefs.discoverVideo)
+
+    fun setDiscoverVideo(on: Boolean) {
+        discoverVideo.value = on
+        peli.uiPrefs.discoverVideo = on
+    }
+
     /** Al abrir la app: trae el mensaje compartido con el amigo activo y lo muestra si lo dejó la otra persona. */
     fun loadSharedWelcome() {
         if (welcomeLoaded) return

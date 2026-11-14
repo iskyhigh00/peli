@@ -257,6 +257,14 @@ fun SettingsSheet(
                 enabled = true,
                 onChange = onPets,
             )
+            val discoverVideo by vm.discoverVideo.collectAsState()
+            SettingRow(
+                title = "Tráiler en Descubrir",
+                subtitle = "En Descubrir se ve el tráiler (sin sonido hasta que lo actives) en vez de la carátula. Gasta más datos móviles.",
+                checked = discoverVideo,
+                enabled = true,
+                onChange = vm::setDiscoverVideo,
+            )
             SettingRow(
                 title = "Fin de semana",
                 subtitle = "Te recuerda preparar las películas del fin de semana: 2 avisos el miércoles, 4 el jueves y 1 el viernes en la mañana.",

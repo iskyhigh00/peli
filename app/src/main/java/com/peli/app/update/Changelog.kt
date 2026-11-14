@@ -369,6 +369,9 @@ object Changelog {
         "2.0.4" to listOf(
             "El mensaje de bienvenida se comparte con tu amigo o pareja: lo que guardas lo ve ella al abrir la app y lo que ella guarda lo ves tú (requiere ejecutar welcome.sql en Supabase).",
         ),
+        "2.0.5" to listOf(
+            "Descubrir muestra el tráiler (en silencio, con botón para activar el sonido) en vez de la carátula. Se puede apagar en Ajustes para gastar menos datos.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"
