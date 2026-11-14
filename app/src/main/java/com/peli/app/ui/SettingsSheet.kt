@@ -170,19 +170,32 @@ fun SettingsSheet(
             )
             androidx.compose.material3.TextButton(onClick = { vm.setSearchLink(com.peli.app.data.SearchLink.DEFAULT) }) { Text("Restablecer") }
             var linksText by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
+            var linksKind by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(com.peli.app.data.ExportList.Both) }
             val linksContext = androidx.compose.ui.platform.LocalContext.current
-            TonalButton(
-                "Generar enlaces de los matches",
-                {
-                    val text = vm.matchLinks()
-                    if (text == null) onMessage("No hay matches pendientes o falta el enlace de búsqueda.") else linksText = text
-                },
-                Modifier.fillMaxWidth(),
+            Text("Exportar enlaces", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 4.dp))
+            Text(
+                "Un enlace por película, sin las que marcaste como «Disponible». Cada película sale en una sola lista.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            com.peli.app.data.ExportList.entries.forEach { kind ->
+                TonalButton(
+                    when (kind) {
+                        com.peli.app.data.ExportList.Both -> "Enlaces de los matches"
+                        com.peli.app.data.ExportList.Mine -> "Enlaces de solo las mías"
+                        com.peli.app.data.ExportList.Partner -> "Enlaces de solo mi pareja"
+                    },
+                    {
+                        val text = vm.matchLinks(kind)
+                        if (text == null) onMessage("No hay películas pendientes en esa lista o falta el enlace de búsqueda.") else { linksKind = kind; linksText = text }
+                    },
+                    Modifier.fillMaxWidth(),
+                )
+            }
             linksText?.let { text ->
                 androidx.compose.material3.AlertDialog(
                     onDismissRequest = { linksText = null },
-                    title = { Text("Matches por ver (${text.lines().size})") },
+                    title = { Text("${linksKind.label} (${text.lines().size})") },
                     text = {
                         Column(Modifier.verticalScroll(rememberScrollState())) {
                             androidx.compose.foundation.text.selection.SelectionContainer { Text(text, style = MaterialTheme.typography.bodySmall) }

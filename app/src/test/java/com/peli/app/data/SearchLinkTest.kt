@@ -32,6 +32,16 @@ class SearchLinkTest {
         assertEquals(listOf("https://x.org/Up/ok", "https://x.org/Heat/ok"), l)
     }
 
+    @Test fun `las tres listas no se repiten y respetan las disponibles`() {
+        fun e(id: Int) = Entry(movieId = id, owner = "x", title = "T$id", overview = "", posterPath = null, year = "2000")
+        val ms = listOf(Match(e(1), iWant = true, partnerWants = true), Match(e(2), true, false), Match(e(3), false, true), Match(e(4), false, true))
+        fun ids(k: ExportList, hidden: Set<Int> = emptySet()) = exportMatches(k, ms, hidden).map { it.entry.movieId }
+        assertEquals(listOf(1), ids(ExportList.Both))
+        assertEquals(listOf(2), ids(ExportList.Mine))
+        assertEquals(listOf(3, 4), ids(ExportList.Partner))
+        assertEquals(listOf(4), ids(ExportList.Partner, setOf(3)))
+    }
+
     @Test fun `nombre corto del sitio`() {
         assertEquals("justwatch.com", SearchLink.host(SearchLink.DEFAULT))
         assertNull(SearchLink.host("no es una direccion"))

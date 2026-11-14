@@ -24,6 +24,20 @@ fun computeMatches(mine: List<Entry>, partner: List<Entry>): List<Match> {
     }.sortedWith(compareByDescending<Match> { it.both }.thenBy { it.entry.title })
 }
 
+/** Las tres listas que se pueden exportar desde Ajustes. Son excluyentes: ninguna película sale en dos. */
+enum class ExportList(val label: String) {
+    Mine("Solo mías"), Partner("Solo de mi pareja"), Both("Matches"),
+}
+
+/** Los matches que entran en cada lista, sin las que ya se marcaron como disponibles. */
+fun exportMatches(kind: ExportList, matches: List<Match>, hidden: Set<Int>): List<Match> = matches.filter { m ->
+    m.entry.movieId !in hidden && when (kind) {
+        ExportList.Mine -> m.iWant && !m.partnerWants
+        ExportList.Partner -> !m.iWant && m.partnerWants
+        ExportList.Both -> m.both
+    }
+}
+
 /** Qué matches avisar (la animación de «¡Match!») y cuáles dar por vistos al conectar con alguien. */
 object MatchAnnouncer {
     /** Los que ahora les interesan a las dos personas y todavía no se avisaron en este contexto. */

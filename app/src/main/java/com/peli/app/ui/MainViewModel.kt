@@ -1253,12 +1253,12 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
     }
 
     /**
-     * Los enlaces de búsqueda de los matches (a los dos les interesa) que aún no están disponibles, por título original,
+     * Los enlaces de búsqueda de una de las tres listas (mías, de mi pareja o matches) sin las ya disponibles, por título original,
      * uno por línea. null si no hay enlace configurado o no hay matches pendientes.
      */
-    fun matchLinks(): String? {
+    fun matchLinks(kind: com.peli.app.data.ExportList = com.peli.app.data.ExportList.Both): String? {
         val own = mine.value.associateBy { it.movieId }
-        val titles = matches.value.filter { it.both && it.entry.movieId !in available.value }.map { m ->
+        val titles = com.peli.app.data.exportMatches(kind, matches.value, available.value).map { m ->
             (own[m.entry.movieId]?.originalTitle ?: m.entry.originalTitle)?.takeIf { it.isNotBlank() } ?: m.entry.title
         }
         return com.peli.app.data.SearchLink.list(searchLink.value, titles).takeIf { it.isNotEmpty() }?.joinToString("\n")

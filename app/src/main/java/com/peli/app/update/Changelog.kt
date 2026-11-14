@@ -356,6 +356,9 @@ object Changelog {
         "2.0.0" to listOf(
             "Corrige la compilación de la versión 1.9.9: incluye la lista de enlaces de los matches (Ajustes) y la marca «Disponible» en Juntos.",
         ),
+        "2.0.1" to listOf(
+            "Ajustes ahora exporta tres listas de enlaces: los matches, solo las tuyas y solo las de tu pareja (cada película sale en una sola, sin las marcadas como Disponible).",
+        ),
     )
 
     private const val PREFS = "peli_prefs"
