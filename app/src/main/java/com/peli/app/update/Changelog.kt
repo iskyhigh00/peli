@@ -375,6 +375,9 @@ object Changelog {
         "2.0.6" to listOf(
             "Descubrir: el video se ajusta al espacio de la tarjeta y ya no corta el título, las etiquetas ni la sinopsis.",
         ),
+        "2.0.7" to listOf(
+            "Ajustes ahora se abre a pantalla completa, con botón para cerrar: se acabó el problema de que no avanzara al desplazarse o se cerrara solo al intentar subir.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

@@ -3,6 +3,10 @@ package com.peli.app.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -83,22 +87,35 @@ fun SettingsSheet(
     onMessage: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    ModalBottomSheet(
+    // Pantalla completa (no una hoja inferior): la hoja arrastrable peleaba con el desplazamiento de esta lista larga
+    // (a veces no avanzaba y a veces se cerraba al intentar subir).
+    androidx.compose.ui.window.Dialog(
         onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        shape = SheetShape,
-        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
-        contentColor = MaterialTheme.colorScheme.onSurface,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
     ) {
+    androidx.compose.material3.Surface(
+        Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background,
+        contentColor = MaterialTheme.colorScheme.onBackground,
+    ) {
+        Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
+        Row(
+            Modifier.fillMaxWidth().padding(start = ScreenHorizontalPadding, end = 4.dp, top = 8.dp),
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+        ) {
+            Text("Ajustes", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
+            androidx.compose.material3.IconButton(onClick = onDismiss) {
+                androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Default.Close, contentDescription = "Cerrar")
+            }
+        }
         Column(
             Modifier
+                .weight(1f)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = ScreenHorizontalPadding)
                 .padding(bottom = SectionSpacing),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            Text("Ajustes", style = MaterialTheme.typography.headlineSmall)
             if (vm.googleAvailable) {
                 val syncError by vm.syncError.collectAsState()
                 Text("Cuenta y amigos", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = ItemSpacing))
@@ -297,5 +314,7 @@ fun SettingsSheet(
             HorizontalDivider(Modifier.padding(vertical = ItemSpacing))
             LogSection(onMessage)
         }
+        }
+    }
     }
 }
