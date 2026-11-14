@@ -10,6 +10,17 @@ data class SafePick(val entry: Entry, val score: Double, val reasons: List<Strin
  * mejor reúne parecido con lo que califiqué alto, recomendación de TMDB desde esas películas y buena calidad
  * (nota con muchos votos). Los pesos son valores iniciales a validar con uso real.
  */
+/** Nombres de géneros de TMDB para los motivos. */
+object GenreNames {
+    private val names = mapOf(
+        28 to "acción", 12 to "aventura", 16 to "animación", 35 to "comedia", 80 to "crimen", 99 to "documental",
+        18 to "drama", 10751 to "familiar", 14 to "fantasía", 36 to "historia", 27 to "terror", 10402 to "música",
+        9648 to "misterio", 10749 to "romance", 878 to "ciencia ficción", 53 to "suspenso", 10752 to "bélica", 37 to "western",
+    )
+
+    fun of(id: Int): String? = names[id]
+}
+
 object Safe {
     /** Con menos notas o gustos que esto no hay base para prometer nada. */
     const val MIN_SIGNALS = 5
@@ -73,9 +84,10 @@ object Safe {
     ): List<String> {
         val byId = marked.associateBy { it.movieId }
         val out = ArrayList<String>()
+        // Ojo: esto NO es parecido de contenido. TMDB la sugiere a quienes vieron esa película (según lo que ve su gente).
         for (s in (meta?.seeds.orEmpty()).mapNotNull { byId[it] }.take(2)) {
-            out += if (s.myRating > 0) "Se parece a «${s.displayTitle}», que calificaste con ${s.myRating}"
-            else "Se parece a «${s.displayTitle}», que te gustó"
+            out += if (s.myRating > 0) "TMDB la recomienda a quienes vieron «${s.displayTitle}», que calificaste con ${s.myRating}"
+            else "TMDB la recomienda a quienes vieron «${s.displayTitle}», que te gustó"
         }
         val facts = meta?.facts
         val liked = marked.filter { strongLike(it) }
@@ -89,6 +101,24 @@ object Safe {
                 val shared = markedFacts[m.movieId]?.actors.orEmpty().firstOrNull { it.lowercase() in actors } ?: continue
                 out += "Con $shared, como en «${m.displayTitle}»"
                 break
+            }
+        }
+        // Géneros y temas que de verdad se repiten en lo que me gustó (con cuántas de mis favoritas).
+        if (liked.size >= 2) {
+            val sharedGenres = c.genreIds.map { g -> g to liked.count { g in it.genreIds } }
+                .filter { it.second >= 2 && GenreNames.of(it.first) != null }
+                .sortedByDescending { it.second }.take(2)
+            if (sharedGenres.isNotEmpty()) {
+                out += "Géneros que se repiten en tus favoritas: " +
+                    sharedGenres.joinToString(" y ") { "${GenreNames.of(it.first)} (${it.second} de ${liked.size})" }
+            }
+            val candKw = facts?.keywords.orEmpty().map { it.lowercase() }.toSet()
+            if (candKw.isNotEmpty()) {
+                val sharedKw = candKw.map { k -> k to liked.count { m -> markedFacts[m.movieId]?.keywords.orEmpty().any { it.lowercase() == k } } }
+                    .filter { it.second >= 2 }.sortedWith(compareByDescending<Pair<String, Int>> { it.second }.thenBy { it.first }).take(3)
+                if (sharedKw.isNotEmpty()) {
+                    out += "Temas que ya viste y te gustaron: " + sharedKw.joinToString(", ") { "${it.first} (${it.second} películas)" }
+                }
             }
         }
         c.rating?.takeIf { it > 0 }?.let { r ->

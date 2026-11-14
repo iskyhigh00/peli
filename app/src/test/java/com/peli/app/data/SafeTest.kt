@@ -58,10 +58,31 @@ class SafeTest {
         val marked = listOf(rated(1, 10).copy(title = "Inception"), rated(2, 9).copy(title = "Memento"))
         val c = entry(100, genres = "18", rating = 8.4)
         val r = Safe.reasons(c, CandMeta(votes = 12_300, seeds = listOf(1, 2, 99)), marked, emptyMap())
-        assertEquals(3, r.size)
-        assertTrue(r[0].contains("Inception") && r[0].contains("10"))
+        assertTrue(r[0].contains("Inception") && r[0].contains("10") && r[0].contains("TMDB la recomienda"))
         assertTrue(r[1].contains("Memento"))
-        assertTrue(r[2].contains("8.4") && r[2].contains("12.3K"))
+        assertTrue(r.last().contains("8.4") && r.last().contains("12.3K"))
+    }
+
+    @Test fun `los generos que se repiten en mis favoritas aparecen con el conteo`() {
+        val marked = listOf(
+            rated(1, 9).copy(genres = "28,18"), rated(2, 9).copy(genres = "28"), rated(3, 9).copy(genres = "35"),
+        )
+        val c = entry(100, genres = "28,18", rating = null)
+        val r = Safe.reasons(c, CandMeta(), marked, emptyMap())
+        assertTrue(r.any { it.contains("acción (2 de 3)") })
+        assertFalse(r.any { it.contains("drama") })   // drama solo está en una de las favoritas
+    }
+
+    @Test fun `los temas en comun con mis favoritas aparecen`() {
+        val marked = listOf(rated(1, 9), rated(2, 9))
+        val mf = mapOf(
+            1 to MovieFacts(1, tmdbAt = 1, keywords = listOf("Boxing", "survival")),
+            2 to MovieFacts(2, tmdbAt = 1, keywords = listOf("boxing", "revenge")),
+        )
+        val facts = MovieFacts(100, tmdbAt = 1, keywords = listOf("boxing", "love"))
+        val r = Safe.reasons(entry(100, rating = null), CandMeta(facts = facts), marked, mf)
+        assertTrue(r.any { it.contains("boxing (2 películas)") })
+        assertFalse(r.any { it.contains("love") })
     }
 
     @Test fun `mismo director o actor en comun aparece como motivo`() {

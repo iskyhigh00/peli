@@ -242,6 +242,13 @@ fun PeliScreen(vm: MainViewModel = viewModel()) {
                 )
             }
 
+            // Mensaje de bienvenida: unos segundos al abrir la app, mientras carga lo demás.
+            val welcome by vm.welcomeMessage.collectAsState()
+            val splashVisible by vm.splashVisible.collectAsState()
+            if (splashVisible && welcome.isNotBlank()) {
+                WelcomeSplash(welcome) { vm.splashVisible.value = false }
+            }
+
             // Por encima de todo (también del detalle). Atrás lo cierra primero.
             pendingMatches.firstOrNull()?.let { match ->
                 MatchOverlay(

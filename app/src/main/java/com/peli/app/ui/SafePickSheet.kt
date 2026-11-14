@@ -106,10 +106,10 @@ fun SafePickSheet(
                             )
                         }
                     }
-                    Text("Por qué creemos que te gustará", style = MaterialTheme.typography.titleMedium)
+                    Text("Por qué Peli te la propone", style = MaterialTheme.typography.titleMedium)
                     state.pick.reasons.forEach { Text("• $it", style = MaterialTheme.typography.bodyMedium) }
                     Text(
-                        "Es una estimación según tus notas; no podemos garantizarlo.",
+                        "La calcula la propia app con una fórmula fija (tus notas, géneros, temas, recomendaciones de TMDB y calidad). No usa Claude ni ChatGPT y es solo una estimación: no se puede garantizar.",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

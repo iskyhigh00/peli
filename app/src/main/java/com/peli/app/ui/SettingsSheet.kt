@@ -152,6 +152,24 @@ fun SettingsSheet(
                     )
                 }
             }
+            Text("Mensaje de bienvenida", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
+            Text(
+                "Un texto corto que aparece animado unos segundos al abrir la app. Déjalo vacío para no mostrarlo.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            val welcomeText by vm.welcomeMessage.collectAsState()
+            androidx.compose.material3.OutlinedTextField(
+                value = welcomeText,
+                onValueChange = vm::setWelcomeMessage,
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                label = { Text("Mensaje") },
+                supportingText = { Text("${welcomeText.length}/${com.peli.app.data.WelcomeMessage.MAX_CHARS}") },
+                minLines = 2,
+            )
+            if (welcomeText.isNotBlank()) {
+                TonalButton("Ver cómo se ve", { onDismiss(); vm.splashVisible.value = true }, Modifier.fillMaxWidth())
+            }
             Text("Enlace de búsqueda", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
             Text(
                 "Botón al final de cada película que abre este enlace con su nombre. Escribe la dirección completa y pon {titulo} donde va el nombre. Si lo dejas vacío, el botón no aparece.",

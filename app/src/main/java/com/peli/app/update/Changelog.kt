@@ -362,6 +362,10 @@ object Changelog {
         "2.0.2" to listOf(
             "Al tocar la tarjeta de Premios se ve el detalle: a qué categoría fue nominada o qué ganó, quién (película o persona) y el año. Los datos vienen de Wikidata.",
         ),
+        "2.0.3" to listOf(
+            "Película segura: los motivos ahora son más claros y detallados (géneros y temas que se repiten en tus favoritas, y aclara que «parecida» viene de las recomendaciones de TMDB). Ya no dice «creemos»: explica que lo calcula la propia app.",
+            "Mensaje de bienvenida: un texto que aparece animado unos segundos al abrir la app. Se escribe en Ajustes.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

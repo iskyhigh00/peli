@@ -304,6 +304,16 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         }
     }
 
+    /** Mensaje de bienvenida (se escribe en Ajustes; vacío = no se muestra) y si se está mostrando ahora. */
+    val welcomeMessage = MutableStateFlow(peli.welcomePrefs.text)
+    val splashVisible = MutableStateFlow(peli.welcomePrefs.text.isNotBlank())
+
+    fun setWelcomeMessage(text: String) {
+        val t = text.take(com.peli.app.data.WelcomeMessage.MAX_CHARS)
+        welcomeMessage.value = t
+        peli.welcomePrefs.text = t
+    }
+
     private val badgeAsked = HashSet<Int>()
 
     /** Lee de lo guardado (sin red) los datos de una tarjeta que se ve, para su broche de premios. */

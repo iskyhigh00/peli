@@ -48,6 +48,20 @@ class SearchLinkTest {
     }
 }
 
+class WelcomeMessageTest {
+    @Test fun `separa palabras y el ritmo tiene tope`() {
+        assertEquals(listOf("Hola", "mi", "amor"), WelcomeMessage.words("  Hola   mi\namor "))
+        assertEquals(700, WelcomeMessage.revealMs(1))
+        assertEquals(3000, WelcomeMessage.revealMs(40))
+    }
+
+    @Test fun `las palabras aparecen una tras otra`() {
+        assertEquals(0f, WelcomeMessage.alpha(2, 1f))
+        assertEquals(0.5f, WelcomeMessage.alpha(1, 1.5f))
+        assertEquals(1f, WelcomeMessage.alpha(0, 3f))
+    }
+}
+
 class AwardDetailsTest {
     @Test fun `la consulta solo acepta ids de IMDb`() {
         assertNull(AwardDetails.query("tt0137523\" } ; DROP"))
