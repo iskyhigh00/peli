@@ -242,6 +242,7 @@ fun PeliScreen(vm: MainViewModel = viewModel()) {
                 )
             }
 
+            LaunchedEffect(Unit) { vm.loadSharedWelcome() }
             // Mensaje de bienvenida: unos segundos al abrir la app, mientras carga lo demás.
             val welcome by vm.welcomeMessage.collectAsState()
             val splashVisible by vm.splashVisible.collectAsState()

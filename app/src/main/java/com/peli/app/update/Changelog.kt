@@ -366,6 +366,9 @@ object Changelog {
             "Película segura: los motivos ahora son más claros y detallados (géneros y temas que se repiten en tus favoritas, y aclara que «parecida» viene de las recomendaciones de TMDB). Ya no dice «creemos»: explica que lo calcula la propia app.",
             "Mensaje de bienvenida: un texto que aparece animado unos segundos al abrir la app. Se escribe en Ajustes.",
         ),
+        "2.0.4" to listOf(
+            "El mensaje de bienvenida se comparte con tu amigo o pareja: lo que guardas lo ve ella al abrir la app y lo que ella guarda lo ves tú (requiere ejecutar welcome.sql en Supabase).",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

@@ -167,6 +167,17 @@ fun SettingsSheet(
                 supportingText = { Text("${welcomeText.length}/${com.peli.app.data.WelcomeMessage.MAX_CHARS}") },
                 minLines = 2,
             )
+            val activeFriendId by vm.activeFriend.collectAsState()
+            val friendList by vm.friends.collectAsState()
+            val friendName = friendList.firstOrNull { it.friend_id == activeFriendId && it.accepted }?.username
+            if (friendName != null) {
+                Text(
+                    "Es un solo mensaje compartido con @$friendName: lo que guardes lo ve ella al abrir la app, y lo que ella guarde lo ves tú.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                TonalButton("Guardar y enviar a @$friendName", { vm.saveWelcome(welcomeText) }, Modifier.fillMaxWidth())
+            }
             if (welcomeText.isNotBlank()) {
                 TonalButton("Ver cómo se ve", { onDismiss(); vm.splashVisible.value = true }, Modifier.fillMaxWidth())
             }

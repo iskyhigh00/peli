@@ -306,7 +306,46 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
 
     /** Mensaje de bienvenida (se escribe en Ajustes; vacío = no se muestra) y si se está mostrando ahora. */
     val welcomeMessage = MutableStateFlow(peli.welcomePrefs.text)
-    val splashVisible = MutableStateFlow(peli.welcomePrefs.text.isNotBlank())
+    // Con un amigo activo el mensaje es compartido: se espera a pedirlo al servidor para saber si lo escribió el otro.
+    val splashVisible = MutableStateFlow(peli.welcomePrefs.text.isNotBlank() && account.activeFriend == null)
+    private var welcomeLoaded = false
+
+    /** Al abrir la app: trae el mensaje compartido con el amigo activo y lo muestra si lo dejó la otra persona. */
+    fun loadSharedWelcome() {
+        if (welcomeLoaded) return
+        welcomeLoaded = true
+        val friend = account.activeFriend ?: return
+        if (account.session == null) return
+        launch(Dispatchers.IO) {
+            val row = try { repo.welcome(friend) } catch (ex: CancellationException) { throw ex } catch (ex: Exception) {
+                AppLog.d("Mensaje", "sin mensaje compartido: ${ex.message}")
+                return@launch
+            }
+            val body = row?.body.orEmpty()
+            welcomeMessage.value = body
+            peli.welcomePrefs.text = body
+            splashVisible.value = row != null && !row.mine && body.isNotBlank()
+        }
+    }
+
+    /** Guarda el mensaje en este teléfono y, con un amigo activo, lo envía para que lo vea al abrir la app. */
+    fun saveWelcome(text: String) {
+        setWelcomeMessage(text)
+        val friend = account.activeFriend
+        if (friend == null || account.session == null) { message.value = "Mensaje guardado."; return }
+        val name = friends.value.firstOrNull { it.friend_id == friend }?.username
+        launch {
+            try {
+                repo.setWelcome(friend, welcomeMessage.value)
+                message.value = if (name != null) "Listo: @$name verá el mensaje al abrir la app." else "Mensaje enviado."
+            } catch (ex: CancellationException) {
+                throw ex
+            } catch (ex: Exception) {
+                AppLog.w("Mensaje", "no se pudo guardar el mensaje compartido", ex)
+                message.value = ex.accountMessage()
+            }
+        }
+    }
 
     fun setWelcomeMessage(text: String) {
         val t = text.take(com.peli.app.data.WelcomeMessage.MAX_CHARS)

@@ -407,6 +407,8 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
     suspend fun recommend(friendId: String, e: Entry) = Social.api.recommendMovie(
         mapOf("p_friend" to friendId, "p_movie" to e.movieId, "p_title" to e.title, "p_poster" to e.posterPath, "p_year" to e.year),
     )
+    suspend fun setWelcome(friendId: String, text: String) = Social.api.setWelcome(mapOf("p_friend" to friendId, "p_body" to text))
+    suspend fun welcome(friendId: String): WelcomeRow? = Social.api.getWelcome(mapOf("p_friend" to friendId)).firstOrNull()
     suspend fun recommendations(): List<Recommendation> = Social.api.myRecommendations()
     suspend fun dismissRecommendation(id: Long) = Social.api.dismissRecommendation(mapOf("p_id" to id))
 
