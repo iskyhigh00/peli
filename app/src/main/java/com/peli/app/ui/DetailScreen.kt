@@ -158,12 +158,18 @@ fun DetailScreen(entry: Entry, mine: Entry?, vm: MainViewModel, onBack: () -> Un
                 )
                 val awardLines = remember(allFacts[entry.movieId]) { com.peli.app.data.Awards.summary(allFacts[entry.movieId]) }
                 if (awardLines.isNotEmpty()) {
-                    GlassCard {
+                    var showAwards by remember(entry.movieId) { mutableStateOf(false) }
+                    GlassCard(onClick = {
+                        showAwards = true
+                        vm.loadAwardDetails(entry, allFacts[entry.movieId]?.imdbId)
+                    }, onClickLabel = "Ver el detalle de premios y nominaciones") {
                         Text("Premios", style = MaterialTheme.typography.titleMedium)
                         awardLines.forEach {
                             Text(it, style = MaterialTheme.typography.bodyLarge, color = scheme.onSurfaceVariant)
                         }
+                        Text("Toca para ver el detalle", style = MaterialTheme.typography.labelMedium, color = scheme.primary, modifier = Modifier.padding(top = 4.dp))
                     }
+                    if (showAwards) AwardsDialog(entry, vm, awardLines) { showAwards = false }
                 }
                 GlassCard {
                     Text("Chuba y Pepa opinan", style = MaterialTheme.typography.titleMedium)
@@ -453,4 +459,51 @@ private fun TrailerPlayer(key: String) {
             modifier = Modifier.background(Color.Black.copy(alpha = 0.55f), RoundedCornerShape(12.dp)).padding(horizontal = 14.dp, vertical = 6.dp))
     }
     }
+}
+
+
+/** Detalle de premios y nominaciones: a qué categoría, quién y en qué año (datos de Wikidata). */
+@Composable
+private fun AwardsDialog(entry: Entry, vm: MainViewModel, summary: List<String>, onDismiss: () -> Unit) {
+    val states by vm.awardDetails.collectAsState()
+    val allFacts by vm.facts.collectAsState()
+    val state = states[entry.movieId]
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Premios y nominaciones") },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                summary.forEach { Text(it, style = MaterialTheme.typography.bodyMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold) }
+                when (state) {
+                    null, MainViewModel.AwardsState.Loading -> Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                        Text("  Buscando el detalle…", style = MaterialTheme.typography.bodyMedium)
+                    }
+                    is MainViewModel.AwardsState.Failed -> {
+                        Text(state.message, style = MaterialTheme.typography.bodyMedium)
+                        androidx.compose.material3.TextButton(onClick = { vm.loadAwardDetails(entry, allFacts[entry.movieId]?.imdbId, force = true) }) { Text("Reintentar") }
+                    }
+                    is MainViewModel.AwardsState.Ready -> {
+                        if (state.rows.isEmpty()) {
+                            Text("Wikidata no tiene el detalle de esta película.", style = MaterialTheme.typography.bodyMedium)
+                        }
+                        listOf(true to "Ganó", false to "Nominada").forEach { (won, label) ->
+                            val rows = state.rows.filter { it.won == won }
+                            if (rows.isNotEmpty()) {
+                                Text("$label (${rows.size})", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
+                                rows.forEach { Text("• " + com.peli.app.data.AwardDetails.line(it), style = MaterialTheme.typography.bodyMedium) }
+                            }
+                        }
+                        Text(
+                            "Fuente: Wikidata. Puede no incluir todos los premios de los totales de arriba.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 8.dp),
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text("Cerrar") } },
+    )
 }

@@ -278,6 +278,32 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
     /** Datos extra (director, reparto) de las películas cuyo detalle se abrió. */
     val facts = MutableStateFlow<Map<Int, com.peli.app.data.MovieFacts>>(emptyMap())
 
+    sealed interface AwardsState {
+        data object Loading : AwardsState
+        data class Ready(val rows: List<com.peli.app.data.AwardRow>) : AwardsState
+        data class Failed(val message: String) : AwardsState
+    }
+
+    /** Detalle de premios y nominaciones (de Wikidata) de las películas cuyo detalle se pidió. */
+    val awardDetails = MutableStateFlow<Map<Int, AwardsState>>(emptyMap())
+
+    fun loadAwardDetails(entry: Entry, imdbId: String?, force: Boolean = false) {
+        val id = entry.movieId
+        if (!force && awardDetails.value[id].let { it is AwardsState.Ready || it is AwardsState.Loading }) return
+        if (imdbId == null) {
+            awardDetails.update { it + (id to AwardsState.Failed("No se conoce el id de IMDb de esta película.")) }
+            return
+        }
+        awardDetails.update { it + (id to AwardsState.Loading) }
+        launch(Dispatchers.IO) {
+            val titles = setOfNotNull(entry.title, entry.originalTitle?.takeIf { it.isNotBlank() })
+            val r = attempt { com.peli.app.data.Wikidata.awards(imdbId, titles) }
+            val state = r.getOrNull()?.let { AwardsState.Ready(it) }
+                ?: AwardsState.Failed("No se pudo consultar el detalle (¿sin conexión?).")
+            awardDetails.update { it + (id to state) }
+        }
+    }
+
     private val badgeAsked = HashSet<Int>()
 
     /** Lee de lo guardado (sin red) los datos de una tarjeta que se ve, para su broche de premios. */

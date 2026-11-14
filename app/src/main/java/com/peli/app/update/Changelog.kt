@@ -359,6 +359,9 @@ object Changelog {
         "2.0.1" to listOf(
             "Ajustes ahora exporta tres listas de enlaces: los matches, solo las tuyas y solo las de tu pareja (cada película sale en una sola, sin las marcadas como Disponible).",
         ),
+        "2.0.2" to listOf(
+            "Al tocar la tarjeta de Premios se ve el detalle: a qué categoría fue nominada o qué ganó, quién (película o persona) y el año. Los datos vienen de Wikidata.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

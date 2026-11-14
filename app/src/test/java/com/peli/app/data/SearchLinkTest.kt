@@ -47,3 +47,39 @@ class SearchLinkTest {
         assertNull(SearchLink.host("no es una direccion"))
     }
 }
+
+class AwardDetailsTest {
+    @Test fun `la consulta solo acepta ids de IMDb`() {
+        assertNull(AwardDetails.query("tt0137523\" } ; DROP"))
+        assertNull(AwardDetails.query("0137523"))
+        assert(AwardDetails.query("tt0137523")!!.contains("\"tt0137523\""))
+    }
+
+    @Test fun `limpia repetidos, etiquetas sin traducir y el nombre de la pelicula`() {
+        val rows = listOf(
+            AwardRow("Premio Óscar a la mejor película", false, "Fight Club", 2000),
+            AwardRow("Premio Óscar a la mejor película", false, "Fight Club", 2000),
+            AwardRow("Q12345", true, null, null),
+            AwardRow("Premio BAFTA al mejor actor", true, "Edward Norton", 2000),
+            AwardRow("Premio BAFTA al mejor actor", true, "Q99", 2000),
+        )
+        val c = AwardDetails.clean(rows, setOf("fight club"))
+        assertEquals(3, c.size)
+        assertNull(c[0].who)
+        assertEquals("Edward Norton", c[1].who)
+    }
+
+    @Test fun `ordena ganados primero y lo mas reciente arriba`() {
+        val s = AwardDetails.sorted(
+            listOf(
+                AwardRow("A", false, null, 2005), AwardRow("B", true, null, 1999), AwardRow("C", true, null, 2001),
+            ),
+        )
+        assertEquals(listOf("C", "B", "A"), s.map { it.award })
+    }
+
+    @Test fun `linea con persona y anio`() {
+        assertEquals("Mejor actor — Ana (2001)", AwardDetails.line(AwardRow("Mejor actor", true, "Ana", 2001)))
+        assertEquals("Mejor película", AwardDetails.line(AwardRow("Mejor película", false, null, null)))
+    }
+}
