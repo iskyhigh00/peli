@@ -372,6 +372,9 @@ object Changelog {
         "2.0.5" to listOf(
             "Descubrir muestra el tráiler (en silencio, con botón para activar el sonido) en vez de la carátula. Se puede apagar en Ajustes para gastar menos datos.",
         ),
+        "2.0.6" to listOf(
+            "Descubrir: el video se ajusta al espacio de la tarjeta y ya no corta el título, las etiquetas ni la sinopsis.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

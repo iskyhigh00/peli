@@ -437,6 +437,7 @@ fun DiscoverTab(vm: MainViewModel) {
                                 DiscoverCardBody(
                                     e = e,
                                     trailerKey = if (videoOn) (trailers[e.movieId] as? MainViewModel.TrailerState.Ready)?.key else null,
+                                    compact = compact,
                                     partnerWants = e.movieId in partnerWants,
                                     poster = if (compact) Modifier.fillMaxWidth().height(260.dp) else Modifier.fillMaxWidth().weight(1f),
                                     onZoom = { zoomed = e },
@@ -548,6 +549,7 @@ private fun Modifier.swipeToSkip(key: Any, onSkip: () -> Unit): Modifier {
 private fun ColumnScope.DiscoverCardBody(
     e: Entry,
     trailerKey: String?,
+    compact: Boolean,
     partnerWants: Boolean,
     poster: Modifier,
     onZoom: () -> Unit,
@@ -556,13 +558,23 @@ private fun ColumnScope.DiscoverCardBody(
     var videoFailed by remember(e.movieId) { mutableStateOf(false) }
     if (trailerKey != null && !videoFailed) {
         // El tráiler (en silencio) en lugar de la carátula; si YouTube no lo deja reproducir aquí, vuelve la carátula.
-        Box(
-            Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(MaterialTheme.shapes.large).background(androidx.compose.ui.graphics.Color.Black),
-            contentAlignment = Alignment.Center,
-        ) {
-            TrailerPlayer(trailerKey, startMuted = true, onProblem = { videoFailed = true })
+        // Ocupa lo que sobra de la tarjeta (en 16:9, centrado) para que el título y la sinopsis siempre se vean completos.
+        val frame: @Composable (Modifier) -> Unit = { m ->
+            Box(
+                m.clip(MaterialTheme.shapes.large).background(androidx.compose.ui.graphics.Color.Black),
+                contentAlignment = Alignment.Center,
+            ) {
+                TrailerPlayer(trailerKey, startMuted = true, onProblem = { videoFailed = true })
+            }
         }
-        Spacer(Modifier.weight(1f))
+        if (compact) {
+            frame(Modifier.fillMaxWidth().aspectRatio(16f / 9f))
+        } else {
+            androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)) {
+                val w = minOf(maxWidth, maxHeight * (16f / 9f))
+                frame(Modifier.align(Alignment.Center).width(w).aspectRatio(16f / 9f))
+            }
+        }
     } else {
         PosterImage(e.posterPath, "Carátula de ${e.title}", poster, contentScale = ContentScale.Fit, onClick = onZoom)
     }
