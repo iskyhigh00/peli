@@ -378,6 +378,10 @@ object Changelog {
         "2.0.7" to listOf(
             "Ajustes ahora se abre a pantalla completa, con botón para cerrar: se acabó el problema de que no avanzara al desplazarse o se cerrara solo al intentar subir.",
         ),
+        "2.0.8" to listOf(
+            "Los enlaces de búsqueda (botón y listas de Ajustes) usan el título en inglés.",
+            "El enlace puede llevar el año de la película: pon {anio} donde lo quieras (p. ej. https://sitio.com/buscar/{titulo}/{anio}).",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

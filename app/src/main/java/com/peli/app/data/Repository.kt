@@ -320,6 +320,11 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
      * Clave de YouTube del mejor tráiler de la película; null si no tiene. Un fallo de red se propaga (para poder
      * reintentar); lo ya resuelto se recuerda mientras la app siga abierta.
      */
+    /** Título de la película en inglés (de TMDB); null si no se pudo pedir. */
+    suspend fun englishTitle(movieId: Int): String? = gate.withPermit {
+        attempt { api.detailsIn(movieId, "en-US").title?.trim()?.takeIf { it.isNotEmpty() } }.getOrNull()
+    }
+
     suspend fun trailerKey(movieId: Int): String? {
         synchronized(trailerCache) { if (trailerCache.containsKey(movieId)) return trailerCache[movieId] }
         val key = Trailers.pick(

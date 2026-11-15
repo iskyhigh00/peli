@@ -107,6 +107,10 @@ interface TmdbApi {
     @GET("movie/{id}")
     suspend fun details(@Path("id") id: Int, @Query("append_to_response") append: String = "external_ids"): TmdbDetails
 
+    /** Ficha de la película en un idioma concreto (para el título en inglés). */
+    @GET("movie/{id}")
+    suspend fun detailsIn(@Path("id") id: Int, @Query("language") language: String, @Query("append_to_response") append: String = ""): TmdbDetails
+
     /** Las reseñas de TMDB casi siempre están en inglés: se piden sin forzar el idioma. */
     @GET("movie/{id}/reviews")
     suspend fun reviews(@Path("id") id: Int, @Query("language") language: String = "en-US"): TmdbReviewsPage

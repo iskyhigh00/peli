@@ -27,6 +27,14 @@ class SearchLinkTest {
         assertNull(SearchLink.build("https://x.org/{titulo}", "   "))
     }
 
+    @Test fun `el anio se pone donde el usuario lo indica`() {
+        assertEquals("https://x.org/s?q=Heat&y=1995", SearchLink.build("https://x.org/s?q={titulo}&y={anio}", "Heat", "1995"))
+        assertEquals("https://x.org/Heat-1995/", SearchLink.build("https://x.org/{titulo}-{year}/", "Heat", "1995-12-15"))
+        assertEquals("https://x.org/Heat/", SearchLink.build("https://x.org/{titulo}/{año}", "Heat", null))
+        assertEquals(listOf("https://x.org/Up/2009"), SearchLink.listWithYears("https://x.org/{titulo}/{anio}", listOf("Up" to "2009", "Up" to "2009")))
+        assertEquals("x.org", SearchLink.host("https://x.org/{titulo}/{anio}"))
+    }
+
     @Test fun `lista de enlaces sin repetidos`() {
         val l = SearchLink.list("https://x.org/{titulo}/ok", listOf("Up", "Heat", "Up", " "))
         assertEquals(listOf("https://x.org/Up/ok", "https://x.org/Heat/ok"), l)

@@ -200,7 +200,7 @@ fun SettingsSheet(
             }
             Text("Enlace de búsqueda", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
             Text(
-                "Botón al final de cada película que abre este enlace con su nombre. Escribe la dirección completa y pon {titulo} donde va el nombre. Si lo dejas vacío, el botón no aparece.",
+                "Botón al final de cada película que abre este enlace con su nombre en inglés. Escribe la dirección completa y pon {titulo} donde va el nombre y, si lo necesitas, {anio} donde va el año (p. ej. https://sitio.com/buscar/{titulo}/{anio}). Si lo dejas vacío, el botón no aparece.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -220,7 +220,7 @@ fun SettingsSheet(
             val linksContext = androidx.compose.ui.platform.LocalContext.current
             Text("Exportar enlaces", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 4.dp))
             Text(
-                "Un enlace por película, sin las que marcaste como «Disponible». Cada película sale en una sola lista.",
+                "Un enlace por película (con su título en inglés y el año), sin las que marcaste como «Disponible». Cada película sale en una sola lista.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -232,8 +232,10 @@ fun SettingsSheet(
                         com.peli.app.data.ExportList.Partner -> "Enlaces de solo mi pareja"
                     },
                     {
-                        val text = vm.matchLinks(kind)
-                        if (text == null) onMessage("No hay películas pendientes en esa lista o falta el enlace de búsqueda.") else { linksKind = kind; linksText = text }
+                        onMessage("Preparando los enlaces…")
+                        vm.exportLinks(kind) { text ->
+                            if (text == null) onMessage("No hay películas pendientes en esa lista o falta el enlace de búsqueda.") else { linksKind = kind; linksText = text }
+                        }
                     },
                     Modifier.fillMaxWidth(),
                 )

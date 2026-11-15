@@ -54,6 +54,9 @@ import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -1339,12 +1342,42 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
      * Los enlaces de búsqueda de una de las tres listas (mías, de mi pareja o matches) sin las ya disponibles, por título original,
      * uno por línea. null si no hay enlace configurado o no hay matches pendientes.
      */
-    fun matchLinks(kind: com.peli.app.data.ExportList = com.peli.app.data.ExportList.Both): String? {
+    /** Títulos en inglés ya conocidos (se piden a TMDB una vez y se guardan en el teléfono). */
+    val englishTitles = MutableStateFlow(peli.englishTitles.all())
+
+    private suspend fun ensureEnglishTitle(id: Int): String? {
+        englishTitles.value[id]?.let { return it }
+        val t = repo.englishTitle(id) ?: return null
+        peli.englishTitles.put(id, t)
+        englishTitles.update { it + (id to t) }
+        return t
+    }
+
+    fun loadEnglishTitle(id: Int) {
+        if (id in englishTitles.value) return
+        launch(Dispatchers.IO) { ensureEnglishTitle(id) }
+    }
+
+    /**
+     * Arma los enlaces de búsqueda de una de las tres listas (mías, de mi pareja o matches), sin las ya disponibles, con
+     * el título en inglés y el año; uno por línea. [onResult] recibe null si no hay enlace configurado o no hay nada pendiente.
+     */
+    fun exportLinks(kind: com.peli.app.data.ExportList, onResult: (String?) -> Unit) {
         val own = mine.value.associateBy { it.movieId }
-        val titles = com.peli.app.data.exportMatches(kind, matches.value, available.value).map { m ->
-            (own[m.entry.movieId]?.originalTitle ?: m.entry.originalTitle)?.takeIf { it.isNotBlank() } ?: m.entry.title
+        val rows = com.peli.app.data.exportMatches(kind, matches.value, available.value).map { it.entry }
+        launch(Dispatchers.IO) {
+            val items = coroutineScope {
+                rows.map { e ->
+                    async {
+                        val en = ensureEnglishTitle(e.movieId)
+                        val fallback = (own[e.movieId]?.originalTitle ?: e.originalTitle)?.takeIf { it.isNotBlank() } ?: e.title
+                        (en ?: fallback) to e.year
+                    }
+                }.awaitAll()
+            }
+            val text = com.peli.app.data.SearchLink.listWithYears(searchLink.value, items).takeIf { it.isNotEmpty() }?.joinToString("\n")
+            kotlinx.coroutines.withContext(Dispatchers.Main) { onResult(text) }
         }
-        return com.peli.app.data.SearchLink.list(searchLink.value, titles).takeIf { it.isNotEmpty() }?.joinToString("\n")
     }
 
     /** Plantilla del enlace de búsqueda del botón del detalle (se edita en Ajustes). */
