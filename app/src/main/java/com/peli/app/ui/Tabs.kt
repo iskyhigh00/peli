@@ -556,6 +556,7 @@ private fun ColumnScope.DiscoverCardBody(
     onSkip: () -> Unit,
 ) {
     var videoFailed by remember(e.movieId) { mutableStateOf(false) }
+    val showVideo = trailerKey != null && !videoFailed
     if (trailerKey != null && !videoFailed) {
         // El tráiler (en silencio) en lugar de la carátula; si YouTube no lo deja reproducir aquí, vuelve la carátula.
         // Ocupa lo que sobra de la tarjeta (en 16:9, centrado) para que el título y la sinopsis siempre se vean completos.
@@ -565,6 +566,12 @@ private fun ColumnScope.DiscoverCardBody(
                 contentAlignment = Alignment.Center,
             ) {
                 TrailerPlayer(trailerKey, startMuted = true, onProblem = { videoFailed = true })
+                // Con video, las etiquetas van encima de él para dejarle el espacio de la tarjeta al video.
+                Row(Modifier.align(Alignment.TopStart).padding(8.dp), horizontalArrangement = Arrangement.spacedBy(CompactSpacing)) {
+                    if (e.dateLabel.isNotBlank()) StatusChip(e.dateLabel)
+                    if (e.isUpcoming) UpcomingChip()
+                    if (partnerWants) StatusChip("A tu pareja le interesa", accent = MaterialTheme.colorScheme.tertiary)
+                }
             }
         }
         if (compact) {
@@ -578,7 +585,7 @@ private fun ColumnScope.DiscoverCardBody(
     } else {
         PosterImage(e.posterPath, "Carátula de ${e.title}", poster, contentScale = ContentScale.Fit, onClick = onZoom)
     }
-    Spacer(Modifier.height(12.dp))
+    Spacer(Modifier.height(if (showVideo) 4.dp else 12.dp))
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
             e.displayTitle,
@@ -589,16 +596,18 @@ private fun ColumnScope.DiscoverCardBody(
         )
         TextButton(onClick = onSkip) { Text("Omitir") }
     }
-    Row(Modifier.padding(vertical = CompactSpacing), horizontalArrangement = Arrangement.spacedBy(CompactSpacing)) {
-        if (e.dateLabel.isNotBlank()) StatusChip(e.dateLabel)
-        if (e.isUpcoming) UpcomingChip()
-        if (partnerWants) StatusChip("A tu pareja le interesa", accent = MaterialTheme.colorScheme.tertiary)
+    if (!showVideo) {
+        Row(Modifier.padding(vertical = CompactSpacing), horizontalArrangement = Arrangement.spacedBy(CompactSpacing)) {
+            if (e.dateLabel.isNotBlank()) StatusChip(e.dateLabel)
+            if (e.isUpcoming) UpcomingChip()
+            if (partnerWants) StatusChip("A tu pareja le interesa", accent = MaterialTheme.colorScheme.tertiary)
+        }
     }
     Text(
         e.overview,
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        maxLines = 3,
+        maxLines = if (showVideo) 2 else 3,
         overflow = TextOverflow.Ellipsis,
     )
 }

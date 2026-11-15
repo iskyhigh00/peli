@@ -382,6 +382,9 @@ object Changelog {
             "Los enlaces de búsqueda (botón y listas de Ajustes) usan el título en inglés.",
             "El enlace puede llevar el año de la película: pon {anio} donde lo quieras (p. ej. https://sitio.com/buscar/{titulo}/{anio}).",
         ),
+        "2.0.9" to listOf(
+            "Descubrir: el video es más grande. Las etiquetas (año, «a tu pareja le interesa») pasan encima del video y la sinopsis se acorta a dos líneas para dejarle espacio.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"
