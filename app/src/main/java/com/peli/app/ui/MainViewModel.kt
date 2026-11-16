@@ -487,6 +487,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         // Datos extra (palabras clave, director, reparto) de lo que ya marqué: se completan de a poco en segundo plano.
         launch(Dispatchers.IO) {
             delay(ENRICH_DELAY_MS)
+            refreshServer(false)
             cleanWatchlistOfSeen()
             refreshTextsIfNeeded()
             attempt { repo.backfillOriginalTitles(repo.mine.first()) }
@@ -1348,7 +1349,49 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
     /** Películas marcadas como «disponible» (arrendadas, compradas o en una plataforma). */
     val available = MutableStateFlow(peli.availablePrefs.ids)
 
+    // ---- Servidor Jellyfin: lo que ya tengo ahí cuenta como «disponible» sin marcarlo a mano ----
+    val serverUrl = MutableStateFlow(peli.jellyfinPrefs.url)
+    val serverKey = MutableStateFlow(peli.jellyfinPrefs.key)
+    val serverIds = MutableStateFlow(peli.jellyfinPrefs.ids)
+    val serverStatus = MutableStateFlow<String?>(null)
+
+    /** Lo marcado a mano más lo que está en el servidor. */
+    val availableAll: StateFlow<Set<Int>> = combine(available, serverIds) { a, s -> a + s }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, available.value + serverIds.value)
+
+    fun setServerUrl(v: String) { serverUrl.value = v; peli.jellyfinPrefs.url = v }
+    fun setServerKey(v: String) { serverKey.value = v; peli.jellyfinPrefs.key = v }
+
+    /** Pide al servidor sus películas. Con [manual] avisa del resultado; si no hay conexión (¿VPN apagada?) deja lo último que supo. */
+    fun refreshServer(manual: Boolean) {
+        val base = com.peli.app.data.Jellyfin.baseUrl(serverUrl.value)
+        val key = serverKey.value.trim()
+        if (base == null || key.isEmpty()) {
+            if (manual) message.value = "Escribe la dirección de tu servidor y su clave de API."
+            return
+        }
+        serverStatus.value = "Conectando…"
+        launch(Dispatchers.IO) {
+            val r = attempt { com.peli.app.data.JellyfinClient.tmdbIds(base, key) }
+            val ids = r.getOrNull()
+            if (ids != null) {
+                serverIds.value = ids
+                peli.jellyfinPrefs.ids = ids
+                serverStatus.value = "Conectado: ${ids.size} películas con ID de TMDB en tu servidor."
+                if (manual) message.value = "Servidor conectado: ${ids.size} películas."
+            } else {
+                AppLog.w("Jellyfin", "no se pudo consultar el servidor", r.exceptionOrNull())
+                serverStatus.value = "No se pudo conectar (¿está encendida la VPN? ¿la clave es correcta?). Se usa lo último que se supo."
+                if (manual) message.value = "No se pudo conectar con tu servidor."
+            }
+        }
+    }
+
     fun toggleAvailable(movieId: Int) {
+        if (movieId in serverIds.value) {
+            message.value = "Ya está en tu servidor: se marca como disponible sola."
+            return
+        }
         val next = available.value.let { if (movieId in it) it - movieId else it + movieId }
         available.value = next
         peli.availablePrefs.ids = next
@@ -1380,7 +1423,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
      */
     fun exportLinks(kind: com.peli.app.data.ExportList, onResult: (String?) -> Unit) {
         val own = mine.value.associateBy { it.movieId }
-        val rows = com.peli.app.data.exportMatches(kind, matches.value, available.value).map { it.entry }
+        val rows = com.peli.app.data.exportMatches(kind, matches.value, availableAll.value).map { it.entry }
         launch(Dispatchers.IO) {
             val items = coroutineScope {
                 rows.map { e ->

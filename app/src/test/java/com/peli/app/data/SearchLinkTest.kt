@@ -109,3 +109,22 @@ class AwardDetailsTest {
         assertEquals("Mejor película", AwardDetails.line(AwardRow("Mejor película", false, null, null)))
     }
 }
+
+class JellyfinTest {
+    @Test fun `la direccion se completa y se limpia`() {
+        assertEquals("http://100.64.0.5:8096", Jellyfin.baseUrl(" 100.64.0.5:8096/ "))
+        assertEquals("https://mi.servidor.ts.net", Jellyfin.baseUrl("https://mi.servidor.ts.net/"))
+        assertNull(Jellyfin.baseUrl("   "))
+        assertNull(Jellyfin.baseUrl("http://"))
+    }
+
+    @Test fun `la pagina pide peliculas con sus ids externos`() {
+        val u = Jellyfin.pageUrl("http://h:8096", 500)
+        assertEquals(true, u.startsWith("http://h:8096/Items?") && u.contains("StartIndex=500") && u.contains("Fields=ProviderIds") && u.contains("IncludeItemTypes=Movie"))
+    }
+
+    @Test fun `saca los ids de TMDB aunque cambie la mayuscula o falten`() {
+        val ids = Jellyfin.tmdbIds(listOf(mapOf("Tmdb" to "550"), mapOf("tmdb" to " 13 "), mapOf("Imdb" to "tt1"), null, mapOf("Tmdb" to "x")))
+        assertEquals(setOf(550, 13), ids)
+    }
+}

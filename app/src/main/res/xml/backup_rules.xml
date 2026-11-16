@@ -2,4 +2,5 @@
 <full-backup-content>
     <exclude domain="sharedpref" path="peli_account.xml" />
     <exclude domain="sharedpref" path="peli_pairing.xml" />
+    <exclude domain="sharedpref" path="peli_jellyfin.xml" />
 </full-backup-content>

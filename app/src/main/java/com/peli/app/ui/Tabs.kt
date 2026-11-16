@@ -728,7 +728,7 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
     val syncError by vm.syncError.collectAsState()
     val hasProfile = profile != null
     val connected = room != null || hasProfile
-    val availableIds by vm.available.collectAsState()
+    val availableIds by vm.availableAll.collectAsState()
     val byId = remember(mine) { mine.associateBy { it.movieId } }
     var sheet by rememberSaveable { mutableStateOf(TogetherSheet.None) }
     var confirm by rememberSaveable { mutableStateOf(Confirm.None) }

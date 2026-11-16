@@ -73,6 +73,7 @@ class PeliApp : Application() {
     val exposure by lazy { ExposureStore(this) }
     val filterStore by lazy { FilterStore(this) }
     val languagePrefs by lazy { com.peli.app.data.LanguagePrefs(this) }
+    val jellyfinPrefs by lazy { com.peli.app.data.JellyfinPrefs(this) }
     val englishTitles by lazy { com.peli.app.data.EnglishTitles(this) }
     val uiPrefs by lazy { com.peli.app.data.UiPrefs(this) }
     val welcomePrefs by lazy { com.peli.app.data.WelcomePrefs(this) }

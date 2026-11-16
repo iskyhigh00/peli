@@ -174,7 +174,9 @@ fun PeliScreen(vm: MainViewModel = viewModel()) {
                 ) { entry ->
                     val cardFactsMap by vm.facts.collectAsState()
                     val cardFacts = remember(cardFactsMap) { com.peli.app.ui.components.CardFacts(cardFactsMap, vm::cachedBadge) }
+                    val availableAll by vm.availableAll.collectAsState()
                     CompositionLocalProvider(
+                        com.peli.app.ui.components.LocalAvailableIds provides availableAll,
                         LocalShared provides null,
                         com.peli.app.ui.components.LocalCardFacts provides cardFacts,
                     ) {

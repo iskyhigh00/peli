@@ -248,6 +248,7 @@ fun MovieCard(
     val liked = mine?.liked == true
     val disliked = mine?.disliked == true
     val state = if (badge == null) mine?.stateLabel() else null
+    val isAvailable = available || entry.movieId in LocalAvailableIds.current
     GlassCard(
         modifier = modifier.alpha(if (disliked) 0.6f else 1f),
         shape = MaterialTheme.shapes.large,
@@ -281,11 +282,11 @@ fun MovieCard(
                 if (meta.isNotBlank()) {
                     Text(meta, style = MaterialTheme.typography.labelMedium, color = scheme.onSurfaceVariant)
                 }
-                if (entry.isUpcoming || badge != null || state != null || available) {
+                if (entry.isUpcoming || badge != null || state != null || isAvailable) {
                     Spacer(Modifier.height(4.dp))
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         if (entry.isUpcoming) UpcomingChip()
-                        if (available) StatusChip("Disponible", accent = scheme.secondary)
+                        if (isAvailable) StatusChip("Disponible", accent = scheme.secondary)
                         if (badge != null) StatusChip(badge)
                         if (state != null && mine != null) StatusChip(state, accent = stateAccent(mine))
                     }
@@ -374,6 +375,9 @@ private fun MovieCardPreview() {
     }
 }
 
+
+/** Películas disponibles (marcadas a mano o en tu servidor): sus tarjetas muestran «Disponible» en cualquier lista. */
+val LocalAvailableIds = androidx.compose.runtime.staticCompositionLocalOf<Set<Int>> { emptySet() }
 
 /** Datos guardados de las películas (para el broche de premios) y cómo pedir los de una tarjeta que se ve. */
 class CardFacts(val facts: Map<Int, com.peli.app.data.MovieFacts>, val request: (Int) -> Unit)

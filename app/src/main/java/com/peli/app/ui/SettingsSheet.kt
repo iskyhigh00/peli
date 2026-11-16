@@ -198,6 +198,38 @@ fun SettingsSheet(
             if (welcomeText.isNotBlank()) {
                 TonalButton("Ver cómo se ve", { onDismiss(); vm.splashVisible.value = true }, Modifier.fillMaxWidth())
             }
+            Text("Mi servidor Jellyfin", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
+            Text(
+                "Si una película de tus listas está en tu servidor, aparece como «Disponible» sola (y no sale en las listas de enlaces). Funciona por el ID de TMDB de cada película en Jellyfin. Necesitas tener encendida la VPN (Tailscale) para que conecte; si no, se usa lo último que se supo.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            val serverUrl by vm.serverUrl.collectAsState()
+            val serverKey by vm.serverKey.collectAsState()
+            val serverStatus by vm.serverStatus.collectAsState()
+            val serverIds by vm.serverIds.collectAsState()
+            androidx.compose.material3.OutlinedTextField(
+                value = serverUrl,
+                onValueChange = vm::setServerUrl,
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                label = { Text("Dirección del servidor") },
+                placeholder = { Text("http://100.x.x.x:8096") },
+                singleLine = true,
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Uri),
+            )
+            androidx.compose.material3.OutlinedTextField(
+                value = serverKey,
+                onValueChange = vm::setServerKey,
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                label = { Text("Clave de API de Jellyfin") },
+                supportingText = { Text("Se crea en Jellyfin: Panel > Avanzado > Claves de API. Se guarda solo en este teléfono.") },
+                singleLine = true,
+                visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+            )
+            TonalButton("Probar y actualizar", { vm.refreshServer(manual = true) }, Modifier.fillMaxWidth())
+            (serverStatus ?: if (serverIds.isNotEmpty()) "Última vez: ${serverIds.size} películas en tu servidor." else null)?.let {
+                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             Text("Enlace de búsqueda", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
             Text(
                 "Botón al final de cada película que abre este enlace con su nombre en inglés. Escribe la dirección completa y pon {titulo} donde va el nombre y, si lo necesitas, {anio} donde va el año (p. ej. https://sitio.com/buscar/{titulo}/{anio}). Si lo dejas vacío, el botón no aparece.",

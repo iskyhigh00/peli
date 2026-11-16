@@ -389,6 +389,9 @@ object Changelog {
             "«Quiero verla» está solo hasta que se ve: al marcar «la vi», «me gustó» o ponerle nota, sale de «quiero verla» y queda solo con su evaluación (también limpia las que ya estaban así). Una película ya vista no se puede volver a marcar como «quiero verla».",
             "Las listas de enlaces de Ajustes salen numeradas (1., 2., 3.…) al copiar o compartir.",
         ),
+        "2.1.1" to listOf(
+            "Conexión con tu servidor Jellyfin (Ajustes > Mi servidor Jellyfin): las películas que ya tienes ahí aparecen como «Disponible» solas, en todas las listas y en el detalle, y no salen en las listas de enlaces.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

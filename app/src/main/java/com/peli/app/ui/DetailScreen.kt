@@ -211,6 +211,14 @@ fun DetailScreen(entry: Entry, mine: Entry?, vm: MainViewModel, onBack: () -> Un
                     }
                 }
                 Column(verticalArrangement = Arrangement.spacedBy(ItemSpacing)) {
+                    val availableAll by vm.availableAll.collectAsState()
+                    val serverIds by vm.serverIds.collectAsState()
+                    if (entry.movieId in availableAll) {
+                        com.peli.app.ui.components.StatusChip(
+                            if (entry.movieId in serverIds) "Disponible en tu servidor" else "Disponible",
+                            accent = scheme.secondary,
+                        )
+                    }
                     GradientButton(
                         if (want) "En mi lista para ver" else "Quiero verla",
                         { vm.toggleWant(mine ?: entry) },
