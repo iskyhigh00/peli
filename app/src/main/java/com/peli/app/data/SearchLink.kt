@@ -38,4 +38,7 @@ object SearchLink {
     /** Igual, pero cada película con su año (título, año). */
     fun listWithYears(template: String, items: List<Pair<String, String?>>): List<String> =
         items.mapNotNull { (title, year) -> build(template, title, year) }.distinct()
+
+    /** «1. enlace», «2. enlace»… (para compartir o copiar la lista numerada). */
+    fun numbered(links: List<String>): String = links.mapIndexed { i, l -> "${i + 1}. $l" }.joinToString("\n")
 }

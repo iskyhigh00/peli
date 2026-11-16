@@ -8,18 +8,21 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class EntryStateTest {
-    @Test fun wantingKeepsSeenAndLikedButClearsDislike() {
-        val s = entry(seen = true, liked = true, disliked = true, myRating = 8).toggleWatch()
+    @Test fun wantingAMovieAlreadySeenChangesNothing() {
+        val before = entry(seen = true, liked = true, myRating = 8)
+        assertEquals(before, before.toggleWatch())
+    }
+
+    @Test fun wantingClearsDislikeOfAnUnseenMovie() {
+        val s = entry(disliked = true).toggleWatch()
         assertTrue(s.watchlist)
-        assertTrue(s.seen && s.liked)
-        assertEquals(8, s.myRating)
         assertFalse(s.disliked)
     }
 
-    @Test fun likingImpliesSeenKeepsWatchAndClearsDislike() {
+    @Test fun likingImpliesSeenLeavesTheWatchlistAndClearsDislike() {
         val s = entry(watchlist = true, disliked = true).toggleLiked()
-        assertTrue(s.liked && s.seen && s.watchlist)
-        assertFalse(s.disliked)
+        assertTrue(s.liked && s.seen)
+        assertFalse(s.watchlist || s.disliked)
     }
 
     @Test fun unlikingKeepsItSeen() {
@@ -33,10 +36,10 @@ class EntryStateTest {
         assertFalse(s.seen || s.liked)
     }
 
-    @Test fun markingSeenKeepsItInTheWatchlist() {
+    @Test fun markingSeenLeavesTheWatchlist() {
         val s = entry(watchlist = true).toggleSeen()
         assertTrue(s.seen)
-        assertTrue(s.watchlist)
+        assertFalse(s.watchlist)
     }
 
     @Test fun dislikingClearsLikedAndWatchlistButNotSeen() {
@@ -53,11 +56,11 @@ class EntryStateTest {
         assertTrue(entry().toggleSeen().toggleSeen().isEmpty)
     }
 
-    @Test fun ratingImpliesSeenAndKeepsTheWatchlist() {
+    @Test fun ratingImpliesSeenAndLeavesTheWatchlist() {
         val s = entry(watchlist = true).withRating(8)
         assertEquals(8, s.myRating)
         assertTrue(s.seen)
-        assertTrue(s.watchlist)
+        assertFalse(s.watchlist)
     }
 
     @Test fun ratingIsClampedToZeroToTen() {
@@ -78,7 +81,6 @@ class EntryStateTest {
     @Test fun stateLabels() {
         assertEquals("Quiero verla", entry(watchlist = true).stateLabel())
         assertEquals("La vi · me gustó", entry(liked = true, seen = true).stateLabel())
-        assertEquals("La vi · quiero verla otra vez", entry(watchlist = true, seen = true, liked = true).stateLabel())
         assertEquals("La vi", entry(seen = true).stateLabel())
         assertEquals("No me gusta", entry(disliked = true).stateLabel())
         assertEquals("La vi · no me gustó", entry(disliked = true, seen = true).stateLabel())

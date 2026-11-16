@@ -57,26 +57,18 @@ class MarksTest {
 
     // ---- R08: invariantes nota / vista / pendiente ----
 
-    @Test fun ratedThenWatchlistKeepsTheRating() {
+    @Test fun ratedMovieCannotBeWantedAgainAndKeepsItsRating() {
         val rated = entry(1, seen = true, myRating = 9)
         val again = rated.toggleWatch()
-        assertTrue(again.watchlist)
+        assertFalse(again.watchlist)
         assertTrue(again.seen)
         assertEquals(9, again.myRating)
     }
 
-    @Test fun removingWatchlistAfterThatLeavesTheRatedMark() {
-        val again = entry(1, seen = true, myRating = 9).toggleWatch()
-        val back = again.toggleWatch()
-        assertFalse(back.watchlist)
-        assertTrue(back.seen)
-        assertEquals(9, back.myRating)
-    }
-
     @Test fun normalizedRepairsIncoherentImportedStates() {
-        // nota + pendiente: la vi y quiero volver a verla
+        // nota + pendiente: ya la vi, sale de «quiero verla»
         val a = entry(1, watchlist = true, myRating = 8).normalized()
-        assertTrue(a.seen); assertTrue(a.watchlist); assertEquals(8, a.myRating)
+        assertTrue(a.seen); assertFalse(a.watchlist); assertEquals(8, a.myRating)
         // me gustó + no me gusta: gana "me gustó"
         val b = entry(2, liked = true, disliked = true).normalized()
         assertTrue(b.liked && b.seen); assertFalse(b.disliked)

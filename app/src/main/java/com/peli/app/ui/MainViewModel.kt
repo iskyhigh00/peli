@@ -487,6 +487,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         // Datos extra (palabras clave, director, reparto) de lo que ya marqué: se completan de a poco en segundo plano.
         launch(Dispatchers.IO) {
             delay(ENRICH_DELAY_MS)
+            cleanWatchlistOfSeen()
             refreshTextsIfNeeded()
             attempt { repo.backfillOriginalTitles(repo.mine.first()) }
                 .onFailure { AppLog.w("Datos", "no se pudieron completar los títulos originales", it) }
@@ -748,7 +749,22 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
 
     // ---- Marcar películas ----------------------------------------------------
 
-    fun toggleWant(e: Entry) = update(e) { it.toggleWatch() }
+    fun toggleWant(e: Entry) {
+        if (e.seen && !e.watchlist) {
+            message.value = "Ya la viste: «Quiero verla» solo está hasta que se ve."
+            return
+        }
+        update(e) { it.toggleWatch() }
+    }
+
+    /** Una sola vez: las películas que ya vi (con nota o «me gustó») salen de «quiero verla». */
+    private suspend fun cleanWatchlistOfSeen() {
+        if (peli.uiPrefs.watchlistCleaned) return
+        repo.mine.first().filter { it.watchlist && it.seen }.forEach { e ->
+            applyAndPush(e) { it.copy(watchlist = false) }
+        }
+        peli.uiPrefs.watchlistCleaned = true
+    }
     fun toggleLiked(e: Entry) {
         launch {
             val next = applyAndPush(e) { it.toggleLiked() }
@@ -1375,7 +1391,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
                     }
                 }.awaitAll()
             }
-            val text = com.peli.app.data.SearchLink.listWithYears(searchLink.value, items).takeIf { it.isNotEmpty() }?.joinToString("\n")
+            val text = com.peli.app.data.SearchLink.listWithYears(searchLink.value, items).takeIf { it.isNotEmpty() }?.let { com.peli.app.data.SearchLink.numbered(it) }
             kotlinx.coroutines.withContext(Dispatchers.Main) { onResult(text) }
         }
     }

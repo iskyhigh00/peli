@@ -385,6 +385,10 @@ object Changelog {
         "2.0.9" to listOf(
             "Descubrir: el video es más grande. Las etiquetas (año, «a tu pareja le interesa») pasan encima del video y la sinopsis se acorta a dos líneas para dejarle espacio.",
         ),
+        "2.1.0" to listOf(
+            "«Quiero verla» está solo hasta que se ve: al marcar «la vi», «me gustó» o ponerle nota, sale de «quiero verla» y queda solo con su evaluación (también limpia las que ya estaban así). Una película ya vista no se puede volver a marcar como «quiero verla».",
+            "Las listas de enlaces de Ajustes salen numeradas (1., 2., 3.…) al copiar o compartir.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

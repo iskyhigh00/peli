@@ -50,6 +50,10 @@ class SearchLinkTest {
         assertEquals(listOf(4), ids(ExportList.Partner, setOf(3)))
     }
 
+    @Test fun `la lista sale numerada`() {
+        assertEquals("1. https://a.org/x\n2. https://a.org/y", SearchLink.numbered(listOf("https://a.org/x", "https://a.org/y")))
+    }
+
     @Test fun `nombre corto del sitio`() {
         assertEquals("justwatch.com", SearchLink.host(SearchLink.DEFAULT))
         assertNull(SearchLink.host("no es una direccion"))
