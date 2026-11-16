@@ -735,7 +735,7 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
     val syncError by vm.syncError.collectAsState()
     val hasProfile = profile != null
     val connected = room != null || hasProfile
-    val availableIds by vm.availableAll.collectAsState()
+    val availableIds by vm.availability.all.collectAsState()
     val byId = remember(mine) { mine.associateBy { it.movieId } }
     var sheet by rememberSaveable { mutableStateOf(TogetherSheet.None) }
     var confirm by rememberSaveable { mutableStateOf(Confirm.None) }
@@ -1001,7 +1001,7 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
                                 badge = badge(m),
                                 onRecommend = { vm.requestRecommend(m.entry) },
                                 available = m.entry.movieId in availableIds,
-                                onAvailable = { vm.toggleAvailable(m.entry.movieId) },
+                                onAvailable = { vm.availability.toggle(m.entry.movieId) },
                                 modifier = Modifier.animateItem().entrance(index, m.entry.movieId),
                             )
                         }

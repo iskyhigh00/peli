@@ -174,7 +174,7 @@ fun PeliScreen(vm: MainViewModel = viewModel()) {
                 ) { entry ->
                     val cardFactsMap by vm.facts.collectAsState()
                     val cardFacts = remember(cardFactsMap) { com.peli.app.ui.components.CardFacts(cardFactsMap, vm::cachedBadge) }
-                    val availableAll by vm.availableAll.collectAsState()
+                    val availableAll by vm.availability.all.collectAsState()
                     CompositionLocalProvider(
                         com.peli.app.ui.components.LocalAvailableIds provides availableAll,
                         LocalShared provides null,
@@ -244,24 +244,24 @@ fun PeliScreen(vm: MainViewModel = viewModel()) {
                 )
             }
 
-            LaunchedEffect(Unit) { vm.loadSharedWelcome(); vm.watchNetwork() }
+            LaunchedEffect(Unit) { vm.welcome.loadShared(); vm.server.watchNetwork() }
             val activeFriendForName by vm.activeFriend.collectAsState()
-            LaunchedEffect(activeFriendForName) { vm.applyPartnerName() }
+            LaunchedEffect(activeFriendForName) { vm.partnerName.apply() }
             // Servidor Jellyfin: al abrir o volver a la app, y cada 2 minutos mientras se usa.
             val serverLifecycle = LocalLifecycleOwner.current
             LaunchedEffect(serverLifecycle) {
                 serverLifecycle.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
                     while (true) {
-                        vm.refreshServerAuto()
+                        vm.server.refreshAuto()
                         delay(120_000)
                     }
                 }
             }
             // Mensaje de bienvenida: unos segundos al abrir la app, mientras carga lo demás.
-            val welcome by vm.welcomeMessage.collectAsState()
-            val splashVisible by vm.splashVisible.collectAsState()
+            val welcome by vm.welcome.text.collectAsState()
+            val splashVisible by vm.welcome.splashVisible.collectAsState()
             if (splashVisible && welcome.isNotBlank()) {
-                WelcomeSplash(welcome) { vm.splashVisible.value = false }
+                WelcomeSplash(welcome) { vm.welcome.splashVisible.value = false }
             }
 
             // Por encima de todo (también del detalle). Atrás lo cierra primero.

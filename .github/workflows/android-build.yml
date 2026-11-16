@@ -3,7 +3,7 @@ name: build
 # Compila, firma y publica el APK en el repo privado de APK (Release con tag fijo "peli-apk").
 on:
   push:
-    branches: [main, ccr-a586c547-cc7hgn]
+    branches: [main, ccr-a586c547-cc7hgn, refactor-calidad]
   workflow_dispatch:
 
 permissions:
@@ -79,7 +79,17 @@ jobs:
       # Release en ESTE repo, uno por versión (v1.0.1…): APK directo y version.txt para la auto-actualización.
       # Enlace fijo al más nuevo:
       # https://github.com/<dueño>/peli/releases/latest/download/Peli.apk
+      # En la rama de pruebas (refactor-calidad) NO se publica nada: solo se guarda el APK como archivo descargable.
+      - name: apk de prueba (sin publicar)
+        if: ${{ github.ref_name == 'refactor-calidad' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Peli-prueba
+          path: Peli.apk
+          retention-days: 14
+
       - name: release en este repo
+        if: ${{ github.ref_name != 'refactor-calidad' }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ env.VERSION }}
@@ -91,7 +101,7 @@ jobs:
             version.txt
 
       - name: publish
-        if: ${{ env.APK_PUBLISH_TOKEN != '' && env.APK_REPO != '' }}
+        if: ${{ github.ref_name != 'refactor-calidad' && env.APK_PUBLISH_TOKEN != '' && env.APK_REPO != '' }}
         uses: softprops/action-gh-release@v2
         with:
           repository: ${{ env.APK_REPO }}

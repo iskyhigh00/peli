@@ -170,10 +170,10 @@ fun SettingsSheet(
                 }
             }
             Text("Cómo le dices", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
-            val nick by vm.partnerNickname.collectAsState()
+            val nick by vm.partnerName.nickname.collectAsState()
             androidx.compose.material3.OutlinedTextField(
                 value = nick,
-                onValueChange = vm::setPartnerNickname,
+                onValueChange = vm.partnerName::set,
                 modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                 label = { Text("Apodo (p. ej. princesa)") },
                 supportingText = { Text("Reemplaza «pareja» en los textos de la app: «${PartnerName.tu}», «${PartnerName.mi}». Se guarda por persona; vacío = «pareja».") },
@@ -185,10 +185,10 @@ fun SettingsSheet(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            val welcomeText by vm.welcomeMessage.collectAsState()
+            val welcomeText by vm.welcome.text.collectAsState()
             androidx.compose.material3.OutlinedTextField(
                 value = welcomeText,
-                onValueChange = vm::setWelcomeMessage,
+                onValueChange = vm.welcome::setText,
                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                 label = { Text("Mensaje") },
                 supportingText = { Text("${welcomeText.length}/${com.peli.app.data.WelcomeMessage.MAX_CHARS}") },
@@ -203,10 +203,10 @@ fun SettingsSheet(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                TonalButton("Guardar y enviar a @$friendName", { vm.saveWelcome(welcomeText) }, Modifier.fillMaxWidth())
+                TonalButton("Guardar y enviar a @$friendName", { vm.welcome.save(welcomeText) }, Modifier.fillMaxWidth())
             }
             if (welcomeText.isNotBlank()) {
-                TonalButton("Ver cómo se ve", { onDismiss(); vm.splashVisible.value = true }, Modifier.fillMaxWidth())
+                TonalButton("Ver cómo se ve", { onDismiss(); vm.welcome.splashVisible.value = true }, Modifier.fillMaxWidth())
             }
             Text("Mi servidor Jellyfin", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
             Text(
@@ -214,13 +214,13 @@ fun SettingsSheet(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            val serverUrl by vm.serverUrl.collectAsState()
-            val serverKey by vm.serverKey.collectAsState()
-            val serverStatus by vm.serverStatus.collectAsState()
-            val serverIds by vm.serverIds.collectAsState()
+            val serverUrl by vm.server.url.collectAsState()
+            val serverKey by vm.server.key.collectAsState()
+            val serverStatus by vm.server.status.collectAsState()
+            val serverIds by vm.server.ids.collectAsState()
             androidx.compose.material3.OutlinedTextField(
                 value = serverUrl,
-                onValueChange = vm::setServerUrl,
+                onValueChange = vm.server::setUrl,
                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                 label = { Text("Direcciones extra (opcional, una por línea)") },
                 placeholder = { Text("192.168.1.20:8096\n100.x.x.x:8096") },
@@ -230,14 +230,14 @@ fun SettingsSheet(
             )
             androidx.compose.material3.OutlinedTextField(
                 value = serverKey,
-                onValueChange = vm::setServerKey,
+                onValueChange = vm.server::setKey,
                 modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                 label = { Text("Clave de API de Jellyfin") },
                 supportingText = { Text("Se crea en Jellyfin: Panel > Avanzado > Claves de API. Se guarda solo en este teléfono.") },
                 singleLine = true,
                 visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
             )
-            TonalButton("Buscar y actualizar", { vm.refreshServer(manual = true) }, Modifier.fillMaxWidth())
+            TonalButton("Buscar y actualizar", { vm.server.refresh(manual = true) }, Modifier.fillMaxWidth())
             (serverStatus ?: if (serverIds.isNotEmpty()) "Última vez: ${serverIds.size} películas en tu servidor." else null)?.let {
                 Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
@@ -247,7 +247,7 @@ fun SettingsSheet(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            val searchLink by vm.searchLink.collectAsState()
+            val searchLink by vm.links.template.collectAsState()
             androidx.compose.material3.OutlinedTextField(
                 value = searchLink,
                 onValueChange = vm::setSearchLink,
@@ -257,7 +257,7 @@ fun SettingsSheet(
                 singleLine = false,
                 keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Uri),
             )
-            androidx.compose.material3.TextButton(onClick = { vm.setSearchLink(com.peli.app.data.SearchLink.DEFAULT) }) { Text("Restablecer") }
+            androidx.compose.material3.TextButton(onClick = { vm.links.setTemplate(com.peli.app.data.SearchLink.DEFAULT) }) { Text("Restablecer") }
             var linksText by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
             var linksKind by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(com.peli.app.data.ExportList.Both) }
             val linksContext = androidx.compose.ui.platform.LocalContext.current
@@ -276,7 +276,7 @@ fun SettingsSheet(
                     },
                     {
                         onMessage("Preparando los enlaces…")
-                        vm.exportLinks(kind) { text ->
+                        vm.links.export(kind) { text ->
                             if (text == null) onMessage("No hay películas pendientes en esa lista o falta el enlace de búsqueda.") else { linksKind = kind; linksText = text }
                         }
                     },

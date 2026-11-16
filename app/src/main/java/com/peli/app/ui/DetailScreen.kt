@@ -164,7 +164,7 @@ fun DetailScreen(entry: Entry, mine: Entry?, vm: MainViewModel, onBack: () -> Un
                     var showAwards by remember(entry.movieId) { mutableStateOf(false) }
                     GlassCard(onClick = {
                         showAwards = true
-                        vm.loadAwardDetails(entry, allFacts[entry.movieId]?.imdbId)
+                        vm.awards.load(entry, allFacts[entry.movieId]?.imdbId)
                     }, onClickLabel = "Ver el detalle de premios y nominaciones") {
                         Text("Premios", style = MaterialTheme.typography.titleMedium)
                         awardLines.forEach {
@@ -212,8 +212,8 @@ fun DetailScreen(entry: Entry, mine: Entry?, vm: MainViewModel, onBack: () -> Un
                     }
                 }
                 Column(verticalArrangement = Arrangement.spacedBy(ItemSpacing)) {
-                    val availableAll by vm.availableAll.collectAsState()
-                    val serverIds by vm.serverIds.collectAsState()
+                    val availableAll by vm.availability.all.collectAsState()
+                    val serverIds by vm.server.ids.collectAsState()
                     if (entry.movieId in availableAll) {
                         com.peli.app.ui.components.StatusChip(
                             if (entry.movieId in serverIds) "Disponible en tu servidor" else "Disponible",
@@ -246,10 +246,10 @@ fun DetailScreen(entry: Entry, mine: Entry?, vm: MainViewModel, onBack: () -> Un
                         Modifier.fillMaxWidth(),
                         icon = Icons.Default.ThumbDown,
                     )
-                    val searchTemplate by vm.searchLink.collectAsState()
+                    val searchTemplate by vm.links.template.collectAsState()
                     // Se busca por el título en inglés (de TMDB); mientras no llega, el original o el que se muestra. Con el año si el enlace lo pide.
-                    val englishTitles by vm.englishTitles.collectAsState()
-                    LaunchedEffect(entry.movieId) { vm.loadEnglishTitle(entry.movieId) }
+                    val englishTitles by vm.links.englishTitles.collectAsState()
+                    LaunchedEffect(entry.movieId) { vm.links.loadEnglish(entry.movieId) }
                     val searchTitle = englishTitles[entry.movieId]
                         ?: (entry.originalTitle ?: mine?.originalTitle)?.takeIf { it.isNotBlank() } ?: entry.title
                     val searchUrl = remember(searchTemplate, searchTitle, entry.year) { com.peli.app.data.SearchLink.build(searchTemplate, searchTitle, entry.year) }
@@ -498,7 +498,7 @@ internal fun TrailerPlayer(key: String, startMuted: Boolean = false, onProblem: 
 /** Detalle de premios y nominaciones: a qué categoría, quién y en qué año (datos de Wikidata). */
 @Composable
 private fun AwardsDialog(entry: Entry, vm: MainViewModel, summary: List<String>, onDismiss: () -> Unit) {
-    val states by vm.awardDetails.collectAsState()
+    val states by vm.awards.details.collectAsState()
     val allFacts by vm.facts.collectAsState()
     val state = states[entry.movieId]
     androidx.compose.material3.AlertDialog(
@@ -508,15 +508,15 @@ private fun AwardsDialog(entry: Entry, vm: MainViewModel, summary: List<String>,
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 summary.forEach { Text(it, style = MaterialTheme.typography.bodyMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold) }
                 when (state) {
-                    null, MainViewModel.AwardsState.Loading -> Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    null, com.peli.app.ui.features.AwardsState.Loading -> Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                         CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
                         Text("  Buscando el detalle…", style = MaterialTheme.typography.bodyMedium)
                     }
-                    is MainViewModel.AwardsState.Failed -> {
+                    is com.peli.app.ui.features.AwardsState.Failed -> {
                         Text(state.message, style = MaterialTheme.typography.bodyMedium)
-                        androidx.compose.material3.TextButton(onClick = { vm.loadAwardDetails(entry, allFacts[entry.movieId]?.imdbId, force = true) }) { Text("Reintentar") }
+                        androidx.compose.material3.TextButton(onClick = { vm.awards.load(entry, allFacts[entry.movieId]?.imdbId, force = true) }) { Text("Reintentar") }
                     }
-                    is MainViewModel.AwardsState.Ready -> {
+                    is com.peli.app.ui.features.AwardsState.Ready -> {
                         if (state.rows.isEmpty()) {
                             Text("Wikidata no tiene el detalle de esta película.", style = MaterialTheme.typography.bodyMedium)
                         }

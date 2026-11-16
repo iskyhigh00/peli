@@ -281,87 +281,12 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
     /** Datos extra (director, reparto) de las películas cuyo detalle se abrió. */
     val facts = MutableStateFlow<Map<Int, com.peli.app.data.MovieFacts>>(emptyMap())
 
-    sealed interface AwardsState {
-        data object Loading : AwardsState
-        data class Ready(val rows: List<com.peli.app.data.AwardRow>) : AwardsState
-        data class Failed(val message: String) : AwardsState
-    }
-
-    /** Detalle de premios y nominaciones (de Wikidata) de las películas cuyo detalle se pidió. */
-    val awardDetails = MutableStateFlow<Map<Int, AwardsState>>(emptyMap())
-
-    fun loadAwardDetails(entry: Entry, imdbId: String?, force: Boolean = false) {
-        val id = entry.movieId
-        if (!force && awardDetails.value[id].let { it is AwardsState.Ready || it is AwardsState.Loading }) return
-        if (imdbId == null) {
-            awardDetails.update { it + (id to AwardsState.Failed("No se conoce el id de IMDb de esta película.")) }
-            return
-        }
-        awardDetails.update { it + (id to AwardsState.Loading) }
-        launch(Dispatchers.IO) {
-            val titles = setOfNotNull(entry.title, entry.originalTitle?.takeIf { it.isNotBlank() })
-            val r = attempt { com.peli.app.data.Wikidata.awards(imdbId, titles) }
-            val state = r.getOrNull()?.let { AwardsState.Ready(it) }
-                ?: AwardsState.Failed("No se pudo consultar el detalle (¿sin conexión?).")
-            awardDetails.update { it + (id to state) }
-        }
-    }
-
-    /** Mensaje de bienvenida (se escribe en Ajustes; vacío = no se muestra) y si se está mostrando ahora. */
-    val welcomeMessage = MutableStateFlow(peli.welcomePrefs.text)
-    // Con un amigo activo el mensaje es compartido: se espera a pedirlo al servidor para saber si lo escribió el otro.
-    val splashVisible = MutableStateFlow(peli.welcomePrefs.text.isNotBlank() && account.activeFriend == null)
-    private var welcomeLoaded = false
-
     /** Descubrir muestra el tráiler en vez de la carátula (se apaga en Ajustes para ahorrar datos). */
     val discoverVideo = MutableStateFlow(peli.uiPrefs.discoverVideo)
 
     fun setDiscoverVideo(on: Boolean) {
         discoverVideo.value = on
         peli.uiPrefs.discoverVideo = on
-    }
-
-    /** Al abrir la app: trae el mensaje compartido con el amigo activo y lo muestra si lo dejó la otra persona. */
-    fun loadSharedWelcome() {
-        if (welcomeLoaded) return
-        welcomeLoaded = true
-        val friend = account.activeFriend ?: return
-        if (account.session == null) return
-        launch(Dispatchers.IO) {
-            val row = try { repo.welcome(friend) } catch (ex: CancellationException) { throw ex } catch (ex: Exception) {
-                AppLog.d("Mensaje", "sin mensaje compartido: ${ex.message}")
-                return@launch
-            }
-            val body = row?.body.orEmpty()
-            welcomeMessage.value = body
-            peli.welcomePrefs.text = body
-            splashVisible.value = row != null && !row.mine && body.isNotBlank()
-        }
-    }
-
-    /** Guarda el mensaje en este teléfono y, con un amigo activo, lo envía para que lo vea al abrir la app. */
-    fun saveWelcome(text: String) {
-        setWelcomeMessage(text)
-        val friend = account.activeFriend
-        if (friend == null || account.session == null) { message.value = "Mensaje guardado."; return }
-        val name = friends.value.firstOrNull { it.friend_id == friend }?.username
-        launch {
-            try {
-                repo.setWelcome(friend, welcomeMessage.value)
-                message.value = if (name != null) "Listo: @$name verá el mensaje al abrir la app." else "Mensaje enviado."
-            } catch (ex: CancellationException) {
-                throw ex
-            } catch (ex: Exception) {
-                AppLog.w("Mensaje", "no se pudo guardar el mensaje compartido", ex)
-                message.value = ex.accountMessage()
-            }
-        }
-    }
-
-    fun setWelcomeMessage(text: String) {
-        val t = text.take(com.peli.app.data.WelcomeMessage.MAX_CHARS)
-        welcomeMessage.value = t
-        peli.welcomePrefs.text = t
     }
 
     private val badgeAsked = HashSet<Int>()
@@ -487,7 +412,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         // Datos extra (palabras clave, director, reparto) de lo que ya marqué: se completan de a poco en segundo plano.
         launch(Dispatchers.IO) {
             delay(ENRICH_DELAY_MS)
-            refreshServer(false)
+            server.refresh(false)
             cleanWatchlistOfSeen()
             refreshTextsIfNeeded()
             attempt { repo.backfillOriginalTitles(repo.mine.first()) }
@@ -1346,189 +1271,21 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         }
     }
 
-    /** Películas marcadas como «disponible» (arrendadas, compradas o en una plataforma). */
-    val available = MutableStateFlow(peli.availablePrefs.ids)
-
-    // ---- Apodo de la pareja en los textos (uno por persona) ----
-    val partnerNickname = MutableStateFlow("")
-
-    private fun partnerKey() = account.activeFriend ?: "sala"
-
-    /** Carga el apodo de la persona activa (se llama al abrir y al cambiar de amigo). */
-    fun applyPartnerName() {
-        val base = peli.partnerNamePrefs.get(partnerKey())
-        PartnerName.base = base
-        partnerNickname.value = if (base == com.peli.app.data.PartnerText.DEFAULT) "" else base
-    }
-
-    fun setPartnerNickname(text: String) {
-        partnerNickname.value = text.take(com.peli.app.data.PartnerText.MAX)
-        val base = com.peli.app.data.PartnerText.clean(text)
-        peli.partnerNamePrefs.put(partnerKey(), base)
-        PartnerName.base = base
-    }
-
-    // ---- Servidor Jellyfin: lo que ya tengo ahí cuenta como «disponible» sin marcarlo a mano ----
-    val serverUrl = MutableStateFlow(peli.jellyfinPrefs.url)
-    val serverKey = MutableStateFlow(peli.jellyfinPrefs.key)
-    val serverIds = MutableStateFlow(peli.jellyfinPrefs.ids)
-    val serverStatus = MutableStateFlow<String?>(null)
-
-    /** Lo marcado a mano más lo que está en el servidor. */
-    val availableAll: StateFlow<Set<Int>> = combine(available, serverIds) { a, s -> a + s }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, available.value + serverIds.value)
-
-    fun setServerUrl(v: String) { serverUrl.value = v; peli.jellyfinPrefs.url = v }
-    fun setServerKey(v: String) { serverKey.value = v; peli.jellyfinPrefs.key = v }
-
-    private var serverBusy = false
-    private var lastServerTry = 0L
-
-    /**
-     * Busca el servidor solo en la red actual (aviso UDP de Jellyfin) y lo consulta, probando también las direcciones
-     * escritas a mano (Tailscale, otras redes). Con [manual] avisa del resultado; si no hay conexión deja lo último que supo.
-     */
-    fun refreshServer(manual: Boolean) {
-        val typed = com.peli.app.data.Jellyfin.baseUrls(serverUrl.value)
-        val key = serverKey.value.trim()
-        if (serverBusy) {
-            if (manual) message.value = "Ya está conectando…"
-            return
-        }
-        serverBusy = true
-        lastServerTry = System.currentTimeMillis()
-        serverStatus.value = "Buscando en la red…"
-        launch(Dispatchers.IO) {
-            try {
-                // 1) ¿Está en esta red? Si el servidor cambió de IP, se actualiza sola.
-                val knownId = peli.jellyfinPrefs.serverId
-                val seen = com.peli.app.data.JellyfinDiscovery.find().firstOrNull { knownId.isEmpty() || it.id == null || it.id == knownId }
-                if (seen != null) {
-                    peli.jellyfinPrefs.found = seen.address
-                    if (!seen.id.isNullOrEmpty()) peli.jellyfinPrefs.serverId = seen.id
-                    AppLog.i("Jellyfin", "servidor detectado en la red: ${seen.name} ${seen.address}")
-                }
-                if (key.isEmpty()) {
-                    serverStatus.value = if (seen != null) "Servidor detectado: ${seen.name ?: "Jellyfin"} (${seen.address.substringAfter("://")}). Falta la clave de API." else "Falta la clave de API."
-                    if (manual) message.value = if (seen != null) "Encontré tu servidor. Falta la clave de API." else "Falta la clave de API."
-                    return@launch
-                }
-                val bases = (listOf(peli.jellyfinPrefs.found).filter { it.isNotEmpty() } + typed).distinct()
-                if (bases.isEmpty()) {
-                    serverStatus.value = "No encontré el servidor en esta red y no hay direcciones guardadas. Se usa lo último que se supo."
-                    if (manual) message.value = "No encontré tu servidor en esta red."
-                    return@launch
-                }
-                // 2) Se consultan todas las direcciones a la vez y se usa la que responda.
-                serverStatus.value = "Conectando…"
-                val r = attempt { com.peli.app.data.JellyfinClient.tmdbIds(bases, key) }
-                val ok = r.getOrNull()
-                if (ok != null) {
-                    val (base, ids) = ok
-                    serverIds.value = ids
-                    peli.jellyfinPrefs.ids = ids
-                    val via = if (base == peli.jellyfinPrefs.found && seen != null) " (detectado en la red)" else ""
-                    serverStatus.value = "Conectado por ${base.substringAfter("://")}$via: ${ids.size} películas con ID de TMDB."
-                    if (manual) message.value = "Servidor conectado: ${ids.size} películas."
-                } else {
-                    AppLog.w("Jellyfin", "no se pudo consultar el servidor", r.exceptionOrNull())
-                    val why = (r.exceptionOrNull() as? com.peli.app.data.JellyfinException)?.details
-                        ?.joinToString("\n") { (b, reason) -> "• ${b.substringAfter("://")}: $reason" }
-                    serverStatus.value = "No se pudo conectar. Se usa lo último que se supo." + (why?.let { "\n$it" } ?: "")
-                    if (manual) message.value = "No se pudo conectar con tu servidor."
-                }
-            } finally {
-                serverBusy = false
-            }
-        }
-    }
-
-    /** Intento automático (al abrir, al volver a la app, cada pocos minutos o al cambiar de red); no insiste si hubo uno hace poco. */
-    fun refreshServerAuto(minGapMs: Long = 20_000) {
-        if (System.currentTimeMillis() - lastServerTry < minGapMs) return
-        refreshServer(false)
-    }
-
-    private var netWatching = false
-    private val netCallback = object : android.net.ConnectivityManager.NetworkCallback() {
-        override fun onAvailable(network: android.net.Network) { refreshServerAuto(5_000) }
-    }
-
-    /** Cuando el teléfono cambia de red (wifi de casa, hotspot, datos…) vuelve a buscar el servidor. */
-    fun watchNetwork() {
-        if (netWatching) return
-        netWatching = true
-        runCatching {
-            val cm = getApplication<Application>().getSystemService(android.net.ConnectivityManager::class.java)
-            cm.registerDefaultNetworkCallback(netCallback)
-        }
-    }
+    // ---- Módulos aparte (cada uno en su archivo, en ui/features) ----
+    private val env = com.peli.app.ui.features.VmEnv(getApplication(), peli, viewModelScope, errorHandler, message)
+    val awards = com.peli.app.ui.features.AwardsFeature(env)
+    val server = com.peli.app.ui.features.ServerFeature(env)
+    val availability = com.peli.app.ui.features.AvailabilityFeature(env, server)
+    val links = com.peli.app.ui.features.LinksFeature(env, repo, mine, matches, availability.all)
+    val welcome = com.peli.app.ui.features.WelcomeFeature(
+        env, repo, { account.activeFriend }, { account.session != null },
+        { id -> friends.value.firstOrNull { it.friend_id == id }?.username },
+    )
+    val partnerName = com.peli.app.ui.features.PartnerNameFeature(env, { account.activeFriend })
 
     override fun onCleared() {
-        runCatching {
-            if (netWatching) getApplication<Application>().getSystemService(android.net.ConnectivityManager::class.java).unregisterNetworkCallback(netCallback)
-        }
+        server.release()
         super.onCleared()
-    }
-
-    fun toggleAvailable(movieId: Int) {
-        if (movieId in serverIds.value) {
-            message.value = "Ya está en tu servidor: se marca como disponible sola."
-            return
-        }
-        val next = available.value.let { if (movieId in it) it - movieId else it + movieId }
-        available.value = next
-        peli.availablePrefs.ids = next
-    }
-
-    /**
-     * Los enlaces de búsqueda de una de las tres listas (mías, de mi pareja o matches) sin las ya disponibles, por título original,
-     * uno por línea. null si no hay enlace configurado o no hay matches pendientes.
-     */
-    /** Títulos en inglés ya conocidos (se piden a TMDB una vez y se guardan en el teléfono). */
-    val englishTitles = MutableStateFlow(peli.englishTitles.all())
-
-    private suspend fun ensureEnglishTitle(id: Int): String? {
-        englishTitles.value[id]?.let { return it }
-        val t = repo.englishTitle(id) ?: return null
-        peli.englishTitles.put(id, t)
-        englishTitles.update { it + (id to t) }
-        return t
-    }
-
-    fun loadEnglishTitle(id: Int) {
-        if (id in englishTitles.value) return
-        launch(Dispatchers.IO) { ensureEnglishTitle(id) }
-    }
-
-    /**
-     * Arma los enlaces de búsqueda de una de las tres listas (mías, de mi pareja o matches), sin las ya disponibles, con
-     * el título en inglés y el año; uno por línea. [onResult] recibe null si no hay enlace configurado o no hay nada pendiente.
-     */
-    fun exportLinks(kind: com.peli.app.data.ExportList, onResult: (String?) -> Unit) {
-        val own = mine.value.associateBy { it.movieId }
-        val rows = com.peli.app.data.exportMatches(kind, matches.value, availableAll.value).map { it.entry }
-        launch(Dispatchers.IO) {
-            val items = coroutineScope {
-                rows.map { e ->
-                    async {
-                        val en = ensureEnglishTitle(e.movieId)
-                        val fallback = (own[e.movieId]?.originalTitle ?: e.originalTitle)?.takeIf { it.isNotBlank() } ?: e.title
-                        (en ?: fallback) to e.year
-                    }
-                }.awaitAll()
-            }
-            val text = com.peli.app.data.SearchLink.listWithYears(searchLink.value, items).takeIf { it.isNotEmpty() }?.let { com.peli.app.data.SearchLink.numbered(it) }
-            kotlinx.coroutines.withContext(Dispatchers.Main) { onResult(text) }
-        }
-    }
-
-    /** Plantilla del enlace de búsqueda del botón del detalle (se edita en Ajustes). */
-    val searchLink = MutableStateFlow(peli.searchLinkPrefs.template)
-
-    fun setSearchLink(template: String) {
-        searchLink.value = template
-        peli.searchLinkPrefs.template = template
     }
 
     /** Cambia el idioma de títulos y sinopsis: de ahora en adelante se piden así y lo ya guardado se actualiza. */
