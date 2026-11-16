@@ -7,6 +7,12 @@ import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.Url
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 
 data class JfItem(val ProviderIds: Map<String, String>? = null)
 data class JfPage(val Items: List<JfItem>? = null)
@@ -25,14 +31,13 @@ object JellyfinClient {
     private val api: JellyfinApi by lazy {
         Retrofit.Builder()
             .baseUrl("http://localhost/")
-            .client(OkHttpClient.Builder().connectTimeout(8, TimeUnit.SECONDS).readTimeout(25, TimeUnit.SECONDS).build())
+            .client(OkHttpClient.Builder().connectTimeout(5, TimeUnit.SECONDS).readTimeout(25, TimeUnit.SECONDS).build())
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(JellyfinApi::class.java)
     }
 
-    /** Los ids de TMDB de todas las películas del servidor. Lanza si no se pudo conectar o la clave no sirve. */
-    suspend fun tmdbIds(base: String, apiKey: String): Set<Int> {
+    private suspend fun fetchIds(base: String, apiKey: String): Set<Int> {
         val ids = HashSet<Int>()
         var start = 0
         repeat(60) {
@@ -42,5 +47,30 @@ object JellyfinClient {
             start += Jellyfin.PAGE
         }
         return ids
+    }
+
+    /**
+     * Prueba todas las direcciones a la vez y se queda con la primera que responde: sirve la de casa, la de Tailscale
+     * o la del hotspot según la red en la que estés. Devuelve la dirección que funcionó y los ids de TMDB de sus
+     * películas. Lanza si ninguna responde.
+     */
+    suspend fun tmdbIds(bases: List<String>, apiKey: String): Pair<String, Set<Int>> {
+        require(bases.isNotEmpty()) { "sin direcciones" }
+        return coroutineScope {
+            val result = CompletableDeferred<Pair<String, Set<Int>>>()
+            val failures = AtomicInteger(0)
+            val jobs = bases.map { base ->
+                launch(Dispatchers.IO) {
+                    try {
+                        result.complete(base to fetchIds(base, apiKey))
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        if (failures.incrementAndGet() == bases.size) result.completeExceptionally(e)
+                    }
+                }
+            }
+            try { result.await() } finally { jobs.forEach { it.cancel() } }
+        }
     }
 }

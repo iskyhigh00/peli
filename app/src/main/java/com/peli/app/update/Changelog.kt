@@ -392,6 +392,9 @@ object Changelog {
         "2.1.1" to listOf(
             "Conexión con tu servidor Jellyfin (Ajustes > Mi servidor Jellyfin): las películas que ya tienes ahí aparecen como «Disponible» solas, en todas las listas y en el detalle, y no salen en las listas de enlaces.",
         ),
+        "2.1.2" to listOf(
+            "Servidor Jellyfin con varias direcciones (casa, Tailscale, hotspot…): la app prueba todas a la vez y usa la que responda. Se actualiza al abrir, al volver a la app, al cambiar de red y cada 2 minutos.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

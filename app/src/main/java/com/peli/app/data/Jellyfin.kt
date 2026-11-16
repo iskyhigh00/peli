@@ -15,6 +15,10 @@ object Jellyfin {
         return runCatching { URI(t).takeIf { it.host != null }?.toString()?.trimEnd('/') }.getOrNull()
     }
 
+    /** Varias direcciones del mismo servidor (casa, Tailscale, hotspot…), una por línea o separadas por coma. */
+    fun baseUrls(raw: String): List<String> =
+        raw.split('\n', ',', ';', ' ', '\t').mapNotNull { if (it.isBlank()) null else baseUrl(it) }.distinct()
+
     /** Una página de películas con sus ids externos (TMDB, IMDb…). */
     fun pageUrl(base: String, start: Int): String =
         "$base/Items?Recursive=true&IncludeItemTypes=Movie&Fields=ProviderIds&EnableTotalRecordCount=false&StartIndex=$start&Limit=$PAGE"

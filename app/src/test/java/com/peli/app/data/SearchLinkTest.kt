@@ -118,6 +118,14 @@ class JellyfinTest {
         assertNull(Jellyfin.baseUrl("http://"))
     }
 
+    @Test fun `varias direcciones se separan y limpian`() {
+        assertEquals(
+            listOf("http://192.168.1.20:8096", "http://100.64.0.5:8096", "https://mi.ts.net"),
+            Jellyfin.baseUrls("192.168.1.20:8096\n 100.64.0.5:8096/, https://mi.ts.net/ ;192.168.1.20:8096"),
+        )
+        assertEquals(emptyList<String>(), Jellyfin.baseUrls("  \n "))
+    }
+
     @Test fun `la pagina pide peliculas con sus ids externos`() {
         val u = Jellyfin.pageUrl("http://h:8096", 500)
         assertEquals(true, u.startsWith("http://h:8096/Items?") && u.contains("StartIndex=500") && u.contains("Fields=ProviderIds") && u.contains("IncludeItemTypes=Movie"))

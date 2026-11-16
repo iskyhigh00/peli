@@ -200,7 +200,7 @@ fun SettingsSheet(
             }
             Text("Mi servidor Jellyfin", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
             Text(
-                "Si una película de tus listas está en tu servidor, aparece como «Disponible» sola (y no sale en las listas de enlaces). Funciona por el ID de TMDB de cada película en Jellyfin. Necesitas tener encendida la VPN (Tailscale) para que conecte; si no, se usa lo último que se supo.",
+                "Si una película de tus listas está en tu servidor, aparece como «Disponible» sola (y no sale en las listas de enlaces). Funciona por el ID de TMDB de cada película en Jellyfin. Se actualiza al abrir la app, al volver a ella, al cambiar de red y cada 2 minutos; si no hay conexión, se usa lo último que se supo.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -212,9 +212,10 @@ fun SettingsSheet(
                 value = serverUrl,
                 onValueChange = vm::setServerUrl,
                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                label = { Text("Dirección del servidor") },
-                placeholder = { Text("http://100.x.x.x:8096") },
-                singleLine = true,
+                label = { Text("Direcciones del servidor (una por línea)") },
+                placeholder = { Text("192.168.1.20:8096\n100.x.x.x:8096") },
+                supportingText = { Text("Pon todas las que uses: la de tu casa, la de Tailscale, la del hotspot… La app prueba todas a la vez y usa la que responda.") },
+                minLines = 2,
                 keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Uri),
             )
             androidx.compose.material3.OutlinedTextField(

@@ -244,7 +244,17 @@ fun PeliScreen(vm: MainViewModel = viewModel()) {
                 )
             }
 
-            LaunchedEffect(Unit) { vm.loadSharedWelcome() }
+            LaunchedEffect(Unit) { vm.loadSharedWelcome(); vm.watchNetwork() }
+            // Servidor Jellyfin: al abrir o volver a la app, y cada 2 minutos mientras se usa.
+            val serverLifecycle = LocalLifecycleOwner.current
+            LaunchedEffect(serverLifecycle) {
+                serverLifecycle.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                    while (true) {
+                        vm.refreshServerAuto()
+                        delay(120_000)
+                    }
+                }
+            }
             // Mensaje de bienvenida: unos segundos al abrir la app, mientras carga lo demás.
             val welcome by vm.welcomeMessage.collectAsState()
             val splashVisible by vm.splashVisible.collectAsState()

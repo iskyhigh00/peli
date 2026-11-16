@@ -1362,29 +1362,71 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
     fun setServerUrl(v: String) { serverUrl.value = v; peli.jellyfinPrefs.url = v }
     fun setServerKey(v: String) { serverKey.value = v; peli.jellyfinPrefs.key = v }
 
-    /** Pide al servidor sus películas. Con [manual] avisa del resultado; si no hay conexión (¿VPN apagada?) deja lo último que supo. */
+    private var serverBusy = false
+    private var lastServerTry = 0L
+
+    /**
+     * Pide al servidor sus películas probando todas las direcciones a la vez. Con [manual] avisa del resultado; si no hay
+     * conexión (otra red, VPN apagada) deja lo último que supo.
+     */
     fun refreshServer(manual: Boolean) {
-        val base = com.peli.app.data.Jellyfin.baseUrl(serverUrl.value)
+        val bases = com.peli.app.data.Jellyfin.baseUrls(serverUrl.value)
         val key = serverKey.value.trim()
-        if (base == null || key.isEmpty()) {
-            if (manual) message.value = "Escribe la dirección de tu servidor y su clave de API."
+        if (bases.isEmpty() || key.isEmpty()) {
+            if (manual) message.value = "Escribe al menos una dirección de tu servidor y su clave de API."
             return
         }
+        if (serverBusy) {
+            if (manual) message.value = "Ya está conectando…"
+            return
+        }
+        serverBusy = true
+        lastServerTry = System.currentTimeMillis()
         serverStatus.value = "Conectando…"
         launch(Dispatchers.IO) {
-            val r = attempt { com.peli.app.data.JellyfinClient.tmdbIds(base, key) }
-            val ids = r.getOrNull()
-            if (ids != null) {
+            val r = try { attempt { com.peli.app.data.JellyfinClient.tmdbIds(bases, key) } } finally { serverBusy = false }
+            val ok = r.getOrNull()
+            if (ok != null) {
+                val (base, ids) = ok
                 serverIds.value = ids
                 peli.jellyfinPrefs.ids = ids
-                serverStatus.value = "Conectado: ${ids.size} películas con ID de TMDB en tu servidor."
+                val host = base.substringAfter("://")
+                serverStatus.value = "Conectado por $host: ${ids.size} películas con ID de TMDB."
                 if (manual) message.value = "Servidor conectado: ${ids.size} películas."
             } else {
                 AppLog.w("Jellyfin", "no se pudo consultar el servidor", r.exceptionOrNull())
-                serverStatus.value = "No se pudo conectar (¿está encendida la VPN? ¿la clave es correcta?). Se usa lo último que se supo."
+                serverStatus.value = "No se pudo conectar por ninguna dirección (¿otra red o VPN apagada? ¿la clave es correcta?). Se usa lo último que se supo."
                 if (manual) message.value = "No se pudo conectar con tu servidor."
             }
         }
+    }
+
+    /** Intento automático (al abrir, al volver a la app, cada pocos minutos o al cambiar de red); no insiste si hubo uno hace poco. */
+    fun refreshServerAuto(minGapMs: Long = 20_000) {
+        if (System.currentTimeMillis() - lastServerTry < minGapMs) return
+        refreshServer(false)
+    }
+
+    private var netWatching = false
+    private val netCallback = object : android.net.ConnectivityManager.NetworkCallback() {
+        override fun onAvailable(network: android.net.Network) { refreshServerAuto(5_000) }
+    }
+
+    /** Cuando el teléfono cambia de red (wifi de casa, hotspot, datos…) vuelve a buscar el servidor. */
+    fun watchNetwork() {
+        if (netWatching) return
+        netWatching = true
+        runCatching {
+            val cm = getApplication<Application>().getSystemService(android.net.ConnectivityManager::class.java)
+            cm.registerDefaultNetworkCallback(netCallback)
+        }
+    }
+
+    override fun onCleared() {
+        runCatching {
+            if (netWatching) getApplication<Application>().getSystemService(android.net.ConnectivityManager::class.java).unregisterNetworkCallback(netCallback)
+        }
+        super.onCleared()
     }
 
     fun toggleAvailable(movieId: Int) {
