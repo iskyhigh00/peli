@@ -34,6 +34,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
@@ -715,6 +716,9 @@ fun MineTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Unit
 // ---- Juntos ----------------------------------------------------------------
 
 private enum class TogetherSheet { None, Import, Join }
+
+/** Qué lista de Juntos se ve: todas por separado, o solo una. */
+private enum class TogetherView { All, Match, Mine, Partner }
 private enum class Confirm { None, Leave, ClearPartner }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -756,7 +760,9 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
     val petRecList by vm.petRecs.collectAsState()
     LaunchedEffect(Unit) { vm.refreshPetRecs() }
     val both = remember(matches) { matches.filter { it.both } }
-    val single = remember(matches) { matches.filter { !it.both } }
+    val onlyMine = remember(matches) { matches.filter { !it.both && it.iWant } }
+    val onlyPartner = remember(matches) { matches.filter { !it.both && !it.iWant } }
+    var view by rememberSaveable { mutableStateOf(TogetherView.All) }
     fun mineOrNew(m: Match) = byId[m.entry.movieId] ?: m.entry.asUnmarked(OWNER_ME)
 
     PullToRefreshBox(
@@ -959,15 +965,24 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
                     )
                 }
                 else -> {
-                    if (both.isNotEmpty()) {
-                        item { Text("Matches (${both.size})", style = MaterialTheme.typography.titleLarge) }
-                        itemsIndexed(both, key = { _, m -> m.entry.movieId }) { index, m ->
+                    item(key = "vista") {
+                        ChipRow(TogetherView.entries, view, { v ->
+                            when (v) {
+                                TogetherView.All -> "Todas (${matches.size})"
+                                TogetherView.Match -> "Match (${both.size})"
+                                TogetherView.Mine -> "Me gustan a mí (${onlyMine.size})"
+                                TogetherView.Partner -> "Le gustan a mi pareja (${onlyPartner.size})"
+                            }
+                        }) { view = it }
+                    }
+                    fun LazyListScope.cards(list: List<Match>, badge: (Match) -> String) {
+                        itemsIndexed(list, key = { _, m -> m.entry.movieId }) { index, m ->
                             MovieCard(
                                 m.entry, byId[m.entry.movieId], onOpen = { onOpen(m.entry) },
                                 onWant = { vm.toggleWant(mineOrNew(m)) },
                                 onLiked = { vm.toggleLiked(mineOrNew(m)) },
                                 onDislike = { vm.toggleDislike(mineOrNew(m)) },
-                                badge = "Les interesa a las dos",
+                                badge = badge(m),
                                 onRecommend = { vm.requestRecommend(m.entry) },
                                 available = m.entry.movieId in availableIds,
                                 onAvailable = { vm.toggleAvailable(m.entry.movieId) },
@@ -975,20 +990,33 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
                             )
                         }
                     }
-                    if (single.isNotEmpty()) {
-                        item { Text("A uno le interesa (${single.size})", style = MaterialTheme.typography.titleLarge) }
-                        itemsIndexed(single, key = { _, m -> m.entry.movieId }) { index, m ->
-                            MovieCard(
-                                m.entry, byId[m.entry.movieId], onOpen = { onOpen(m.entry) },
-                                onWant = { vm.toggleWant(mineOrNew(m)) },
-                                onLiked = { vm.toggleLiked(mineOrNew(m)) },
-                                onDislike = { vm.toggleDislike(mineOrNew(m)) },
-                                badge = if (m.iWant) "Te interesa a ti" else "Le interesa a tu pareja",
-                                onRecommend = { vm.requestRecommend(m.entry) },
-                                available = m.entry.movieId in availableIds,
-                                onAvailable = { vm.toggleAvailable(m.entry.movieId) },
-                                modifier = Modifier.animateItem().entrance(index, m.entry.movieId),
+                    val sections = listOf(
+                        Triple(TogetherView.Match, "Match (${both.size})", both),
+                        Triple(TogetherView.Mine, "Me gustan a mí (${onlyMine.size})", onlyMine),
+                        Triple(TogetherView.Partner, "Le gustan a mi pareja (${onlyPartner.size})", onlyPartner),
+                    )
+                    val shown = sections.filter { (kind, _, list) -> list.isNotEmpty() && (view == TogetherView.All || view == kind) }
+                    if (shown.isEmpty()) {
+                        item(key = "vacio") {
+                            EmptyState(
+                                title = "Aquí no hay nada todavía",
+                                message = when (view) {
+                                    TogetherView.Match -> "Cuando los dos marquen «Quiero verla» en la misma película, aparecerá aquí."
+                                    TogetherView.Mine -> "Las que tú quieres ver y tu pareja no (o ya vio) aparecen aquí."
+                                    else -> "Las que quiere ver tu pareja y tú no (o ya viste) aparecen aquí."
+                                },
+                                icon = Icons.Default.Group,
                             )
+                        }
+                    }
+                    shown.forEach { (kind, title, list) ->
+                        item(key = "titulo-${kind.name}") { Text(title, style = MaterialTheme.typography.titleLarge) }
+                        cards(list) {
+                            when (kind) {
+                                TogetherView.Match -> "Les interesa a las dos"
+                                TogetherView.Mine -> "Te interesa a ti"
+                                else -> "Le interesa a tu pareja"
+                            }
                         }
                     }
                 }

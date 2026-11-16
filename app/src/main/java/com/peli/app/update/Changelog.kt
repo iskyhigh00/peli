@@ -401,6 +401,9 @@ object Changelog {
         "2.1.4" to listOf(
             "Servidor Jellyfin: si no conecta, ahora dice por qué en cada dirección (clave rechazada, puerto equivocado, VPN apagada, certificado…).",
         ),
+        "2.1.5" to listOf(
+            "Juntos separa las películas en tres listas: Match, Me gustan a mí y Le gustan a mi pareja. Se eligen con las pestañas de arriba (o Todas, con las tres separadas).",
+        ),
     )
 
     private const val PREFS = "peli_prefs"
