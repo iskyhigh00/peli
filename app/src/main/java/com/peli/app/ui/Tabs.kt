@@ -719,6 +719,9 @@ private enum class TogetherSheet { None, Import, Join }
 
 /** Qué lista de Juntos se ve: todas por separado, o solo una. */
 private enum class TogetherView { All, Match, Mine, Partner }
+
+/** Dos pantallas separadas dentro de Juntos: lo de ustedes y lo de Chuba y Pepa. */
+private enum class TogetherSection(val label: String) { Us("Nosotros"), Pets("Chuba y Pepa") }
 private enum class Confirm { None, Leave, ClearPartner }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -763,6 +766,14 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
     val onlyMine = remember(matches) { matches.filter { !it.both && it.iWant } }
     val onlyPartner = remember(matches) { matches.filter { !it.both && !it.iWant } }
     var view by rememberSaveable { mutableStateOf(TogetherView.All) }
+    var section by rememberSaveable { mutableStateOf(TogetherSection.Us) }
+    // Al entrar a «Chuba y Pepa» siempre hay una elegida (su lista y su perfil van juntos).
+    LaunchedEffect(section) {
+        if (section == TogetherSection.Pets && petShown.isEmpty()) {
+            petShown = com.peli.app.data.Pet.Chuba.name
+            vm.loadPetPicks(com.peli.app.data.Pet.Chuba)
+        }
+    }
     fun mineOrNew(m: Match) = byId[m.entry.movieId] ?: m.entry.asUnmarked(OWNER_ME)
 
     PullToRefreshBox(
@@ -795,6 +806,10 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
                     )
                 }
             }
+            item(key = "seccion") {
+                ChipRow(TogetherSection.entries, section, { it.label }) { section = it }
+            }
+            if (section == TogetherSection.Pets) {
             // Recomendaciones al azar de Chuba y Pepa durante la semana.
             if (petRecList.isNotEmpty()) item(key = "pet-recs") {
                 Column(verticalArrangement = Arrangement.spacedBy(ItemSpacing)) {
@@ -828,7 +843,7 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
                     }
                 }
             }
-            // Gustos de Chuba y Pepa: para cuando las películas propias aburren.
+            // Gustos de Chuba y Pepa: para cuando las películas propias aburren. Una elegida a la vez.
             item(key = "mascotas") {
                 Column(verticalArrangement = Arrangement.spacedBy(ItemSpacing)) {
                     Text("Cine con Chuba y Pepa", style = MaterialTheme.typography.titleLarge)
@@ -837,12 +852,11 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    com.peli.app.data.Pet.entries.forEach { p ->
-                        val on = petShown == p.name
-                        PetProfileCard(p, open = on, onClick = {
-                            if (on) petShown = "" else { petShown = p.name; vm.loadPetPicks(p) }
-                        })
+                    ChipRow(com.peli.app.data.Pet.entries, petSelected ?: com.peli.app.data.Pet.Chuba, { it.label }) { p ->
+                        petShown = p.name
+                        vm.loadPetPicks(p)
                     }
+                    PetProfileCard(petSelected ?: com.peli.app.data.Pet.Chuba, open = true, onClick = {})
                 }
             }
             petSelected?.let { pet ->
@@ -865,6 +879,8 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
                     TonalButton("Ver otras de ${pet.label}", { vm.loadPetPicks(pet, more = true) }, Modifier.fillMaxWidth())
                 }
             }
+            }
+            if (section == TogetherSection.Us) {
             // La cuenta, el ID y los amigos viven en Ajustes; aquí solo se avisa dónde.
             if (vm.googleAvailable && !hasProfile) item {
                 Text(
@@ -1021,13 +1037,14 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
                     }
                 }
             }
+            }
         }
         // Con una perrita elegida, al bajar por su lista sus calcomanías se quedan arriba.
         val pinPet by remember {
             derivedStateOf { listState.layoutInfo.visibleItemsInfo.none { it.key == "mascotas" } && listState.firstVisibleItemIndex > 0 }
         }
         androidx.compose.animation.AnimatedVisibility(
-            visible = petSelected != null && pinPet,
+            visible = section == TogetherSection.Pets && petSelected != null && pinPet,
             modifier = Modifier.align(Alignment.TopCenter),
             enter = androidx.compose.animation.slideInVertically { -it } + androidx.compose.animation.fadeIn(),
             exit = androidx.compose.animation.slideOutVertically { -it } + androidx.compose.animation.fadeOut(),
@@ -1052,7 +1069,6 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    TonalButton("Ocultar", { petShown = "" })
                 }
             }
         }
