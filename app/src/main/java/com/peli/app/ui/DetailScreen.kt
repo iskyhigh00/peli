@@ -106,7 +106,8 @@ fun DetailScreen(entry: Entry, mine: Entry?, vm: MainViewModel, onBack: () -> Un
     val partnerEntry = remember(partner, entry.movieId) { partner.firstOrNull { it.movieId == entry.movieId } }
     val friendList by vm.friends.collectAsState()
     val activeFriendId by vm.activeFriend.collectAsState()
-    val partnerName = friendList.firstOrNull { it.friend_id == activeFriendId }?.username ?: "Mi pareja"
+    val partnerName = if (PartnerName.base != com.peli.app.data.PartnerText.DEFAULT) PartnerName.cap
+        else friendList.firstOrNull { it.friend_id == activeFriendId }?.username ?: PartnerName.Mi
     LaunchedEffect(entry.movieId) { vm.loadInsights(entry.movieId); vm.loadFacts(entry.movieId) }
     val allFacts by vm.facts.collectAsState()
     val trailers by vm.trailers.collectAsState()

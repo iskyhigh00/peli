@@ -1349,6 +1349,25 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
     /** Películas marcadas como «disponible» (arrendadas, compradas o en una plataforma). */
     val available = MutableStateFlow(peli.availablePrefs.ids)
 
+    // ---- Apodo de la pareja en los textos (uno por persona) ----
+    val partnerNickname = MutableStateFlow("")
+
+    private fun partnerKey() = account.activeFriend ?: "sala"
+
+    /** Carga el apodo de la persona activa (se llama al abrir y al cambiar de amigo). */
+    fun applyPartnerName() {
+        val base = peli.partnerNamePrefs.get(partnerKey())
+        PartnerName.base = base
+        partnerNickname.value = if (base == com.peli.app.data.PartnerText.DEFAULT) "" else base
+    }
+
+    fun setPartnerNickname(text: String) {
+        partnerNickname.value = text.take(com.peli.app.data.PartnerText.MAX)
+        val base = com.peli.app.data.PartnerText.clean(text)
+        peli.partnerNamePrefs.put(partnerKey(), base)
+        PartnerName.base = base
+    }
+
     // ---- Servidor Jellyfin: lo que ya tengo ahí cuenta como «disponible» sin marcarlo a mano ----
     val serverUrl = MutableStateFlow(peli.jellyfinPrefs.url)
     val serverKey = MutableStateFlow(peli.jellyfinPrefs.key)
@@ -1940,7 +1959,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
             message.value = "Código no válido"
         } else launch {
             repo.importPartner(list)
-            message.value = "Lista de tu pareja importada (${list.size} películas)"
+            message.value = "Lista de ${PartnerName.tu} importada (${list.size} películas)"
         }
     }
 

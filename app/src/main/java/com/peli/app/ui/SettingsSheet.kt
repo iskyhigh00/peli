@@ -132,7 +132,7 @@ fun SettingsSheet(
             RatingSource.entries.forEach { source ->
                 val available = !source.needsOmdb || omdbAvailable
                 SettingRow(
-                    title = source.label,
+                    title = if (source == com.peli.app.data.RatingSource.Partner) PartnerName.Mi else source.label,
                     subtitle = if (available) source.hint else "Necesita la clave gratuita de OMDb (OMDB_API_KEY)",
                     checked = available && source in sources,
                     enabled = available,
@@ -169,6 +169,16 @@ fun SettingsSheet(
                     )
                 }
             }
+            Text("Cómo le dices", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
+            val nick by vm.partnerNickname.collectAsState()
+            androidx.compose.material3.OutlinedTextField(
+                value = nick,
+                onValueChange = vm::setPartnerNickname,
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                label = { Text("Apodo (p. ej. princesa)") },
+                supportingText = { Text("Reemplaza «pareja» en los textos de la app: «${PartnerName.tu}», «${PartnerName.mi}». Se guarda por persona; vacío = «pareja».") },
+                singleLine = true,
+            )
             Text("Mensaje de bienvenida", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
             Text(
                 "Un texto corto que aparece animado unos segundos al abrir la app. Déjalo vacío para no mostrarlo.",
@@ -262,7 +272,7 @@ fun SettingsSheet(
                     when (kind) {
                         com.peli.app.data.ExportList.Both -> "Enlaces de los matches"
                         com.peli.app.data.ExportList.Mine -> "Enlaces de solo las mías"
-                        com.peli.app.data.ExportList.Partner -> "Enlaces de solo mi pareja"
+                        com.peli.app.data.ExportList.Partner -> "Enlaces de solo ${PartnerName.mi}"
                     },
                     {
                         onMessage("Preparando los enlaces…")
@@ -276,7 +286,14 @@ fun SettingsSheet(
             linksText?.let { text ->
                 androidx.compose.material3.AlertDialog(
                     onDismissRequest = { linksText = null },
-                    title = { Text("${linksKind.label} (${text.lines().size})") },
+                    title = {
+                        val name = when (linksKind) {
+                            com.peli.app.data.ExportList.Both -> "Matches"
+                            com.peli.app.data.ExportList.Mine -> "Solo mías"
+                            com.peli.app.data.ExportList.Partner -> "Solo de ${PartnerName.mi}"
+                        }
+                        Text("$name (${text.lines().size})")
+                    },
                     text = {
                         Column(Modifier.verticalScroll(rememberScrollState())) {
                             androidx.compose.foundation.text.selection.SelectionContainer { Text(text, style = MaterialTheme.typography.bodySmall) }

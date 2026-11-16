@@ -159,3 +159,19 @@ class JellyfinTest {
         assertEquals(setOf(550, 13), ids)
     }
 }
+
+class PartnerTextTest {
+    @Test fun `el apodo se limpia`() {
+        assertEquals("princesa", PartnerText.clean("  mi   princesa "))
+        assertEquals("Ri", PartnerText.clean("Tu Ri"))
+        assertEquals("pareja", PartnerText.clean("   "))
+        assertEquals("pareja", PartnerText.clean("mi "))
+        assertEquals(20, PartnerText.clean("a".repeat(50)).length)
+    }
+
+    @Test fun `las frases usan el apodo`() {
+        assertEquals("tu princesa", PartnerText.tu("princesa"))
+        assertEquals("mi Ri", PartnerText.mi("Ri"))
+        assertEquals("Mi pareja", PartnerText.cap(PartnerText.mi("pareja")))
+    }
+}

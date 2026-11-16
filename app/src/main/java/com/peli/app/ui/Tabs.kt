@@ -571,7 +571,7 @@ private fun ColumnScope.DiscoverCardBody(
                 Row(Modifier.align(Alignment.TopStart).padding(8.dp), horizontalArrangement = Arrangement.spacedBy(CompactSpacing)) {
                     if (e.dateLabel.isNotBlank()) StatusChip(e.dateLabel)
                     if (e.isUpcoming) UpcomingChip()
-                    if (partnerWants) StatusChip("A tu pareja le interesa", accent = MaterialTheme.colorScheme.tertiary)
+                    if (partnerWants) StatusChip("A ${PartnerName.tu} le interesa", accent = MaterialTheme.colorScheme.tertiary)
                 }
             }
         }
@@ -601,7 +601,7 @@ private fun ColumnScope.DiscoverCardBody(
         Row(Modifier.padding(vertical = CompactSpacing), horizontalArrangement = Arrangement.spacedBy(CompactSpacing)) {
             if (e.dateLabel.isNotBlank()) StatusChip(e.dateLabel)
             if (e.isUpcoming) UpcomingChip()
-            if (partnerWants) StatusChip("A tu pareja le interesa", accent = MaterialTheme.colorScheme.tertiary)
+            if (partnerWants) StatusChip("A ${PartnerName.tu} le interesa", accent = MaterialTheme.colorScheme.tertiary)
         }
     }
     Text(
@@ -912,7 +912,7 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
                 GlassCard {
                     when {
                         !vm.cloudAvailable -> {
-                            Text("Lista de tu pareja", style = MaterialTheme.typography.titleMedium)
+                            Text("Lista de ${PartnerName.tu}", style = MaterialTheme.typography.titleMedium)
                             Text(
                                 if (partner.isEmpty()) "Aún no la importas." else "${partner.size} películas importadas.",
                                 style = MaterialTheme.typography.bodyMedium,
@@ -925,7 +925,7 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
                             }
                         }
                         room == null -> {
-                            Text("Conecta con tu pareja", style = MaterialTheme.typography.titleMedium)
+                            Text("Conecta con ${PartnerName.tu}", style = MaterialTheme.typography.titleMedium)
                             Text(
                                 "Creen una sala o únanse con un código. Cuando a los dos les interese la misma película, será un match.",
                                 style = MaterialTheme.typography.bodyMedium,
@@ -942,8 +942,8 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
                             Text(
                                 when {
                                     syncError != null -> "No se pudo sincronizar: $syncError"
-                                    partner.isEmpty() -> "Esperando a tu pareja… compárteles el código."
-                                    else -> "Conectados · tu pareja tiene ${partner.size} películas marcadas."
+                                    partner.isEmpty() -> "Esperando a ${PartnerName.tu}… compárteles el código."
+                                    else -> "Conectados · ${PartnerName.tu} tiene ${partner.size} películas marcadas."
                                 },
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = if (syncError != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -957,7 +957,7 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
                                             type = "text/plain"
                                             putExtra(Intent.EXTRA_TEXT, vm.roomShareText())
                                         }
-                                        context.startActivity(Intent.createChooser(send, "Invitar a tu pareja"))
+                                        context.startActivity(Intent.createChooser(send, "Invitar a ${PartnerName.tu}"))
                                     },
                                     Modifier.weight(1f),
                                     icon = Icons.Default.Share,
@@ -971,11 +971,11 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
             when {
                 matches.isEmpty() -> item {
                     EmptyState(
-                        title = if (connected && partner.isEmpty()) "Esperando a tu pareja" else "Aún no hay matches",
+                        title = if (connected && partner.isEmpty()) "Esperando a ${PartnerName.tu}" else "Aún no hay matches",
                         message = if (connected) {
                             "Cuando los dos marquen «Quiero verla» en la misma película, aparecerá aquí con un match."
                         } else {
-                            "Conéctate con tu pareja y marquen películas con «Quiero verla»."
+                            "Conéctate con ${PartnerName.tu} y marquen películas con «Quiero verla»."
                         },
                         icon = Icons.Default.Group,
                     )
@@ -987,7 +987,7 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
                                 TogetherView.All -> "Todas (${matches.size})"
                                 TogetherView.Match -> "Match (${both.size})"
                                 TogetherView.Mine -> "Me gustan a mí (${onlyMine.size})"
-                                TogetherView.Partner -> "Le gustan a mi pareja (${onlyPartner.size})"
+                                TogetherView.Partner -> "Le gustan a ${PartnerName.mi} (${onlyPartner.size})"
                             }
                         }) { view = it }
                     }
@@ -1009,7 +1009,7 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
                     val sections = listOf(
                         Triple(TogetherView.Match, "Match (${both.size})", both),
                         Triple(TogetherView.Mine, "Me gustan a mí (${onlyMine.size})", onlyMine),
-                        Triple(TogetherView.Partner, "Le gustan a mi pareja (${onlyPartner.size})", onlyPartner),
+                        Triple(TogetherView.Partner, "Le gustan a ${PartnerName.mi} (${onlyPartner.size})", onlyPartner),
                     )
                     val shown = sections.filter { (kind, _, list) -> list.isNotEmpty() && (view == TogetherView.All || view == kind) }
                     if (shown.isEmpty()) {
@@ -1018,8 +1018,8 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
                                 title = "Aquí no hay nada todavía",
                                 message = when (view) {
                                     TogetherView.Match -> "Cuando los dos marquen «Quiero verla» en la misma película, aparecerá aquí."
-                                    TogetherView.Mine -> "Las que tú quieres ver y tu pareja no (o ya vio) aparecen aquí."
-                                    else -> "Las que quiere ver tu pareja y tú no (o ya viste) aparecen aquí."
+                                    TogetherView.Mine -> "Las que tú quieres ver y ${PartnerName.tu} no (o ya vio) aparecen aquí."
+                                    else -> "Las que quiere ver ${PartnerName.tu} y tú no (o ya viste) aparecen aquí."
                                 },
                                 icon = Icons.Default.Group,
                             )
@@ -1031,7 +1031,7 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
                             when (kind) {
                                 TogetherView.Match -> "Les interesa a las dos"
                                 TogetherView.Mine -> "Te interesa a ti"
-                                else -> "Le interesa a tu pareja"
+                                else -> "Le interesa a ${PartnerName.tu}"
                             }
                         }
                     }
@@ -1076,7 +1076,7 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
 
     when (sheet) {
         TogetherSheet.Import -> CodeSheet(
-            title = "Importar lista de tu pareja",
+            title = "Importar lista de ${PartnerName.tu}",
             help = "Pega el código que te compartió desde \"Mis pelis\".",
             field = "Código",
             action = "Importar",
@@ -1086,7 +1086,7 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
             onSubmit = vm::importCode,
         )
         TogetherSheet.Join -> CodeSheet(
-            title = "Unirme a la sala de mi pareja",
+            title = "Unirme a la sala de ${PartnerName.mi}",
             help = "Escribe el código de 10 letras y números que te compartió.",
             field = "Código de sala",
             action = "Unirme",
@@ -1105,13 +1105,13 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
     when (confirm) {
         Confirm.Leave -> ConfirmDialog(
             title = "¿Salir de la sala?",
-            text = "Dejarás de sincronizar con tu pareja y ya no verán los matches. Tus películas se conservan en este teléfono.",
+            text = "Dejarás de sincronizar con ${PartnerName.tu} y ya no verán los matches. Tus películas se conservan en este teléfono.",
             confirmLabel = "Salir",
             onConfirm = { confirm = Confirm.None; vm.leaveRoom() },
             onDismiss = { confirm = Confirm.None },
         )
         Confirm.ClearPartner -> ConfirmDialog(
-            title = "¿Borrar la lista de tu pareja?",
+            title = "¿Borrar la lista de ${PartnerName.tu}?",
             text = "Se quitará la lista importada y los matches con ella. Puedes volver a importarla cuando quieras.",
             confirmLabel = "Borrar",
             onConfirm = { confirm = Confirm.None; vm.clearPartner() },

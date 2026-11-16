@@ -407,6 +407,9 @@ object Changelog {
         "2.1.6" to listOf(
             "Juntos ordenado en dos pantallas: «Nosotros» (conexión, recomendaciones de amigos y las listas Match / Me gustan a mí / Le gustan a mi pareja) y «Chuba y Pepa» (sus recomendaciones y la lista de la que elijas, sin nada más debajo).",
         ),
+        "2.1.7" to listOf(
+            "Apodo de la pareja: en Ajustes puedes poner cómo le dices (p. ej. «princesa») y los textos de la app dicen «tu princesa», «mi princesa» en vez de «tu pareja», «mi pareja». Se guarda por persona.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

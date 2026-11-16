@@ -245,6 +245,8 @@ fun PeliScreen(vm: MainViewModel = viewModel()) {
             }
 
             LaunchedEffect(Unit) { vm.loadSharedWelcome(); vm.watchNetwork() }
+            val activeFriendForName by vm.activeFriend.collectAsState()
+            LaunchedEffect(activeFriendForName) { vm.applyPartnerName() }
             // Servidor Jellyfin: al abrir o volver a la app, y cada 2 minutos mientras se usa.
             val serverLifecycle = LocalLifecycleOwner.current
             LaunchedEffect(serverLifecycle) {
@@ -391,7 +393,7 @@ private fun Home(vm: MainViewModel, tab: Tab, onTabChange: (Tab) -> Unit, onOpen
         Tab.Search -> "Encuentra tu próxima película"
         Tab.Discover -> "Cuéntanos qué te gusta"
         Tab.Mine -> "${mine.size} en tu lista"
-        Tab.Together -> "${matches.size} para ver con tu pareja"
+        Tab.Together -> "${matches.size} para ver con ${PartnerName.tu}"
     }
 
     Box(Modifier.fillMaxSize()) {
@@ -511,12 +513,12 @@ private fun Home(vm: MainViewModel, tab: Tab, onTabChange: (Tab) -> Unit, onOpen
                         // toda la lista queda solo para cuando no hay servidor.
                         val invite = vm.startInvite()
                         if (invite != null) {
-                            shareList(context, invite, "Invitar a mi pareja") { vm.message.value = it }
+                            shareList(context, invite, "Invitar a ${PartnerName.mi}") { vm.message.value = it }
                         } else {
                             vm.message.value = "Preparando tu lista para compartir…"
                             scope.launch {
                                 val code = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { vm.exportCode() }
-                                shareList(context, code, "Enviar mi lista a mi pareja") { vm.message.value = it }
+                                shareList(context, code, "Enviar mi lista a ${PartnerName.mi}") { vm.message.value = it }
                             }
                         }
                     } else {
