@@ -41,7 +41,7 @@ class SafeFeature(
 
 
     /** Estado de la hoja «Película segura» (Idle = cerrada). */
-    val safe = MutableStateFlow<SafeState>(SafeState.Idle)
+    val state = MutableStateFlow<SafeState>(SafeState.Idle)
 
     /** Ya mostradas en esta sesión de la hoja: no vuelven a salir. */
     private val safeSeen = HashSet<Int>()
@@ -57,17 +57,17 @@ class SafeFeature(
 
     fun close() {
         safeJob?.cancel()
-        safe.value = SafeState.Idle
+        state.value = SafeState.Idle
     }
 
     private fun load() {
         safeJob?.cancel()
-        safe.value = SafeState.Loading
+        state.value = SafeState.Loading
         safeJob = env.launch {
             try {
                 val marked = repo.mine.first()
                 if (!Safe.enoughData(marked)) {
-                    safe.value = SafeState.NeedMore(Safe.signals(marked), Safe.MIN_SIGNALS)
+                    state.value = SafeState.NeedMore(Safe.signals(marked), Safe.MIN_SIGNALS)
                     return@launch
                 }
                 // Respeta los filtros elegidos (años, nota de TMDB) y la época de lo que me gusta.
@@ -75,12 +75,12 @@ class SafeFeature(
                 AppLog.i("Segura", "${picks.size} candidatas; mejor: ${picks.firstOrNull()?.let { "«${it.entry.title}» %.2f".format(it.score) } ?: "ninguna"}")
                 safeQueue.clear()
                 safeQueue.addAll(picks)
-                if (!showNextSafe()) safe.value = SafeState.Empty
+                if (!showNextSafe()) state.value = SafeState.Empty
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 AppLog.w("Segura", "falló el cálculo", e)
-                safe.value = SafeState.Failed(e.message ?: e.javaClass.simpleName)
+                state.value = SafeState.Failed(e.message ?: e.javaClass.simpleName)
             }
         }
     }
@@ -92,7 +92,7 @@ class SafeFeature(
             val p = safeQueue.removeFirst()
             if (p.entry.movieId in known || p.entry.movieId in safeSeen) continue
             safeSeen += p.entry.movieId
-            safe.value = SafeState.Ready(p)
+            state.value = SafeState.Ready(p)
             return true
         }
         return false
