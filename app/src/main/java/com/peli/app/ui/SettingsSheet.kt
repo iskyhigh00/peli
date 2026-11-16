@@ -80,7 +80,7 @@ fun SettingsSheet(
     language: String,
     onLanguage: (String) -> Unit,
     onRefreshTitles: () -> Unit,
-    update: MainViewModel.ManualUpdate,
+    update: com.peli.app.ui.features.ManualUpdate,
     progress: Int,
     onInstall: (String) -> Unit,
     onCheckUpdate: () -> Unit,
@@ -326,13 +326,13 @@ fun SettingsSheet(
                 enabled = true,
                 onChange = onPets,
             )
-            val discoverVideo by vm.discoverVideo.collectAsState()
+            val discoverVideo by vm.detail.discoverVideo.collectAsState()
             SettingRow(
                 title = "Tráiler en Descubrir",
                 subtitle = "En Descubrir se ve el tráiler (sin sonido hasta que lo actives) en vez de la carátula. Gasta más datos móviles.",
                 checked = discoverVideo,
                 enabled = true,
-                onChange = vm::setDiscoverVideo,
+                onChange = vm.detail::setDiscoverVideo,
             )
             SettingRow(
                 title = "Fin de semana",
@@ -344,7 +344,7 @@ fun SettingsSheet(
             HorizontalDivider(Modifier.padding(vertical = ItemSpacing))
             Text("Versión $APP_VERSION", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             when (update) {
-                is MainViewModel.ManualUpdate.Available -> UpdateBanner(
+                is com.peli.app.ui.features.ManualUpdate.Available -> UpdateBanner(
                     version = update.version,
                     progress = progress,
                     onUpdate = { onInstall(update.version) },
@@ -352,9 +352,9 @@ fun SettingsSheet(
                 )
                 else -> {
                     val status = when (update) {
-                        MainViewModel.ManualUpdate.Checking -> "Buscando…"
-                        MainViewModel.ManualUpdate.UpToDate -> "Estás al día: tienes la última versión."
-                        is MainViewModel.ManualUpdate.Failed -> "No se pudo consultar: ${update.error ?: "sin conexión"}"
+                        com.peli.app.ui.features.ManualUpdate.Checking -> "Buscando…"
+                        com.peli.app.ui.features.ManualUpdate.UpToDate -> "Estás al día: tienes la última versión."
+                        is com.peli.app.ui.features.ManualUpdate.Failed -> "No se pudo consultar: ${update.error ?: "sin conexión"}"
                         else -> null
                     }
                     status?.let {

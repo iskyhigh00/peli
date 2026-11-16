@@ -41,8 +41,8 @@ import com.peli.app.ui.theme.SheetShape
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SafePickSheet(
-    state: MainViewModel.SafeState,
-    onAnswer: (Entry, MainViewModel.SafeAnswer) -> Unit,
+    state: com.peli.app.ui.features.SafeState,
+    onAnswer: (Entry, com.peli.app.ui.features.SafeAnswer) -> Unit,
     onRetry: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -63,7 +63,7 @@ fun SafePickSheet(
         ) {
             Text("Película segura", style = MaterialTheme.typography.headlineSmall)
             when (state) {
-                MainViewModel.SafeState.Idle, MainViewModel.SafeState.Loading -> {
+                com.peli.app.ui.features.SafeState.Idle, com.peli.app.ui.features.SafeState.Loading -> {
                     Text(
                         "Buscando la que más se parece a lo que calificaste alto…",
                         style = MaterialTheme.typography.bodyMedium,
@@ -71,23 +71,23 @@ fun SafePickSheet(
                     )
                     CircularProgressIndicator(Modifier.padding(vertical = 24.dp).align(androidx.compose.ui.Alignment.CenterHorizontally))
                 }
-                is MainViewModel.SafeState.NeedMore -> Text(
+                is com.peli.app.ui.features.SafeState.NeedMore -> Text(
                     "Necesito conocer mejor tus gustos: califica o marca «La vi y me gustó» en al menos ${state.need} películas " +
                         "(tienes ${state.have}) y vuelve a intentarlo.",
                     style = MaterialTheme.typography.bodyMedium,
                 )
-                MainViewModel.SafeState.Empty -> {
+                com.peli.app.ui.features.SafeState.Empty -> {
                     Text(
                         "No encontré más películas que cumplan, por ahora. Califica más películas o inténtalo más tarde.",
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     TonalButton("Buscar de nuevo", onRetry)
                 }
-                is MainViewModel.SafeState.Failed -> {
+                is com.peli.app.ui.features.SafeState.Failed -> {
                     Text("No se pudo calcular: ${state.message}", style = MaterialTheme.typography.bodyMedium)
                     TonalButton("Reintentar", onRetry)
                 }
-                is MainViewModel.SafeState.Ready -> {
+                is com.peli.app.ui.features.SafeState.Ready -> {
                     val e = state.pick.entry
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         PosterImage(
@@ -114,11 +114,11 @@ fun SafePickSheet(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(CompactSpacing)) {
-                        ActionButton("Ya la vi", Icons.Default.Check, { onAnswer(e, MainViewModel.SafeAnswer.Seen) }, Modifier.weight(1f))
-                        ActionButton("No me interesa", Icons.Default.ThumbDown, { onAnswer(e, MainViewModel.SafeAnswer.NotInterested) }, Modifier.weight(1f))
-                        ActionButton("Quiero verla", Icons.Default.Bookmark, { onAnswer(e, MainViewModel.SafeAnswer.Want) }, Modifier.weight(1f), gradient = true)
+                        ActionButton("Ya la vi", Icons.Default.Check, { onAnswer(e, com.peli.app.ui.features.SafeAnswer.Seen) }, Modifier.weight(1f))
+                        ActionButton("No me interesa", Icons.Default.ThumbDown, { onAnswer(e, com.peli.app.ui.features.SafeAnswer.NotInterested) }, Modifier.weight(1f))
+                        ActionButton("Quiero verla", Icons.Default.Bookmark, { onAnswer(e, com.peli.app.ui.features.SafeAnswer.Want) }, Modifier.weight(1f), gradient = true)
                     }
-                    TonalButton("Otra opción", { onAnswer(e, MainViewModel.SafeAnswer.Another) }, Modifier.fillMaxWidth())
+                    TonalButton("Otra opción", { onAnswer(e, com.peli.app.ui.features.SafeAnswer.Another) }, Modifier.fillMaxWidth())
                 }
             }
         }

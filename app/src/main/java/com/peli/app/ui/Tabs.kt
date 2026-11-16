@@ -291,7 +291,7 @@ fun SearchTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Un
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
-                        SafePickChip(vm::openSafe)
+                        SafePickChip(vm.safePick::open)
                     }
                 }
             }
@@ -346,7 +346,7 @@ fun SearchTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> Un
     if (showFilters) {
         MovieFiltersSheet(
             current = movieFilters,
-            omdbAvailable = vm.omdbAvailable,
+            omdbAvailable = vm.detail.omdbAvailable,
             onApply = vm::setMovieFilters,
             onClearAll = vm::clearFilters,
             onDismiss = { showFilters = false },
@@ -382,10 +382,10 @@ fun DiscoverTab(vm: MainViewModel) {
     val current = queue.firstOrNull()
     val navInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val scroll = rememberScrollState()
-    val videoOn by vm.discoverVideo.collectAsState()
-    val trailers by vm.trailers.collectAsState()
+    val videoOn by vm.detail.discoverVideo.collectAsState()
+    val trailers by vm.detail.trailers.collectAsState()
     // El tráiler de la tarjeta de arriba se pide al mostrarla (el de la siguiente, apenas pasa a ser la de arriba).
-    LaunchedEffect(current?.movieId, videoOn) { if (videoOn) current?.let { vm.loadTrailer(it.movieId) } }
+    LaunchedEffect(current?.movieId, videoOn) { if (videoOn) current?.let { vm.detail.loadTrailer(it.movieId) } }
 
     // La tarjeta de arriba cuenta como mostrada una vez por presentación (no la precargada ni una recomposición).
     LaunchedEffect(current?.movieId) { current?.let(vm::onDiscoverCardShown) }
@@ -403,7 +403,7 @@ fun DiscoverTab(vm: MainViewModel) {
                 onYears = { showYears = true },
                 onDirectors = { vm.loadDirectors(); showDirectors = true },
                 onClear = vm::clearFilters,
-                leading = { SafePickChip(vm::openSafe) },
+                leading = { SafePickChip(vm.safePick::open) },
             )
         }
         Box(Modifier.weight(1f).fillMaxWidth()) {
@@ -437,7 +437,7 @@ fun DiscoverTab(vm: MainViewModel) {
                             ) {
                                 DiscoverCardBody(
                                     e = e,
-                                    trailerKey = if (videoOn) (trailers[e.movieId] as? MainViewModel.TrailerState.Ready)?.key else null,
+                                    trailerKey = if (videoOn) (trailers[e.movieId] as? com.peli.app.ui.features.TrailerState.Ready)?.key else null,
                                     compact = compact,
                                     partnerWants = e.movieId in partnerWants,
                                     poster = if (compact) Modifier.fillMaxWidth().height(260.dp) else Modifier.fillMaxWidth().weight(1f),
@@ -495,7 +495,7 @@ fun DiscoverTab(vm: MainViewModel) {
     if (showFilters) {
         MovieFiltersSheet(
             current = movieFilters,
-            omdbAvailable = vm.omdbAvailable,
+            omdbAvailable = vm.detail.omdbAvailable,
             onApply = vm::setMovieFilters,
             onClearAll = vm::clearFilters,
             onDismiss = { showFilters = false },

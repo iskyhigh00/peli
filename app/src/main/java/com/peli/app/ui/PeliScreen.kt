@@ -172,8 +172,8 @@ fun PeliScreen(vm: MainViewModel = viewModel()) {
                     transitionSpec = { fadeIn(tween(300)) togetherWith fadeOut(tween(200)) },
                     label = "detailTransition",
                 ) { entry ->
-                    val cardFactsMap by vm.facts.collectAsState()
-                    val cardFacts = remember(cardFactsMap) { com.peli.app.ui.components.CardFacts(cardFactsMap, vm::cachedBadge) }
+                    val cardFactsMap by vm.detail.facts.collectAsState()
+                    val cardFacts = remember(cardFactsMap) { com.peli.app.ui.components.CardFacts(cardFactsMap, vm.detail::cachedBadge) }
                     val availableAll by vm.availability.all.collectAsState()
                     CompositionLocalProvider(
                         com.peli.app.ui.components.LocalAvailableIds provides availableAll,
@@ -293,11 +293,11 @@ private fun Home(vm: MainViewModel, tab: Tab, onTabChange: (Tab) -> Unit, onOpen
     val matches by vm.matches.collectAsState()
     val message by vm.message.collectAsState()
     val undo by vm.undo.collectAsState()
-    val newVersion by vm.newVersion.collectAsState()
-    val progress by vm.progress.collectAsState()
-    val whatsNew by vm.whatsNew.collectAsState()
-    val sources by vm.sources.collectAsState()
-    val manualUpdate by vm.manualUpdate.collectAsState()
+    val newVersion by vm.updates.newVersion.collectAsState()
+    val progress by vm.updates.progress.collectAsState()
+    val whatsNew by vm.updates.whatsNew.collectAsState()
+    val sources by vm.detail.sources.collectAsState()
+    val manualUpdate by vm.updates.manualUpdate.collectAsState()
     var showSettings by rememberSaveable { mutableStateOf(false) }
 
     // Avisos de estreno: el permiso de notificaciones (Android 13+) se pide una vez, y de nuevo si se activan en Ajustes.
@@ -441,7 +441,7 @@ private fun Home(vm: MainViewModel, tab: Tab, onTabChange: (Tab) -> Unit, onOpen
                     UpdateBanner(
                         version = newVersion.orEmpty(),
                         progress = progress,
-                        onUpdate = vm::installUpdate,
+                        onUpdate = vm.updates::install,
                         modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
                     )
                 }
@@ -564,18 +564,18 @@ private fun Home(vm: MainViewModel, tab: Tab, onTabChange: (Tab) -> Unit, onOpen
 
     val claim by vm.claim.collectAsState()
     claim?.let { ClaimGuestDialog(it, onChoose = vm::claimGuestCollection) }
-    val safe by vm.safe.collectAsState()
-    if (safe != MainViewModel.SafeState.Idle) {
-        SafePickSheet(safe, onAnswer = vm::safeAnswer, onRetry = vm::retrySafe, onDismiss = vm::closeSafe)
+    val safe by vm.safePick.state.collectAsState()
+    if (safe != com.peli.app.ui.features.SafeState.Idle) {
+        SafePickSheet(safe, onAnswer = vm.safePick::answer, onRetry = vm.safePick::retry, onDismiss = vm.safePick::close)
     }
 
-    if (whatsNew.isNotEmpty()) WhatsNewSheet(whatsNew, onDismiss = vm::dismissWhatsNew)
+    if (whatsNew.isNotEmpty()) WhatsNewSheet(whatsNew, onDismiss = vm.updates::dismissWhatsNew)
     if (showSettings) {
         SettingsSheet(
             vm = vm,
             sources = sources,
-            omdbAvailable = vm.omdbAvailable,
-            onToggle = vm::toggleSource,
+            omdbAvailable = vm.detail.omdbAvailable,
+            onToggle = vm.detail::toggleSource,
             remindersOn = remindersOn,
             onReminders = onReminders,
             weekendOn = weekendOn,
@@ -589,10 +589,10 @@ private fun Home(vm: MainViewModel, tab: Tab, onTabChange: (Tab) -> Unit, onOpen
             onRefreshTitles = vm::refreshTitlesNow,
             update = manualUpdate,
             progress = progress,
-            onInstall = vm::installUpdate,
-            onCheckUpdate = { vm.checkForUpdate(manual = true) },
+            onInstall = vm.updates::install,
+            onCheckUpdate = { vm.updates.check(manual = true) },
             onMessage = { vm.message.value = it },
-            onDismiss = { showSettings = false; vm.clearManualUpdate() },
+            onDismiss = { showSettings = false; vm.updates.clearManual() },
         )
     }
 }

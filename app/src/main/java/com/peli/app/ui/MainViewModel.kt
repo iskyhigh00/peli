@@ -90,7 +90,6 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
     private val peli = app as PeliApp
     private val repo = peli.repository
     private val pairing = peli.pairing
-    private val sourcePrefs = peli.sourcePrefs
     private val account = peli.account
     private val scopes = peli.scopes
 
@@ -238,125 +237,12 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
     val undo = MutableStateFlow<UndoOffer?>(null)
     private var refillJob: Job? = null
 
-    // ---- Valoraciones y reseñas ------------------------------------------------
-
-    /** ¿Hay clave de OMDb? Sin ella no hay IMDb, Rotten Tomatoes ni Metacritic. */
-    val omdbAvailable = com.peli.app.data.Omdb.configured
-
-    /** Fuentes de valoraciones que el usuario quiere ver (se eligen en Ajustes). */
-    val sources = MutableStateFlow(sourcePrefs.load())
-
-    fun toggleSource(source: RatingSource) {
-        val next = sources.value.let { if (source in it) it - source else it + source }
-        sources.value = next
-        sourcePrefs.save(next)
-        AppLog.i("Ajustes", "fuentes de valoraciones: ${next.joinToString { it.name }.ifEmpty { "ninguna" }}")
-    }
-
-    /** Valoraciones por película, cargadas al abrir su detalle y guardadas mientras la app siga abierta. */
-    val insights = MutableStateFlow<Map<Int, InsightsState>>(emptyMap())
-
-    fun loadInsights(movieId: Int, force: Boolean = false) {
-        val current = insights.value[movieId]
-        if (!force && (current is InsightsState.Ready || current is InsightsState.Loading)) return
-        insights.update { it + (movieId to InsightsState.Loading) }
-        AppLog.d("Valoraciones", "cargando película $movieId")
-        launch {
-            val state = try {
-                InsightsState.Ready(repo.insights(movieId))
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                AppLog.w("Valoraciones", "falló la carga de la película $movieId", e)
-                InsightsState.Failed(e.message ?: e.javaClass.simpleName)
-            }
-            insights.update { it + (movieId to state) }
-            // Al cargar las valoraciones se guardan también los premios (OMDb): se refrescan para el resumen del detalle.
-            repo.cachedFacts(listOf(movieId))[movieId]?.let { f -> facts.update { it + (movieId to f) } }
-        }
-    }
-
-    // ---- Detalle: director, reparto y tráiler --------------------------------------
-
-    /** Datos extra (director, reparto) de las películas cuyo detalle se abrió. */
-    val facts = MutableStateFlow<Map<Int, com.peli.app.data.MovieFacts>>(emptyMap())
-
-    /** Descubrir muestra el tráiler en vez de la carátula (se apaga en Ajustes para ahorrar datos). */
-    val discoverVideo = MutableStateFlow(peli.uiPrefs.discoverVideo)
-
-    fun setDiscoverVideo(on: Boolean) {
-        discoverVideo.value = on
-        peli.uiPrefs.discoverVideo = on
-    }
-
-    private val badgeAsked = HashSet<Int>()
-
-    /** Lee de lo guardado (sin red) los datos de una tarjeta que se ve, para su broche de premios. */
-    fun cachedBadge(movieId: Int) {
-        if (!badgeAsked.add(movieId) || movieId in facts.value) return
-        launch(Dispatchers.IO) {
-            repo.cachedFacts(listOf(movieId))[movieId]?.takeIf { it.hasOmdb }?.let { f -> facts.update { it + (movieId to f) } }
-        }
-    }
-
-    fun loadFacts(movieId: Int) {
-        launch(Dispatchers.IO) {
-            repo.cachedFacts(listOf(movieId))[movieId]?.let { f -> facts.update { it + (movieId to f) } }
-            attempt { repo.ensureFacts(movieId, false) }.getOrNull()?.let { f -> facts.update { it + (movieId to f) } }
-        }
-    }
-
-    sealed interface TrailerState {
-        data object Loading : TrailerState
-        data class Ready(val key: String) : TrailerState
-        data object None : TrailerState
-        data class Failed(val message: String) : TrailerState
-    }
-
-    val trailers = MutableStateFlow<Map<Int, TrailerState>>(emptyMap())
-
-    fun loadTrailer(movieId: Int, force: Boolean = false) {
-        val current = trailers.value[movieId]
-        if (!force && (current is TrailerState.Ready || current is TrailerState.None || current is TrailerState.Loading)) return
-        trailers.update { it + (movieId to TrailerState.Loading) }
-        launch {
-            val state = try {
-                repo.trailerKey(movieId)?.let { TrailerState.Ready(it) } ?: TrailerState.None
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                AppLog.w("Tráiler", "falló la carga del tráiler de $movieId", e)
-                TrailerState.Failed(e.message ?: e.javaClass.simpleName)
-            }
-            trailers.update { it + (movieId to state) }
-        }
-    }
-
     /** Mi nota (1..10, 0 la quita). Calificar implica que ya la vi; se sincroniza con la sala. */
     fun setMyRating(e: Entry, score: Int) = update(e) { it.withRating(score) }
 
     // ---- Avisos y actualizaciones --------------------------------------------
 
     val message = MutableStateFlow<String?>(null)
-
-    /** Versión nueva disponible (null = al día o sin consultar). */
-    val newVersion = MutableStateFlow<String?>(null)
-
-    /** Resultado de "Buscar actualización" en Ajustes: se muestra ahí mismo, sin tocar la franja de la pantalla principal. */
-    sealed interface ManualUpdate {
-        data object Idle : ManualUpdate
-        data object Checking : ManualUpdate
-        data object UpToDate : ManualUpdate
-        data class Available(val version: String) : ManualUpdate
-        data class Failed(val error: String?) : ManualUpdate
-    }
-    val manualUpdate = MutableStateFlow<ManualUpdate>(ManualUpdate.Idle)
-
-    /** Progreso de descarga: -2 inactivo, -1 sin tamaño conocido, 0..100. */
-    val progress = MutableStateFlow(-2)
-
-    /** Novedades a mostrar tras actualizar (versión -> cambios). */
-    val whatsNew = MutableStateFlow<List<Pair<String, List<String>>>>(emptyList())
 
     // ---- Sala con la pareja --------------------------------------------------
 
@@ -393,9 +279,31 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         block: suspend CoroutineScope.() -> Unit,
     ): Job = viewModelScope.launch(context + errorHandler, block = block)
 
+    // ---- Módulos aparte (cada uno en su archivo, en ui/features) ----
+    private val env = com.peli.app.ui.features.VmEnv(getApplication(), peli, viewModelScope, errorHandler, message)
+    val awards = com.peli.app.ui.features.AwardsFeature(env)
+    val server = com.peli.app.ui.features.ServerFeature(env)
+    val availability = com.peli.app.ui.features.AvailabilityFeature(env, server)
+    val links = com.peli.app.ui.features.LinksFeature(env, repo, mine, matches, availability.all)
+    val welcome = com.peli.app.ui.features.WelcomeFeature(
+        env, repo, { account.activeFriend }, { account.session != null },
+        { id -> friends.value.firstOrNull { it.friend_id == id }?.username },
+    )
+    val partnerName = com.peli.app.ui.features.PartnerNameFeature(env, { account.activeFriend })
+    val detail = com.peli.app.ui.features.DetailFeature(env, repo)
+    val updates = com.peli.app.ui.features.UpdateFeature(env)
+    val safePick = com.peli.app.ui.features.SafeFeature(
+        env, repo, mine, { searchYears.value }, { movieFilters.value },
+        { e -> applyAndPush(e) { it.toggleSeen() } }, { ratePrompt.value = it }, ::toggleWant, ::toggleDislike,
+    )
+
+    override fun onCleared() {
+        server.release()
+        super.onCleared()
+    }
+
     init {
         launch(Dispatchers.IO) { Updater.cleanupDownloads(getApplication()) }
-        whatsNew.value = Changelog.takeUnseen(getApplication())
         launch(Dispatchers.IO) { crashReport.value = CrashReporter.pending(getApplication()) }
         scopes.ensureInitialized(account.session?.userId)
         partnerSource.value = matchContext()
@@ -406,7 +314,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
             if (uid != null && scopes.current(uid) != Scopes.account(uid)) applyLoginPlan(scopes.current(uid), uid)
             if (account.profile == null) loadProfile() else sync()
         }
-        checkForUpdate(manual = false)
+        updates.check(manual = false)
         refillQueue()
 
         // Datos extra (palabras clave, director, reparto) de lo que ya marqué: se completan de a poco en segundo plano.
@@ -735,94 +643,6 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
     fun dismissRatePrompt() {
         ratePrompt.value?.let { AppLog.d("Nota", "omitida para «${it.title}»") }
         ratePrompt.value = null
-    }
-
-    // ---- Película segura -----------------------------------------------------
-
-    sealed interface SafeState {
-        data object Idle : SafeState
-        data object Loading : SafeState
-        data class NeedMore(val have: Int, val need: Int) : SafeState
-        data class Ready(val pick: SafePick) : SafeState
-        data object Empty : SafeState
-        data class Failed(val message: String) : SafeState
-    }
-
-    enum class SafeAnswer { Seen, Want, NotInterested, Another }
-
-    /** Estado de la hoja «Película segura» (Idle = cerrada). */
-    val safe = MutableStateFlow<SafeState>(SafeState.Idle)
-
-    /** Ya mostradas en esta sesión de la hoja: no vuelven a salir. */
-    private val safeSeen = HashSet<Int>()
-    private val safeQueue = ArrayDeque<SafePick>()
-    private var safeJob: Job? = null
-
-    fun openSafe() {
-        AppLog.i("Segura", "se abre la película segura")
-        safeSeen.clear()
-        safeQueue.clear()
-        loadSafe()
-    }
-
-    fun closeSafe() {
-        safeJob?.cancel()
-        safe.value = SafeState.Idle
-    }
-
-    private fun loadSafe() {
-        safeJob?.cancel()
-        safe.value = SafeState.Loading
-        safeJob = launch {
-            try {
-                val marked = repo.mine.first()
-                if (!Safe.enoughData(marked)) {
-                    safe.value = SafeState.NeedMore(Safe.signals(marked), Safe.MIN_SIGNALS)
-                    return@launch
-                }
-                // Respeta los filtros elegidos (años, nota de TMDB) y la época de lo que me gusta.
-                val picks = repo.safePicks(marked, safeSeen.toSet(), SAFE_BATCH, searchYears.value, movieFilters.value)
-                AppLog.i("Segura", "${picks.size} candidatas; mejor: ${picks.firstOrNull()?.let { "«${it.entry.title}» %.2f".format(it.score) } ?: "ninguna"}")
-                safeQueue.clear()
-                safeQueue.addAll(picks)
-                if (!showNextSafe()) safe.value = SafeState.Empty
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                AppLog.w("Segura", "falló el cálculo", e)
-                safe.value = SafeState.Failed(e.message ?: e.javaClass.simpleName)
-            }
-        }
-    }
-
-    /** Muestra la siguiente de la cola que no esté ya marcada ni vista en esta hoja; false si no queda ninguna. */
-    private fun showNextSafe(): Boolean {
-        val known = mine.value.map { it.movieId }.toSet()
-        while (safeQueue.isNotEmpty()) {
-            val p = safeQueue.removeFirst()
-            if (p.entry.movieId in known || p.entry.movieId in safeSeen) continue
-            safeSeen += p.entry.movieId
-            safe.value = SafeState.Ready(p)
-            return true
-        }
-        return false
-    }
-
-    fun retrySafe() = loadSafe()
-
-    /** Respuesta a la película segura: «ya la vi» (y se pide la nota), «quiero verla», «no me interesa» u «otra». */
-    fun safeAnswer(e: Entry, answer: SafeAnswer) {
-        AppLog.i("Segura", "$answer → «${e.title}» (${e.movieId})")
-        when (answer) {
-            SafeAnswer.Seen -> launch {
-                val next = applyAndPush(e) { it.toggleSeen() }
-                if (next.seen && next.myRating == 0) ratePrompt.value = next
-            }
-            SafeAnswer.Want -> toggleWant(e)
-            SafeAnswer.NotInterested -> toggleDislike(e)
-            SafeAnswer.Another -> {}
-        }
-        if (!showNextSafe()) loadSafe()
     }
 
     /** La película con ese id desde cualquier lista conocida (para reabrir el detalle tras rotar). */
@@ -1271,23 +1091,6 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         }
     }
 
-    // ---- Módulos aparte (cada uno en su archivo, en ui/features) ----
-    private val env = com.peli.app.ui.features.VmEnv(getApplication(), peli, viewModelScope, errorHandler, message)
-    val awards = com.peli.app.ui.features.AwardsFeature(env)
-    val server = com.peli.app.ui.features.ServerFeature(env)
-    val availability = com.peli.app.ui.features.AvailabilityFeature(env, server)
-    val links = com.peli.app.ui.features.LinksFeature(env, repo, mine, matches, availability.all)
-    val welcome = com.peli.app.ui.features.WelcomeFeature(
-        env, repo, { account.activeFriend }, { account.session != null },
-        { id -> friends.value.firstOrNull { it.friend_id == id }?.username },
-    )
-    val partnerName = com.peli.app.ui.features.PartnerNameFeature(env, { account.activeFriend })
-
-    override fun onCleared() {
-        server.release()
-        super.onCleared()
-    }
-
     /** Cambia el idioma de títulos y sinopsis: de ahora en adelante se piden así y lo ya guardado se actualiza. */
     fun setLanguage(tag: String) {
         if (tag == com.peli.app.data.Lang.tag) return
@@ -1658,53 +1461,6 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
         crashReport.value = null
         launch(Dispatchers.IO) { CrashReporter.clear(getApplication()) }
     }
-
-    // ---- Actualizaciones -----------------------------------------------------
-
-    /** Al abrir la app es silencioso; manual (botón) informa también si está al día o falló. */
-    /** Al abrir la app (automática) avisa en la pantalla principal; desde Ajustes (manual) responde en Ajustes. */
-    fun checkForUpdate(manual: Boolean) {
-        if (manual) {
-            if (manualUpdate.value == ManualUpdate.Checking) return
-            manualUpdate.value = ManualUpdate.Checking
-        }
-        launch {
-            AppLog.d("Actualizador", "consultando actualización (${if (manual) "manual" else "automática"})")
-            val res = withContext(Dispatchers.IO) { Updater.checkLatest() }
-            val v = res.version
-            when {
-                v == null -> if (manual) manualUpdate.value = ManualUpdate.Failed(res.error)
-                Updater.isNewer(v, APP_VERSION) -> if (manual) manualUpdate.value = ManualUpdate.Available(v) else newVersion.value = v
-                else -> if (manual) manualUpdate.value = ManualUpdate.UpToDate else newVersion.value = null
-            }
-        }
-    }
-
-    /** Al cerrar Ajustes se olvida el resultado de la consulta manual. */
-    fun clearManualUpdate() { if (progress.value == -2) manualUpdate.value = ManualUpdate.Idle }
-
-    fun installUpdate(version: String? = null) {
-        if (progress.value != -2) return   // ya se está descargando
-        val v = version ?: newVersion.value ?: return
-        AppLog.i("Actualizador", "el usuario pidió instalar v$v")
-        launch {
-            progress.value = -1
-            try {
-                withContext(Dispatchers.IO) {
-                    Updater.downloadAndInstall(getApplication(), v) { p -> progress.value = p }
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                AppLog.w("Actualizador", "no se pudo instalar v$v", e)
-                message.value = "No se pudo actualizar: ${e.message}"
-            } finally {
-                progress.value = -2
-            }
-        }
-    }
-
-    fun dismissWhatsNew() { whatsNew.value = emptyList() }
 
     // ---- Intercambio manual de códigos (sin servidor) ------------------------
 

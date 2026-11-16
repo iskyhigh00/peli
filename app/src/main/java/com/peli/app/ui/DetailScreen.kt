@@ -100,20 +100,20 @@ fun DetailScreen(entry: Entry, mine: Entry?, vm: MainViewModel, onBack: () -> Un
     val seen = mine?.seen == true
     val disliked = mine?.disliked == true
     var zoomed by remember { mutableStateOf(false) }
-    val sources by vm.sources.collectAsState()
-    val insights by vm.insights.collectAsState()
+    val sources by vm.detail.sources.collectAsState()
+    val insights by vm.detail.insights.collectAsState()
     val partner by vm.partner.collectAsState()
     val partnerEntry = remember(partner, entry.movieId) { partner.firstOrNull { it.movieId == entry.movieId } }
     val friendList by vm.friends.collectAsState()
     val activeFriendId by vm.activeFriend.collectAsState()
     val partnerName = if (PartnerName.base != com.peli.app.data.PartnerText.DEFAULT) PartnerName.cap
         else friendList.firstOrNull { it.friend_id == activeFriendId }?.username ?: PartnerName.miCap
-    LaunchedEffect(entry.movieId) { vm.loadInsights(entry.movieId); vm.loadFacts(entry.movieId) }
-    val allFacts by vm.facts.collectAsState()
-    val trailers by vm.trailers.collectAsState()
+    LaunchedEffect(entry.movieId) { vm.detail.loadInsights(entry.movieId); vm.detail.loadFacts(entry.movieId) }
+    val allFacts by vm.detail.facts.collectAsState()
+    val trailers by vm.detail.trailers.collectAsState()
     val pager = rememberPagerState(pageCount = { 2 })
     // El tráiler se pide al deslizar el cartel (página 2) y se quita al volver, para que deje de sonar.
-    LaunchedEffect(pager.currentPage) { if (pager.currentPage == 1) vm.loadTrailer(entry.movieId) }
+    LaunchedEffect(pager.currentPage) { if (pager.currentPage == 1) vm.detail.loadTrailer(entry.movieId) }
 
     val scroll = rememberScrollState()
     val scope = rememberCoroutineScope()
@@ -155,9 +155,9 @@ fun DetailScreen(entry: Entry, mine: Entry?, vm: MainViewModel, onBack: () -> Un
                     partnerName = partnerName,
                     partner = partnerEntry,
                     hasPartner = partner.isNotEmpty(),
-                    omdbAvailable = vm.omdbAvailable,
+                    omdbAvailable = vm.detail.omdbAvailable,
                     onRate = { vm.setMyRating(mine ?: entry, it) },
-                    onRetry = { vm.loadInsights(entry.movieId, force = true) },
+                    onRetry = { vm.detail.loadInsights(entry.movieId, force = true) },
                 )
                 val awardLines = remember(allFacts[entry.movieId]) { com.peli.app.data.Awards.summary(allFacts[entry.movieId]) }
                 if (awardLines.isNotEmpty()) {
@@ -298,7 +298,7 @@ fun DetailScreen(entry: Entry, mine: Entry?, vm: MainViewModel, onBack: () -> Un
                         state = trailers[entry.movieId],
                         active = pager.currentPage == 1,
                         topInset = statusTop,
-                        onRetry = { vm.loadTrailer(entry.movieId, force = true) },
+                        onRetry = { vm.detail.loadTrailer(entry.movieId, force = true) },
                     )
                 }
             }
@@ -343,24 +343,24 @@ fun DetailScreen(entry: Entry, mine: Entry?, vm: MainViewModel, onBack: () -> Un
 
 /** Página del tráiler: se reproduce aquí mismo (reproductor de YouTube incrustado). */
 @Composable
-private fun TrailerPage(state: MainViewModel.TrailerState?, active: Boolean, topInset: androidx.compose.ui.unit.Dp, onRetry: () -> Unit) {
+private fun TrailerPage(state: com.peli.app.ui.features.TrailerState?, active: Boolean, topInset: androidx.compose.ui.unit.Dp, onRetry: () -> Unit) {
     Box(
         Modifier.fillMaxSize().background(Color.Black).padding(top = topInset),
         contentAlignment = Alignment.Center,
     ) {
         when (state) {
-            null, MainViewModel.TrailerState.Loading -> CircularProgressIndicator(color = Color.White)
-            MainViewModel.TrailerState.None -> Text(
+            null, com.peli.app.ui.features.TrailerState.Loading -> CircularProgressIndicator(color = Color.White)
+            com.peli.app.ui.features.TrailerState.None -> Text(
                 "Esta película no tiene tráiler disponible.",
                 color = Color.White,
                 modifier = Modifier.padding(24.dp),
             )
-            is MainViewModel.TrailerState.Failed -> Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(24.dp)) {
+            is com.peli.app.ui.features.TrailerState.Failed -> Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(24.dp)) {
                 Text("No se pudo cargar el tráiler.", color = Color.White)
                 Box(Modifier.height(8.dp))
                 TonalButton("Reintentar", onRetry)
             }
-            is MainViewModel.TrailerState.Ready -> {
+            is com.peli.app.ui.features.TrailerState.Ready -> {
                 if (active) TrailerPlayer(state.key)
             }
         }
@@ -499,7 +499,7 @@ internal fun TrailerPlayer(key: String, startMuted: Boolean = false, onProblem: 
 @Composable
 private fun AwardsDialog(entry: Entry, vm: MainViewModel, summary: List<String>, onDismiss: () -> Unit) {
     val states by vm.awards.details.collectAsState()
-    val allFacts by vm.facts.collectAsState()
+    val allFacts by vm.detail.facts.collectAsState()
     val state = states[entry.movieId]
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
