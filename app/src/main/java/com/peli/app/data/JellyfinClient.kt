@@ -26,6 +26,9 @@ interface JellyfinApi {
     ): JfPage
 }
 
+/** Ninguna dirección respondió: cada una con la razón (para mostrarla). */
+class JellyfinException(val details: List<Pair<String, String>>) : Exception(details.joinToString("; ") { "${it.first}: ${it.second}" })
+
 /** Consulta a tu servidor Jellyfin (por ejemplo, por Tailscale): qué películas tienes. */
 object JellyfinClient {
     private val api: JellyfinApi by lazy {
@@ -59,6 +62,7 @@ object JellyfinClient {
         return coroutineScope {
             val result = CompletableDeferred<Pair<String, Set<Int>>>()
             val failures = AtomicInteger(0)
+            val reasons = java.util.concurrent.ConcurrentHashMap<String, String>()
             val jobs = bases.map { base ->
                 launch(Dispatchers.IO) {
                     try {
@@ -66,7 +70,11 @@ object JellyfinClient {
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
-                        if (failures.incrementAndGet() == bases.size) result.completeExceptionally(e)
+                        val code = (e as? retrofit2.HttpException)?.code()
+                        reasons[base] = Jellyfin.reason(e.javaClass.simpleName, code)
+                        if (failures.incrementAndGet() == bases.size) {
+                            result.completeExceptionally(JellyfinException(bases.map { it to (reasons[it] ?: "sin respuesta") }))
+                        }
                     }
                 }
             }

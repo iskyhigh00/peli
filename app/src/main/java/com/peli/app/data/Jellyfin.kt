@@ -42,6 +42,18 @@ object Jellyfin {
         return if (host.contains(':')) "http://[$host]:$port" else "http://$host:$port"
     }
 
+    /** Qué pasó al conectar, en palabras: [type] es el nombre corto del error y [httpCode] el código si el servidor respondió. */
+    fun reason(type: String, httpCode: Int?): String = when {
+        httpCode == 401 || httpCode == 403 -> "la clave de API fue rechazada ($httpCode)"
+        httpCode == 404 -> "ahí no está Jellyfin (404): revisa el puerto"
+        httpCode != null -> "el servidor respondió con error $httpCode"
+        type.contains("UnknownHost") -> "no se encontró ese nombre (¿VPN apagada?)"
+        type.contains("Timeout") || type.contains("Connect") || type.contains("NoRoute") -> "no responde (¿otra red, VPN apagada o puerto equivocado?)"
+        type.contains("SSL") || type.contains("Certificate") -> "problema con el certificado https (prueba con http y el puerto 8096)"
+        type.contains("Json") || type.contains("Malformed") || type.contains("EOF") -> "respondió algo que no es Jellyfin (¿puerto equivocado?)"
+        else -> "falló ($type)"
+    }
+
     /** Una página de películas con sus ids externos (TMDB, IMDb…). */
     fun pageUrl(base: String, start: Int): String =
         "$base/Items?Recursive=true&IncludeItemTypes=Movie&Fields=ProviderIds&EnableTotalRecordCount=false&StartIndex=$start&Limit=$PAGE"

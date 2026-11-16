@@ -140,6 +140,15 @@ class JellyfinTest {
         assertEquals("http://10.0.0.5:8096", Jellyfin.addressFrom("10.0.0.5", null))
     }
 
+    @Test fun `explica en palabras por que no conecto`() {
+        assertEquals("la clave de API fue rechazada (401)", Jellyfin.reason("HttpException", 401))
+        assertEquals(true, Jellyfin.reason("HttpException", 404).contains("puerto"))
+        assertEquals(true, Jellyfin.reason("UnknownHostException", null).contains("VPN"))
+        assertEquals(true, Jellyfin.reason("SocketTimeoutException", null).contains("no responde"))
+        assertEquals(true, Jellyfin.reason("SSLHandshakeException", null).contains("certificado"))
+        assertEquals("falló (Boom)", Jellyfin.reason("Boom", null))
+    }
+
     @Test fun `la pagina pide peliculas con sus ids externos`() {
         val u = Jellyfin.pageUrl("http://h:8096", 500)
         assertEquals(true, u.startsWith("http://h:8096/Items?") && u.contains("StartIndex=500") && u.contains("Fields=ProviderIds") && u.contains("IncludeItemTypes=Movie"))

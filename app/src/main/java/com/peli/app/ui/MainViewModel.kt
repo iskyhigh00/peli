@@ -1413,7 +1413,9 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
                     if (manual) message.value = "Servidor conectado: ${ids.size} películas."
                 } else {
                     AppLog.w("Jellyfin", "no se pudo consultar el servidor", r.exceptionOrNull())
-                    serverStatus.value = "No se pudo conectar (¿otra red o VPN apagada? ¿la clave es correcta?). Se usa lo último que se supo."
+                    val why = (r.exceptionOrNull() as? com.peli.app.data.JellyfinException)?.details
+                        ?.joinToString("\n") { (b, reason) -> "• ${b.substringAfter("://")}: $reason" }
+                    serverStatus.value = "No se pudo conectar. Se usa lo último que se supo." + (why?.let { "\n$it" } ?: "")
                     if (manual) message.value = "No se pudo conectar con tu servidor."
                 }
             } finally {

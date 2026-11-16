@@ -398,6 +398,9 @@ object Changelog {
         "2.1.3" to listOf(
             "La app detecta sola tu servidor Jellyfin en la red en que estés (casa, hotspot, trabajo…) y actualiza su IP; solo necesita la clave de API. Las direcciones escritas a mano quedan para redes como Tailscale.",
         ),
+        "2.1.4" to listOf(
+            "Servidor Jellyfin: si no conecta, ahora dice por qué en cada dirección (clave rechazada, puerto equivocado, VPN apagada, certificado…).",
+        ),
     )
 
     private const val PREFS = "peli_prefs"
