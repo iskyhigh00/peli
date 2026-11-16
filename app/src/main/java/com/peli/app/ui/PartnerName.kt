@@ -11,8 +11,8 @@ object PartnerName {
 
     val tu get() = PartnerText.tu(base)
     val mi get() = PartnerText.mi(base)
-    val Tu get() = PartnerText.cap(PartnerText.tu(base))
-    val Mi get() = PartnerText.cap(PartnerText.mi(base))
+    val tuCap get() = PartnerText.cap(PartnerText.tu(base))
+    val miCap get() = PartnerText.cap(PartnerText.mi(base))
     /** Solo el apodo con mayúscula («Princesa», «Ri»), para filas y etiquetas. */
     val cap get() = PartnerText.cap(base)
 }

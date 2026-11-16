@@ -132,7 +132,7 @@ fun SettingsSheet(
             RatingSource.entries.forEach { source ->
                 val available = !source.needsOmdb || omdbAvailable
                 SettingRow(
-                    title = if (source == com.peli.app.data.RatingSource.Partner) PartnerName.Mi else source.label,
+                    title = if (source == com.peli.app.data.RatingSource.Partner) PartnerName.miCap else source.label,
                     subtitle = if (available) source.hint else "Necesita la clave gratuita de OMDb (OMDB_API_KEY)",
                     checked = available && source in sources,
                     enabled = available,

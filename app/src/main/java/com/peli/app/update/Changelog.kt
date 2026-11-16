@@ -410,6 +410,9 @@ object Changelog {
         "2.1.7" to listOf(
             "Apodo de la pareja: en Ajustes puedes poner cómo le dices (p. ej. «princesa») y los textos de la app dicen «tu princesa», «mi princesa» en vez de «tu pareja», «mi pareja». Se guarda por persona.",
         ),
+        "2.1.8" to listOf(
+            "Corrige la compilación de la versión 2.1.7: incluye el apodo de la pareja en los textos (Ajustes > Cómo le dices).",
+        ),
     )
 
     private const val PREFS = "peli_prefs"
