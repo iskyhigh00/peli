@@ -250,7 +250,7 @@ fun SettingsSheet(
             val searchLink by vm.links.template.collectAsState()
             androidx.compose.material3.OutlinedTextField(
                 value = searchLink,
-                onValueChange = vm::setSearchLink,
+                onValueChange = vm.links::setTemplate,
                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                 label = { Text("Dirección") },
                 placeholder = { Text(com.peli.app.data.SearchLink.DEFAULT) },
