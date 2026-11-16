@@ -1366,37 +1366,58 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
     private var lastServerTry = 0L
 
     /**
-     * Pide al servidor sus películas probando todas las direcciones a la vez. Con [manual] avisa del resultado; si no hay
-     * conexión (otra red, VPN apagada) deja lo último que supo.
+     * Busca el servidor solo en la red actual (aviso UDP de Jellyfin) y lo consulta, probando también las direcciones
+     * escritas a mano (Tailscale, otras redes). Con [manual] avisa del resultado; si no hay conexión deja lo último que supo.
      */
     fun refreshServer(manual: Boolean) {
-        val bases = com.peli.app.data.Jellyfin.baseUrls(serverUrl.value)
+        val typed = com.peli.app.data.Jellyfin.baseUrls(serverUrl.value)
         val key = serverKey.value.trim()
-        if (bases.isEmpty() || key.isEmpty()) {
-            if (manual) message.value = "Escribe al menos una dirección de tu servidor y su clave de API."
-            return
-        }
         if (serverBusy) {
             if (manual) message.value = "Ya está conectando…"
             return
         }
         serverBusy = true
         lastServerTry = System.currentTimeMillis()
-        serverStatus.value = "Conectando…"
+        serverStatus.value = "Buscando en la red…"
         launch(Dispatchers.IO) {
-            val r = try { attempt { com.peli.app.data.JellyfinClient.tmdbIds(bases, key) } } finally { serverBusy = false }
-            val ok = r.getOrNull()
-            if (ok != null) {
-                val (base, ids) = ok
-                serverIds.value = ids
-                peli.jellyfinPrefs.ids = ids
-                val host = base.substringAfter("://")
-                serverStatus.value = "Conectado por $host: ${ids.size} películas con ID de TMDB."
-                if (manual) message.value = "Servidor conectado: ${ids.size} películas."
-            } else {
-                AppLog.w("Jellyfin", "no se pudo consultar el servidor", r.exceptionOrNull())
-                serverStatus.value = "No se pudo conectar por ninguna dirección (¿otra red o VPN apagada? ¿la clave es correcta?). Se usa lo último que se supo."
-                if (manual) message.value = "No se pudo conectar con tu servidor."
+            try {
+                // 1) ¿Está en esta red? Si el servidor cambió de IP, se actualiza sola.
+                val knownId = peli.jellyfinPrefs.serverId
+                val seen = com.peli.app.data.JellyfinDiscovery.find().firstOrNull { knownId.isEmpty() || it.id == null || it.id == knownId }
+                if (seen != null) {
+                    peli.jellyfinPrefs.found = seen.address
+                    if (!seen.id.isNullOrEmpty()) peli.jellyfinPrefs.serverId = seen.id
+                    AppLog.i("Jellyfin", "servidor detectado en la red: ${seen.name} ${seen.address}")
+                }
+                if (key.isEmpty()) {
+                    serverStatus.value = if (seen != null) "Servidor detectado: ${seen.name ?: "Jellyfin"} (${seen.address.substringAfter("://")}). Falta la clave de API." else "Falta la clave de API."
+                    if (manual) message.value = if (seen != null) "Encontré tu servidor. Falta la clave de API." else "Falta la clave de API."
+                    return@launch
+                }
+                val bases = (listOf(peli.jellyfinPrefs.found).filter { it.isNotEmpty() } + typed).distinct()
+                if (bases.isEmpty()) {
+                    serverStatus.value = "No encontré el servidor en esta red y no hay direcciones guardadas. Se usa lo último que se supo."
+                    if (manual) message.value = "No encontré tu servidor en esta red."
+                    return@launch
+                }
+                // 2) Se consultan todas las direcciones a la vez y se usa la que responda.
+                serverStatus.value = "Conectando…"
+                val r = attempt { com.peli.app.data.JellyfinClient.tmdbIds(bases, key) }
+                val ok = r.getOrNull()
+                if (ok != null) {
+                    val (base, ids) = ok
+                    serverIds.value = ids
+                    peli.jellyfinPrefs.ids = ids
+                    val via = if (base == peli.jellyfinPrefs.found && seen != null) " (detectado en la red)" else ""
+                    serverStatus.value = "Conectado por ${base.substringAfter("://")}$via: ${ids.size} películas con ID de TMDB."
+                    if (manual) message.value = "Servidor conectado: ${ids.size} películas."
+                } else {
+                    AppLog.w("Jellyfin", "no se pudo consultar el servidor", r.exceptionOrNull())
+                    serverStatus.value = "No se pudo conectar (¿otra red o VPN apagada? ¿la clave es correcta?). Se usa lo último que se supo."
+                    if (manual) message.value = "No se pudo conectar con tu servidor."
+                }
+            } finally {
+                serverBusy = false
             }
         }
     }

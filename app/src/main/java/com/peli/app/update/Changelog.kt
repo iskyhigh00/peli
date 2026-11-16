@@ -395,6 +395,9 @@ object Changelog {
         "2.1.2" to listOf(
             "Servidor Jellyfin con varias direcciones (casa, Tailscale, hotspot…): la app prueba todas a la vez y usa la que responda. Se actualiza al abrir, al volver a la app, al cambiar de red y cada 2 minutos.",
         ),
+        "2.1.3" to listOf(
+            "La app detecta sola tu servidor Jellyfin en la red en que estés (casa, hotspot, trabajo…) y actualiza su IP; solo necesita la clave de API. Las direcciones escritas a mano quedan para redes como Tailscale.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

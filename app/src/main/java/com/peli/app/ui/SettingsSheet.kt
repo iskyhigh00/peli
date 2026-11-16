@@ -200,7 +200,7 @@ fun SettingsSheet(
             }
             Text("Mi servidor Jellyfin", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
             Text(
-                "Si una película de tus listas está en tu servidor, aparece como «Disponible» sola (y no sale en las listas de enlaces). Funciona por el ID de TMDB de cada película en Jellyfin. Se actualiza al abrir la app, al volver a ella, al cambiar de red y cada 2 minutos; si no hay conexión, se usa lo último que se supo.",
+                "Si una película de tus listas está en tu servidor, aparece como «Disponible» sola (y no sale en las listas de enlaces). La app busca sola tu servidor en la red en que estés (casa, hotspot, trabajo…) y actualiza su IP; solo necesitas la clave de API. Funciona por el ID de TMDB de cada película en Jellyfin. Se actualiza al abrir la app, al volver a ella, al cambiar de red y cada 2 minutos.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -212,9 +212,9 @@ fun SettingsSheet(
                 value = serverUrl,
                 onValueChange = vm::setServerUrl,
                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                label = { Text("Direcciones del servidor (una por línea)") },
+                label = { Text("Direcciones extra (opcional, una por línea)") },
                 placeholder = { Text("192.168.1.20:8096\n100.x.x.x:8096") },
-                supportingText = { Text("Pon todas las que uses: la de tu casa, la de Tailscale, la del hotspot… La app prueba todas a la vez y usa la que responda.") },
+                supportingText = { Text("Solo para redes donde no se puede detectar solo, como Tailscale (100.x.x.x:8096). Si está en tu red local, no hace falta.") },
                 minLines = 2,
                 keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Uri),
             )
@@ -227,7 +227,7 @@ fun SettingsSheet(
                 singleLine = true,
                 visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
             )
-            TonalButton("Probar y actualizar", { vm.refreshServer(manual = true) }, Modifier.fillMaxWidth())
+            TonalButton("Buscar y actualizar", { vm.refreshServer(manual = true) }, Modifier.fillMaxWidth())
             (serverStatus ?: if (serverIds.isNotEmpty()) "Última vez: ${serverIds.size} películas en tu servidor." else null)?.let {
                 Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }

@@ -126,6 +126,20 @@ class JellyfinTest {
         assertEquals(emptyList<String>(), Jellyfin.baseUrls("  \n "))
     }
 
+    @Test fun `lee la respuesta de deteccion del servidor`() {
+        val d = Jellyfin.parseDiscovery("""{"Address":"http://172.17.0.2:8096","Id":"abc123","Name":"Mi servidor","EndpointAddress":null}""")!!
+        assertEquals("abc123", d.id)
+        assertEquals("Mi servidor", d.name)
+        assertEquals("http://172.17.0.2:8096", d.address)
+        assertNull(Jellyfin.parseDiscovery("hola"))
+    }
+
+    @Test fun `la direccion usa la IP de quien respondio y el puerto anunciado`() {
+        assertEquals("http://192.168.1.20:8096", Jellyfin.addressFrom("192.168.1.20", "http://172.17.0.2:8096"))
+        assertEquals("http://192.168.43.7:9000", Jellyfin.addressFrom("192.168.43.7", "http://x:9000"))
+        assertEquals("http://10.0.0.5:8096", Jellyfin.addressFrom("10.0.0.5", null))
+    }
+
     @Test fun `la pagina pide peliculas con sus ids externos`() {
         val u = Jellyfin.pageUrl("http://h:8096", 500)
         assertEquals(true, u.startsWith("http://h:8096/Items?") && u.contains("StartIndex=500") && u.contains("Fields=ProviderIds") && u.contains("IncludeItemTypes=Movie"))

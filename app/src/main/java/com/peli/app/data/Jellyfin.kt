@@ -19,6 +19,29 @@ object Jellyfin {
     fun baseUrls(raw: String): List<String> =
         raw.split('\n', ',', ';', ' ', '\t').mapNotNull { if (it.isBlank()) null else baseUrl(it) }.distinct()
 
+    /** Lo que responde un servidor Jellyfin al aviso «who is JellyfinServer?» (UDP 7359). */
+    data class Discovered(val address: String?, val id: String?, val name: String?)
+
+    private fun field(json: String, name: String): String? =
+        Regex("\"$name\"\\s*:\\s*\"([^\"]*)\"").find(json)?.groupValues?.get(1)?.takeIf { it.isNotBlank() }
+
+    fun parseDiscovery(json: String): Discovered? {
+        val id = field(json, "Id")
+        val address = field(json, "Address")
+        if (id == null && address == null) return null
+        return Discovered(address, id, field(json, "Name"))
+    }
+
+    /**
+     * La dirección para conectar: la IP de quien respondió (la real en esa red) con el puerto que anuncia el servidor
+     * (8096 si no dice). Lo que el servidor cree que es su dirección a veces es de Docker o de otra red.
+     */
+    fun addressFrom(sourceIp: String, announced: String?): String {
+        val port = announced?.let { runCatching { URI(it).port }.getOrNull() }?.takeIf { it > 0 } ?: 8096
+        val host = sourceIp.substringBefore('%')
+        return if (host.contains(':')) "http://[$host]:$port" else "http://$host:$port"
+    }
+
     /** Una página de películas con sus ids externos (TMDB, IMDb…). */
     fun pageUrl(base: String, start: Int): String =
         "$base/Items?Recursive=true&IncludeItemTypes=Movie&Fields=ProviderIds&EnableTotalRecordCount=false&StartIndex=$start&Limit=$PAGE"
