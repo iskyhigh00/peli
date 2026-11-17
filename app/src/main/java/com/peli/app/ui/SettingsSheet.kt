@@ -286,8 +286,8 @@ fun SettingsSheet(
                 TonalButton(
                     when (kind) {
                         com.peli.app.data.ExportList.Both -> "Enlaces de los matches"
-                        com.peli.app.data.ExportList.Mine -> "Enlaces de solo las mías"
-                        com.peli.app.data.ExportList.Partner -> "Enlaces de solo ${PartnerName.mi}"
+                        com.peli.app.data.ExportList.Mine -> "Enlaces de las que quiero ver yo"
+                        com.peli.app.data.ExportList.Partner -> "Enlaces de las que quiere ver ${PartnerName.tu}"
                     },
                     {
                         onMessage("Preparando los enlaces…")
@@ -304,8 +304,8 @@ fun SettingsSheet(
                     title = {
                         val name = when (linksKind) {
                             com.peli.app.data.ExportList.Both -> "Matches"
-                            com.peli.app.data.ExportList.Mine -> "Solo mías"
-                            com.peli.app.data.ExportList.Partner -> "Solo de ${PartnerName.mi}"
+                            com.peli.app.data.ExportList.Mine -> "Las que quiero ver yo"
+                            com.peli.app.data.ExportList.Partner -> "Las que quiere ver ${PartnerName.tu}"
                         }
                         Text("$name (${text.lines().size})")
                     },

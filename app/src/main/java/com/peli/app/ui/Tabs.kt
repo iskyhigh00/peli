@@ -986,8 +986,8 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
                             when (v) {
                                 TogetherView.All -> "Todas (${matches.size})"
                                 TogetherView.Match -> "Match (${both.size})"
-                                TogetherView.Mine -> "Me gustan a mí (${onlyMine.size})"
-                                TogetherView.Partner -> "Le gustan a ${PartnerName.mi} (${onlyPartner.size})"
+                                TogetherView.Mine -> "Yo quiero (${onlyMine.size})"
+                                TogetherView.Partner -> "Quiere ${PartnerName.cap} (${onlyPartner.size})"
                             }
                         }) { view = it }
                     }
@@ -1007,9 +1007,9 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
                         }
                     }
                     val sections = listOf(
-                        Triple(TogetherView.Match, "Match (${both.size})", both),
-                        Triple(TogetherView.Mine, "Me gustan a mí (${onlyMine.size})", onlyMine),
-                        Triple(TogetherView.Partner, "Le gustan a ${PartnerName.mi} (${onlyPartner.size})", onlyPartner),
+                        Triple(TogetherView.Match, "Las queremos ver los dos (${both.size})", both),
+                        Triple(TogetherView.Mine, "Las quiero ver yo (${onlyMine.size})", onlyMine),
+                        Triple(TogetherView.Partner, "Las quiere ver ${PartnerName.tu} (${onlyPartner.size})", onlyPartner),
                     )
                     val shown = sections.filter { (kind, _, list) -> list.isNotEmpty() && (view == TogetherView.All || view == kind) }
                     if (shown.isEmpty()) {
