@@ -566,7 +566,7 @@ private fun ColumnScope.DiscoverCardBody(
                 m.clip(MaterialTheme.shapes.large).background(androidx.compose.ui.graphics.Color.Black),
                 contentAlignment = Alignment.Center,
             ) {
-                TrailerPlayer(trailerKey, startMuted = true, onProblem = { videoFailed = true })
+                TrailerPlayer(trailerKey, soundToggle = true, onProblem = { videoFailed = true })
                 // Con video, las etiquetas van encima de él para dejarle el espacio de la tarjeta al video.
                 Row(Modifier.align(Alignment.TopStart).padding(8.dp), horizontalArrangement = Arrangement.spacedBy(CompactSpacing)) {
                     if (e.dateLabel.isNotBlank()) StatusChip(e.dateLabel)

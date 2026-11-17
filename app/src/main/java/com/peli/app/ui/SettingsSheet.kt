@@ -39,7 +39,6 @@ import com.peli.app.ui.theme.SheetShape
 @Composable
 private fun SettingRow(
     title: String,
-    subtitle: String,
     checked: Boolean,
     enabled: Boolean,
     onChange: (Boolean) -> Unit,
@@ -54,7 +53,6 @@ private fun SettingRow(
     ) {
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.titleSmall)
-            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         // El Row completo es el control (toggleable); el Switch solo refleja el estado.
         Switch(checked = checked, onCheckedChange = null, enabled = enabled)
@@ -123,17 +121,10 @@ fun SettingsSheet(
                 HorizontalDivider(Modifier.padding(vertical = ItemSpacing))
             }
             Text("Valoraciones y reseñas", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = ItemSpacing))
-            Text(
-                "Elige de qué lugares quieres ver notas y reseñas en el detalle de cada película.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 8.dp),
-            )
             RatingSource.entries.forEach { source ->
                 val available = !source.needsOmdb || omdbAvailable
                 SettingRow(
-                    title = if (source == com.peli.app.data.RatingSource.Partner) PartnerName.miCap else source.label,
-                    subtitle = if (available) source.hint else "Necesita la clave gratuita de OMDb (OMDB_API_KEY)",
+                    title = (if (source == com.peli.app.data.RatingSource.Partner) PartnerName.miCap else source.label) + if (available) "" else " (necesita clave de OMDb)",
                     checked = available && source in sources,
                     enabled = available,
                     onChange = { onToggle(source) },
@@ -142,24 +133,17 @@ fun SettingsSheet(
             HorizontalDivider(Modifier.padding(vertical = ItemSpacing))
             SettingRow(
                 title = "Avisos de estreno",
-                subtitle = "Una notificación cuando se acerca el estreno en el cine de una película de \"Quiero verla\": a una semana, el día anterior y el mismo día.",
                 checked = remindersOn,
                 enabled = true,
                 onChange = onReminders,
             )
             SettingRow(
                 title = "Recomendaciones de amigos",
-                subtitle = "Una notificación cuando un amigo te recomienda una película.",
                 checked = recsOn,
                 enabled = true,
                 onChange = onRecs,
             )
             Text("Idioma de títulos y sinopsis", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
-            Text(
-                "Las traducciones vienen de TMDB. Latinoamérica usa los títulos de México, que son los más parecidos a los de toda la región; los títulos de España son distintos.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
             Row(Modifier.padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 com.peli.app.data.Lang.options.forEach { (tag, name) ->
                     androidx.compose.material3.FilterChip(
@@ -169,22 +153,16 @@ fun SettingsSheet(
                     )
                 }
             }
-            Text("Cómo le dices", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
+            Text("Apodo de la pareja", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
             val nick by vm.partnerName.nickname.collectAsState()
             androidx.compose.material3.OutlinedTextField(
                 value = nick,
                 onValueChange = vm.partnerName::set,
                 modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                label = { Text("Apodo (p. ej. princesa)") },
-                supportingText = { Text("Reemplaza «pareja» en los textos de la app: «${PartnerName.tu}», «${PartnerName.mi}». Se guarda por persona; vacío = «pareja».") },
+                label = { Text("Apodo") },
                 singleLine = true,
             )
             Text("Mensaje de bienvenida", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
-            Text(
-                "Un texto corto que aparece animado unos segundos al abrir la app. Déjalo vacío para no mostrarlo.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
             val welcomeText by vm.welcome.text.collectAsState()
             androidx.compose.material3.OutlinedTextField(
                 value = welcomeText,
@@ -198,22 +176,12 @@ fun SettingsSheet(
             val friendList by vm.friends.collectAsState()
             val friendName = friendList.firstOrNull { it.friend_id == activeFriendId && it.accepted }?.username
             if (friendName != null) {
-                Text(
-                    "Es un solo mensaje compartido con @$friendName: lo que guardes lo ve ella al abrir la app, y lo que ella guarde lo ves tú.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                TonalButton("Guardar y enviar a @$friendName", { vm.welcome.save(welcomeText) }, Modifier.fillMaxWidth())
+                TonalButton("Enviar a @$friendName", { vm.welcome.save(welcomeText) }, Modifier.fillMaxWidth())
             }
             if (welcomeText.isNotBlank()) {
-                TonalButton("Ver cómo se ve", { onDismiss(); vm.welcome.splashVisible.value = true }, Modifier.fillMaxWidth())
+                TonalButton("Vista previa", { onDismiss(); vm.welcome.splashVisible.value = true }, Modifier.fillMaxWidth())
             }
             Text("Mi servidor Jellyfin", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
-            Text(
-                "Si una película de tus listas está en tu servidor, aparece como «Disponible» sola (y no sale en las listas de enlaces). La app busca sola tu servidor en la red en que estés (casa, hotspot, trabajo…) y actualiza su IP; solo necesitas la clave de API. Funciona por el ID de TMDB de cada película en Jellyfin. Se actualiza al abrir la app, al volver a ella, al cambiar de red y cada 2 minutos.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
             val serverUrl by vm.server.url.collectAsState()
             val serverKey by vm.server.key.collectAsState()
             val serverStatus by vm.server.status.collectAsState()
@@ -222,9 +190,8 @@ fun SettingsSheet(
                 value = serverUrl,
                 onValueChange = vm.server::setUrl,
                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                label = { Text("Direcciones extra (opcional, una por línea)") },
+                label = { Text("Direcciones extra (una por línea)") },
                 placeholder = { Text("192.168.1.20:8096\n100.x.x.x:8096") },
-                supportingText = { Text("Solo para redes donde no se puede detectar solo, como Tailscale (100.x.x.x:8096). Si está en tu red local, no hace falta.") },
                 minLines = 2,
                 keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Uri),
             )
@@ -233,11 +200,10 @@ fun SettingsSheet(
                 onValueChange = vm.server::setKey,
                 modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                 label = { Text("Clave de API de Jellyfin") },
-                supportingText = { Text("Se crea en Jellyfin: Panel > Avanzado > Claves de API. Se guarda solo en este teléfono.") },
                 singleLine = true,
                 visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
             )
-            TonalButton("Buscar y actualizar", { vm.server.refresh(manual = true) }, Modifier.fillMaxWidth())
+            TonalButton("Actualizar servidor", { vm.server.refresh(manual = true) }, Modifier.fillMaxWidth())
             (serverStatus ?: if (serverIds.isNotEmpty()) "${serverIds.size} películas en tu servidor." else null)?.let {
                 Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
@@ -257,11 +223,6 @@ fun SettingsSheet(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text("Enlace de búsqueda", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
-            Text(
-                "Botón al final de cada película que abre este enlace con su nombre en inglés. Escribe la dirección completa y pon {titulo} donde va el nombre y, si lo necesitas, {anio} donde va el año (p. ej. https://sitio.com/buscar/{titulo}/{anio}). Si lo dejas vacío, el botón no aparece.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
             val searchLink by vm.links.template.collectAsState()
             androidx.compose.material3.OutlinedTextField(
                 value = searchLink,
@@ -276,18 +237,13 @@ fun SettingsSheet(
             var linksText by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
             var linksKind by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(com.peli.app.data.ExportList.Both) }
             val linksContext = androidx.compose.ui.platform.LocalContext.current
-            Text("Exportar enlaces", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 4.dp))
-            Text(
-                "Un enlace por película (con su título en inglés y el año), sin las que marcaste como «Disponible». Cada película sale en una sola lista.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Text("Exportar enlaces de películas por ver", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 4.dp))
             com.peli.app.data.ExportList.entries.forEach { kind ->
                 TonalButton(
                     when (kind) {
-                        com.peli.app.data.ExportList.Both -> "Enlaces de los matches"
-                        com.peli.app.data.ExportList.Mine -> "Enlaces de las que quiero ver yo"
-                        com.peli.app.data.ExportList.Partner -> "Enlaces de las que quiere ver ${PartnerName.tu}"
+                        com.peli.app.data.ExportList.Both -> "Matches"
+                        com.peli.app.data.ExportList.Mine -> "Las que quiero ver yo"
+                        com.peli.app.data.ExportList.Partner -> "Las que quiere ver ${PartnerName.tu}"
                     },
                     {
                         onMessage("Preparando los enlaces…")
@@ -333,10 +289,9 @@ fun SettingsSheet(
                     },
                 )
             }
-            TonalButton("Actualizar títulos de mis películas", onRefreshTitles, Modifier.fillMaxWidth().padding(bottom = 8.dp))
+            TonalButton("Actualizar títulos", onRefreshTitles, Modifier.fillMaxWidth().padding(bottom = 8.dp))
             SettingRow(
                 title = "Chuba y Pepa recomiendan",
-                subtitle = "Unos 3 días a la semana, al azar, Chuba o Pepa te recomiendan una película según su gusto, con su explicación.",
                 checked = petsOn,
                 enabled = true,
                 onChange = onPets,
@@ -344,14 +299,12 @@ fun SettingsSheet(
             val discoverVideo by vm.detail.discoverVideo.collectAsState()
             SettingRow(
                 title = "Tráiler en Descubrir",
-                subtitle = "En Descubrir se ve el tráiler (sin sonido hasta que lo actives) en vez de la carátula. Gasta más datos móviles.",
                 checked = discoverVideo,
                 enabled = true,
                 onChange = vm.detail::setDiscoverVideo,
             )
             SettingRow(
                 title = "Fin de semana",
-                subtitle = "Te recuerda preparar las películas del fin de semana: 2 avisos el miércoles, 4 el jueves y 1 el viernes en la mañana.",
                 checked = weekendOn,
                 enabled = true,
                 onChange = onWeekend,

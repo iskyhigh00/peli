@@ -372,7 +372,7 @@ private fun TrailerPage(state: com.peli.app.ui.features.TrailerState?, active: B
  * YouTube), se explica y solo entonces se ofrece abrirlo en YouTube.
  */
 @Composable
-internal fun TrailerPlayer(key: String, startMuted: Boolean = false, onProblem: (() -> Unit)? = null) {
+internal fun TrailerPlayer(key: String, startMuted: Boolean = false, soundToggle: Boolean = false, onProblem: (() -> Unit)? = null) {
     val context = LocalContext.current
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     var problem by remember(key) { mutableStateOf<String?>(null) }
@@ -475,7 +475,7 @@ internal fun TrailerPlayer(key: String, startMuted: Boolean = false, onProblem: 
         Text(it, color = Color.White, style = MaterialTheme.typography.titleMedium,
             modifier = Modifier.background(Color.Black.copy(alpha = 0.55f), RoundedCornerShape(12.dp)).padding(horizontal = 14.dp, vertical = 6.dp))
     }
-    if (startMuted) {
+    if (soundToggle) {
         IconButton(
             onClick = {
                 val p = player ?: return@IconButton
