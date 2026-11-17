@@ -88,6 +88,19 @@ jobs:
           path: Peli.apk
           retention-days: 14
 
+      # Borrador (no visible, no es «el último», no actualiza ningún teléfono): sirve para bajar el APK sin entrar a GitHub.
+      - name: apk de prueba como borrador
+        if: ${{ github.ref_name == 'refactor-calidad' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: prueba-refactor
+          name: Prueba (borrador, no publicar)
+          target_commitish: ${{ github.sha }}
+          draft: true
+          prerelease: true
+          make_latest: false
+          files: Peli.apk
+
       - name: release en este repo
         if: ${{ github.ref_name != 'refactor-calidad' }}
         uses: softprops/action-gh-release@v2
