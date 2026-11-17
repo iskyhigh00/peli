@@ -238,9 +238,24 @@ fun SettingsSheet(
                 visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
             )
             TonalButton("Buscar y actualizar", { vm.server.refresh(manual = true) }, Modifier.fillMaxWidth())
-            (serverStatus ?: if (serverIds.isNotEmpty()) "Última vez: ${serverIds.size} películas en tu servidor." else null)?.let {
+            (serverStatus ?: if (serverIds.isNotEmpty()) "${serverIds.size} películas en tu servidor." else null)?.let {
                 Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+            val lastSync by vm.server.lastSync.collectAsState()
+            var nowMs by androidx.compose.runtime.remember { androidx.compose.runtime.mutableLongStateOf(System.currentTimeMillis()) }
+            androidx.compose.runtime.LaunchedEffect(Unit) {
+                while (true) { kotlinx.coroutines.delay(30_000); nowMs = System.currentTimeMillis() }
+            }
+            Text(
+                if (lastSync > 0L) {
+                    val at = java.text.SimpleDateFormat("dd/MM HH:mm", java.util.Locale("es")).format(java.util.Date(lastSync))
+                    "Última actualización con tu servidor: $at (${com.peli.app.data.Jellyfin.ago(nowMs, lastSync)})"
+                } else {
+                    "Todavía no se ha actualizado con tu servidor."
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             Text("Enlace de búsqueda", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
             Text(
                 "Botón al final de cada película que abre este enlace con su nombre en inglés. Escribe la dirección completa y pon {titulo} donde va el nombre y, si lo necesitas, {anio} donde va el año (p. ej. https://sitio.com/buscar/{titulo}/{anio}). Si lo dejas vacío, el botón no aparece.",

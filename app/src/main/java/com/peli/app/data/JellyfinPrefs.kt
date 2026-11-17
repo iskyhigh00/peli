@@ -24,6 +24,11 @@ class JellyfinPrefs(context: Context) {
         get() = prefs.getString("server_id", null).orEmpty()
         set(v) = prefs.edit().putString("server_id", v).apply()
 
+    /** Cuándo se consultó el servidor con éxito por última vez (milisegundos; 0 = nunca). */
+    var syncedAt: Long
+        get() = prefs.getLong("synced_at", 0L)
+        set(v) = prefs.edit().putLong("synced_at", v).apply()
+
     var ids: Set<Int>
         get() = prefs.getStringSet("ids", emptySet()).orEmpty().mapNotNull { it.toIntOrNull() }.toSet()
         set(v) = prefs.edit().putStringSet("ids", v.map { it.toString() }.toSet()).apply()

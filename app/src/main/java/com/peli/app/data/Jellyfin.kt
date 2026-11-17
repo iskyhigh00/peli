@@ -54,6 +54,18 @@ object Jellyfin {
         else -> "falló ($type)"
     }
 
+    /** «hace un momento», «hace 5 min», «hace 3 h», «hace 2 días»; «nunca» si no hay fecha. */
+    fun ago(nowMs: Long, thenMs: Long): String {
+        if (thenMs <= 0L) return "nunca"
+        val min = ((nowMs - thenMs).coerceAtLeast(0L)) / 60_000L
+        return when {
+            min < 1 -> "hace un momento"
+            min < 60 -> "hace $min min"
+            min < 24 * 60 -> "hace ${min / 60} h"
+            else -> "hace ${min / (24 * 60)} ${if (min / (24 * 60) == 1L) "día" else "días"}"
+        }
+    }
+
     /** Una página de películas con sus ids externos (TMDB, IMDb…). */
     fun pageUrl(base: String, start: Int): String =
         "$base/Items?Recursive=true&IncludeItemTypes=Movie&Fields=ProviderIds&EnableTotalRecordCount=false&StartIndex=$start&Limit=$PAGE"

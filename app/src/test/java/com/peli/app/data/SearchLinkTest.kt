@@ -149,6 +149,16 @@ class JellyfinTest {
         assertEquals("falló (Boom)", Jellyfin.reason("Boom", null))
     }
 
+    @Test fun `dice hace cuanto fue la ultima actualizacion`() {
+        val now = 10_000_000_000L
+        assertEquals("nunca", Jellyfin.ago(now, 0))
+        assertEquals("hace un momento", Jellyfin.ago(now, now - 20_000))
+        assertEquals("hace 5 min", Jellyfin.ago(now, now - 5 * 60_000))
+        assertEquals("hace 3 h", Jellyfin.ago(now, now - 3 * 3_600_000))
+        assertEquals("hace 1 día", Jellyfin.ago(now, now - 25 * 3_600_000))
+        assertEquals("hace 2 días", Jellyfin.ago(now, now - 49 * 3_600_000))
+    }
+
     @Test fun `la pagina pide peliculas con sus ids externos`() {
         val u = Jellyfin.pageUrl("http://h:8096", 500)
         assertEquals(true, u.startsWith("http://h:8096/Items?") && u.contains("StartIndex=500") && u.contains("Fields=ProviderIds") && u.contains("IncludeItemTypes=Movie"))

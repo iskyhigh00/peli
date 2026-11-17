@@ -18,6 +18,9 @@ class ServerFeature(private val env: VmEnv) {
     val ids = MutableStateFlow(prefs.ids)
     val status = MutableStateFlow<String?>(null)
 
+    /** Cuándo se actualizó con el servidor por última vez (milisegundos; 0 = nunca). */
+    val lastSync = MutableStateFlow(prefs.syncedAt)
+
     fun setUrl(v: String) { url.value = v; prefs.url = v }
     fun setKey(v: String) { key.value = v; prefs.key = v }
 
@@ -67,6 +70,9 @@ class ServerFeature(private val env: VmEnv) {
                     val (base, found) = ok
                     ids.value = found
                     prefs.ids = found
+                    val now = System.currentTimeMillis()
+                    prefs.syncedAt = now
+                    lastSync.value = now
                     val via = if (base == prefs.found && seen != null) " (detectado en la red)" else ""
                     status.value = "Conectado por ${base.substringAfter("://")}$via: ${found.size} películas con ID de TMDB."
                     if (manual) env.message.value = "Servidor conectado: ${found.size} películas."
