@@ -11,6 +11,16 @@ data class TrailerVideo(
     val name: String? = null,
 )
 
+/** En qué idioma prefiero los tráilers (es una preferencia de cada persona; solo cambia los videos). */
+enum class TrailerLang(val label: String, val code: String) {
+    English("Inglés", "en"),
+    LatinSpanish("Español latino", "es");
+
+    companion object {
+        fun fromCode(code: String?) = entries.firstOrNull { it.code == code } ?: English
+    }
+}
+
 object Trailers {
     /** Países de habla hispana de América (y EE. UU., donde los tráilers en español apuntan al público latino). */
     private val LATIN_AMERICA = setOf(
@@ -27,6 +37,12 @@ object Trailers {
             it.contains("latinoam", ignoreCase = true) || it.contains("hispano", ignoreCase = true)
     } == true
 
+    /** Posición de cada grupo según el idioma preferido (menor = mejor). */
+    private fun rank(p: Pref, lang: TrailerLang): Int = when (lang) {
+        TrailerLang.LatinSpanish -> listOf(Pref.LatinSpanish, Pref.EnglishSubtitled, Pref.English, Pref.SpainSpanish, Pref.Other)
+        TrailerLang.English -> listOf(Pref.English, Pref.EnglishSubtitled, Pref.LatinSpanish, Pref.SpainSpanish, Pref.Other)
+    }.indexOf(p)
+
     private fun preference(v: TrailerVideo): Pref = when (v.language?.lowercase()) {
         "es" -> when {
             v.country?.uppercase() in LATIN_AMERICA || isLatinName(v.name) -> Pref.LatinSpanish
@@ -37,14 +53,15 @@ object Trailers {
     }
 
     /**
-     * Elige el mejor tráiler de YouTube según mi preferencia: español latino, luego inglés (con subtítulos y después
-     * sin ellos), luego español de España y al final cualquier otro. Dentro de cada grupo, «Trailer» antes que
+     * Elige el mejor tráiler de YouTube según el idioma preferido. Con español latino: español latino, luego inglés (con
+     * subtítulos y después sin ellos), luego español de España y al final cualquier otro. Con inglés: inglés, inglés
+     * subtitulado, español latino, español de España y cualquier otro. Dentro de cada grupo, «Trailer» antes que
      * «Teaser» y los oficiales primero. null si no hay ninguno utilizable.
      */
-    fun pick(videos: List<TrailerVideo>): String? = videos
+    fun pick(videos: List<TrailerVideo>, lang: TrailerLang = TrailerLang.LatinSpanish): String? = videos
         .filter { !it.key.isNullOrBlank() && it.site.equals("YouTube", ignoreCase = true) && (it.type == "Trailer" || it.type == "Teaser") }
         .sortedWith(
-            compareBy<TrailerVideo> { preference(it) }
+            compareBy<TrailerVideo> { rank(preference(it), lang) }
                 .thenBy { if (it.type == "Trailer") 0 else 1 }
                 .thenBy { if (it.official == true) 0 else 1 },
         )

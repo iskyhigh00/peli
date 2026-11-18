@@ -56,6 +56,23 @@ class TrailersTest {
         assertEquals("fr", Trailers.pick(listOf(v("fr", lang = "fr"))))
     }
 
+    @Test fun `con ingles preferido gana el ingles aunque haya latino`() {
+        val videos = listOf(v("mx", lang = "es", country = "MX"), v("en", lang = "en"), v("sub", lang = "en", name = "English with Spanish subtitles"))
+        assertEquals("en", Trailers.pick(videos, TrailerLang.English))
+        assertEquals("mx", Trailers.pick(videos, TrailerLang.LatinSpanish))
+    }
+
+    @Test fun `con ingles preferido y sin ingles cae al latino y luego a lo que haya`() {
+        assertEquals("mx", Trailers.pick(listOf(v("es-es", lang = "es", country = "ES"), v("mx", lang = "es", country = "MX")), TrailerLang.English))
+        assertEquals("fr", Trailers.pick(listOf(v("fr", lang = "fr")), TrailerLang.English))
+    }
+
+    @Test fun `el codigo guardado vuelve a su idioma`() {
+        assertEquals(TrailerLang.English, TrailerLang.fromCode(null))
+        assertEquals(TrailerLang.English, TrailerLang.fromCode("xx"))
+        assertEquals(TrailerLang.LatinSpanish, TrailerLang.fromCode("es"))
+    }
+
     @Test fun `direcciones del video`() {
         assertEquals("https://www.youtube.com/watch?v=abc", Trailers.watchUrl("abc"))
     }

@@ -385,7 +385,7 @@ fun DiscoverTab(vm: MainViewModel) {
     val videoOn by vm.detail.discoverVideo.collectAsState()
     val trailers by vm.detail.trailers.collectAsState()
     // El tráiler de la tarjeta de arriba se pide al mostrarla (el de la siguiente, apenas pasa a ser la de arriba).
-    LaunchedEffect(current?.movieId, videoOn) { if (videoOn) current?.let { vm.detail.loadTrailer(it.movieId) } }
+    LaunchedEffect(current?.movieId, videoOn, trailers.isEmpty()) { if (videoOn) current?.let { vm.detail.loadTrailer(it.movieId) } }
 
     // La tarjeta de arriba cuenta como mostrada una vez por presentación (no la precargada ni una recomposición).
     LaunchedEffect(current?.movieId) { current?.let(vm::onDiscoverCardShown) }

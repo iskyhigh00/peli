@@ -422,6 +422,9 @@ object Changelog {
         "2.2.0" to listOf(
             "Ajustes ordenado por temas: Cuenta y pareja, Avisos, Películas, Mi servidor y enlaces, y La app.",
         ),
+        "2.2.1" to listOf(
+            "Ajustes > Películas: idioma de los tráilers a elección (inglés o español latino). Es una preferencia de cada teléfono y solo cambia los videos.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

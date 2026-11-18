@@ -202,6 +202,17 @@ fun SettingsSheet(
                     onChange = { onToggle(source) },
                 )
             }
+            Text("Idioma de los tráilers", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
+            val trailerLang by vm.detail.trailerLang.collectAsState()
+            Row(Modifier.padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                com.peli.app.data.TrailerLang.entries.forEach { l ->
+                    androidx.compose.material3.FilterChip(
+                        selected = l == trailerLang,
+                        onClick = { vm.detail.setTrailerLang(l) },
+                        label = { Text(l.label) },
+                    )
+                }
+            }
             val discoverVideo by vm.detail.discoverVideo.collectAsState()
             SettingRow(
                 title = "Tráiler en Descubrir",

@@ -3,6 +3,7 @@ package com.peli.app.ui.features
 import com.peli.app.data.InsightsState
 import com.peli.app.data.RatingSource
 import com.peli.app.data.Repository
+import com.peli.app.data.TrailerLang
 import com.peli.app.data.attempt
 import com.peli.app.log.AppLog
 import kotlinx.coroutines.CancellationException
@@ -89,13 +90,23 @@ class DetailFeature(private val env: VmEnv, private val repo: Repository) {
 
     val trailers = MutableStateFlow<Map<Int, TrailerState>>(emptyMap())
 
+    /** Idioma preferido de los tráilers (se elige en Ajustes; cada persona el suyo). */
+    val trailerLang = MutableStateFlow(TrailerLang.fromCode(env.peli.uiPrefs.trailerLang))
+
+    fun setTrailerLang(lang: TrailerLang) {
+        if (lang == trailerLang.value) return
+        env.peli.uiPrefs.trailerLang = lang.code
+        trailerLang.value = lang
+        trailers.value = emptyMap()   // los tráilers ya cargados se vuelven a elegir en el idioma nuevo
+    }
+
     fun loadTrailer(movieId: Int, force: Boolean = false) {
         val current = trailers.value[movieId]
         if (!force && (current is TrailerState.Ready || current is TrailerState.None || current is TrailerState.Loading)) return
         trailers.update { it + (movieId to TrailerState.Loading) }
         env.launch {
             val state = try {
-                repo.trailerKey(movieId)?.let { TrailerState.Ready(it) } ?: TrailerState.None
+                repo.trailerKey(movieId, trailerLang.value)?.let { TrailerState.Ready(it) } ?: TrailerState.None
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

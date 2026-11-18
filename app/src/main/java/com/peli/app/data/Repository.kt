@@ -314,7 +314,7 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
         return list
     }
 
-    private val trailerCache = HashMap<Int, String?>()
+    private val trailerCache = HashMap<Pair<Int, String>, String?>()
 
     /**
      * Clave de YouTube del mejor tráiler de la película; null si no tiene. Un fallo de red se propaga (para poder
@@ -325,12 +325,14 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
         attempt { api.detailsIn(movieId, "en-US").title?.trim()?.takeIf { it.isNotEmpty() } }.getOrNull()
     }
 
-    suspend fun trailerKey(movieId: Int): String? {
-        synchronized(trailerCache) { if (trailerCache.containsKey(movieId)) return trailerCache[movieId] }
+    suspend fun trailerKey(movieId: Int, lang: TrailerLang = TrailerLang.LatinSpanish): String? {
+        val cacheKey = movieId to lang.code
+        synchronized(trailerCache) { if (trailerCache.containsKey(cacheKey)) return trailerCache[cacheKey] }
         val key = Trailers.pick(
             api.videos(movieId).results.orEmpty().map { TrailerVideo(it.key, it.site, it.type, it.official, it.iso_639_1, it.iso_3166_1, it.name) },
+            lang,
         )
-        synchronized(trailerCache) { trailerCache[movieId] = key }
+        synchronized(trailerCache) { trailerCache[cacheKey] = key }
         return key
     }
 

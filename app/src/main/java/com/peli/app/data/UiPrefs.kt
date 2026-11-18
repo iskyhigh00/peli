@@ -11,6 +11,11 @@ class UiPrefs(context: Context) {
         get() = prefs.getBoolean("watchlist_cleaned", false)
         set(v) = prefs.edit().putBoolean("watchlist_cleaned", v).apply()
 
+    /** Idioma preferido de los tráilers: "en" (inglés, por defecto) o "es" (español latino). */
+    var trailerLang: String
+        get() = prefs.getString("trailer_lang", null) ?: "en"
+        set(v) = prefs.edit().putString("trailer_lang", v).apply()
+
     /** Descubrir muestra el tráiler (en silencio) en vez de la carátula. Gasta datos: se puede apagar en Ajustes. */
     var discoverVideo: Boolean
         get() = prefs.getBoolean("discover_video", true)
