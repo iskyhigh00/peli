@@ -425,6 +425,9 @@ object Changelog {
         "2.2.1" to listOf(
             "Ajustes > Películas: idioma de los tráilers a elección (inglés o español latino). Es una preferencia de cada teléfono y solo cambia los videos.",
         ),
+        "2.2.2" to listOf(
+            "La biblioteca de tu servidor Jellyfin se comparte con tu amigo o pareja: quien tiene la clave sube la lista (solo números de TMDB) y el otro la usa para marcar «Disponible» sin acceder al servidor. Requiere ejecutar library.sql en Supabase.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

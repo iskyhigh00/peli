@@ -4,13 +4,21 @@ import com.peli.app.data.Jellyfin
 import com.peli.app.data.JellyfinClient
 import com.peli.app.data.JellyfinDiscovery
 import com.peli.app.data.JellyfinException
+import com.peli.app.data.Repository
+import com.peli.app.data.accountMessage
 import com.peli.app.data.attempt
 import com.peli.app.log.AppLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 
 /** Tu servidor Jellyfin: lo que ya tienes ahí cuenta como «disponible». Se busca solo en la red y se actualiza al cambiar de red. */
-class ServerFeature(private val env: VmEnv) {
+class ServerFeature(
+    private val env: VmEnv,
+    private val repo: Repository,
+    private val activeFriend: () -> String?,
+    private val hasSession: () -> Boolean,
+    private val friendName: (String) -> String?,
+) {
     private val prefs get() = env.peli.jellyfinPrefs
 
     val url = MutableStateFlow(prefs.url)
@@ -20,6 +28,50 @@ class ServerFeature(private val env: VmEnv) {
 
     /** Cuándo se actualizó con el servidor por última vez (milisegundos; 0 = nunca). */
     val lastSync = MutableStateFlow(prefs.syncedAt)
+
+    /** Lo que comparte mi amigo (su servidor): me sirve aunque yo no tenga acceso. */
+    val shared = MutableStateFlow(prefs.sharedIds)
+    val sharedAt = MutableStateFlow(prefs.sharedAt)
+    val sharedStatus = MutableStateFlow<String?>(null)
+
+    /** Sube mi lista a mi amigo (solo ids de TMDB). */
+    private suspend fun pushShared(mine: Set<Int>) {
+        if (!hasSession()) return
+        try {
+            repo.setLibrary(mine.toList())
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            AppLog.w("Jellyfin", "no se pudo compartir la lista", e)
+            sharedStatus.value = "No se pudo compartir tu lista: ${e.accountMessage()}"
+        }
+    }
+
+    /** Baja la lista del servidor de mi amigo activo. */
+    private suspend fun pullShared() {
+        val friend = activeFriend() ?: return
+        if (!hasSession()) return
+        try {
+            val row = repo.library(friend)
+            val name = friendName(friend)?.let { "@$it" } ?: "tu amigo"
+            if (row != null && row.tmdb_ids.isNotEmpty()) {
+                val ids = row.tmdb_ids.toSet()
+                shared.value = ids
+                prefs.sharedIds = ids
+                val now = System.currentTimeMillis()
+                sharedAt.value = now
+                prefs.sharedAt = now
+                sharedStatus.value = "Biblioteca de $name: ${ids.size} películas."
+            } else {
+                sharedStatus.value = "$name todavía no comparte su biblioteca."
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            AppLog.w("Jellyfin", "no se pudo traer la lista compartida", e)
+            sharedStatus.value = "No se pudo traer la biblioteca compartida: ${e.accountMessage()}"
+        }
+    }
 
     fun setUrl(v: String) { url.value = v; prefs.url = v }
     fun setKey(v: String) { key.value = v; prefs.key = v }
@@ -52,12 +104,19 @@ class ServerFeature(private val env: VmEnv) {
                     AppLog.i("Jellyfin", "servidor detectado en la red: ${seen.name} ${seen.address}")
                 }
                 if (apiKey.isEmpty()) {
+                    pullShared()
+                    if (shared.value.isNotEmpty()) {
+                        status.value = "Sin clave de API: se usa la biblioteca que comparte tu amigo."
+                        if (manual) env.message.value = "Biblioteca compartida actualizada: ${shared.value.size} películas."
+                        return@launch
+                    }
                     status.value = if (seen != null) "Servidor detectado: ${seen.name ?: "Jellyfin"} (${seen.address.substringAfter("://")}). Falta la clave de API." else "Falta la clave de API."
                     if (manual) env.message.value = if (seen != null) "Encontré tu servidor. Falta la clave de API." else "Falta la clave de API."
                     return@launch
                 }
                 val bases = (listOf(prefs.found).filter { it.isNotEmpty() } + typed).distinct()
                 if (bases.isEmpty()) {
+                    pullShared()
                     status.value = "No encontré el servidor en esta red y no hay direcciones guardadas. Se usa lo último que se supo."
                     if (manual) env.message.value = "No encontré tu servidor en esta red."
                     return@launch
@@ -76,7 +135,10 @@ class ServerFeature(private val env: VmEnv) {
                     val via = if (base == prefs.found && seen != null) " (detectado en la red)" else ""
                     status.value = "Conectado por ${base.substringAfter("://")}$via: ${found.size} películas con ID de TMDB."
                     if (manual) env.message.value = "Servidor conectado: ${found.size} películas."
+                    pushShared(found)
+                    pullShared()
                 } else {
+                    pullShared()
                     AppLog.w("Jellyfin", "no se pudo consultar el servidor", r.exceptionOrNull())
                     val why = (r.exceptionOrNull() as? JellyfinException)?.details
                         ?.joinToString("\n") { (b, reason) -> "• ${b.substringAfter("://")}: $reason" }

@@ -29,6 +29,15 @@ class JellyfinPrefs(context: Context) {
         get() = prefs.getLong("synced_at", 0L)
         set(v) = prefs.edit().putLong("synced_at", v).apply()
 
+    /** Lo que comparte mi amigo (ids de TMDB de su servidor) y cuándo lo bajé (milisegundos). */
+    var sharedIds: Set<Int>
+        get() = prefs.getStringSet("shared_ids", emptySet()).orEmpty().mapNotNull { it.toIntOrNull() }.toSet()
+        set(v) = prefs.edit().putStringSet("shared_ids", v.map { it.toString() }.toSet()).apply()
+
+    var sharedAt: Long
+        get() = prefs.getLong("shared_at", 0L)
+        set(v) = prefs.edit().putLong("shared_at", v).apply()
+
     var ids: Set<Int>
         get() = prefs.getStringSet("ids", emptySet()).orEmpty().mapNotNull { it.toIntOrNull() }.toSet()
         set(v) = prefs.edit().putStringSet("ids", v.map { it.toString() }.toSet()).apply()

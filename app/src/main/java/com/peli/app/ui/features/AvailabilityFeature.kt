@@ -10,12 +10,13 @@ import kotlinx.coroutines.flow.stateIn
 class AvailabilityFeature(private val env: VmEnv, private val server: ServerFeature) {
     val manual = MutableStateFlow(env.peli.availablePrefs.ids)
 
-    val all: StateFlow<Set<Int>> = combine(manual, server.ids) { a, s -> a + s }
-        .stateIn(env.scopeForFlows, SharingStarted.Eagerly, manual.value + server.ids.value)
+    /** Marcadas a mano, en mi servidor o en el de mi amigo (lo que comparte). */
+    val all: StateFlow<Set<Int>> = combine(manual, server.ids, server.shared) { a, s, f -> a + s + f }
+        .stateIn(env.scopeForFlows, SharingStarted.Eagerly, manual.value + server.ids.value + server.shared.value)
 
     fun toggle(movieId: Int) {
-        if (movieId in server.ids.value) {
-            env.message.value = "Ya está en tu servidor: se marca como disponible sola."
+        if (movieId in server.ids.value || movieId in server.shared.value) {
+            env.message.value = "Ya está en el servidor: se marca como disponible sola."
             return
         }
         val next = manual.value.let { if (movieId in it) it - movieId else it + movieId }

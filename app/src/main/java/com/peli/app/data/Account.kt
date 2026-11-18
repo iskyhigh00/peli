@@ -43,6 +43,9 @@ data class Friend(val friend_id: String, val username: String, val status: Strin
 /** Mensaje de bienvenida compartido con un amigo (de `get_welcome`): [mine] = lo escribí yo. */
 data class WelcomeRow(val body: String = "", val mine: Boolean = false)
 
+/** Lista de películas del servidor de un amigo (de `get_library`): solo ids de TMDB. */
+data class LibraryRow(val tmdb_ids: List<Int> = emptyList(), val updated_at: String? = null)
+
 /** Una película que un amigo me recomendó (de `my_recommendations`). */
 data class Recommendation(val id: Long, val from_name: String, val movie_id: Int, val title: String, val poster_path: String?, val year: String)
 
@@ -197,6 +200,7 @@ fun Throwable.accountMessage(): String {
             msg.contains("no_profile") -> "Primero elige tu nombre de usuario."
             msg.contains("no_session") || code() == 401 -> "Tu sesión caducó. Inicia sesión de nuevo."
             msg.contains("not_friends") -> "Solo puedes recomendar a un amigo ya aceptado."
+            msg.contains("library") && (pg == "PGRST202" || code() == 404) -> "Falta ejecutar library.sql en Supabase."
             msg.contains("welcome") && (pg == "PGRST202" || code() == 404) -> "Falta ejecutar welcome.sql en Supabase."
             msg.contains("recommend") && (pg == "PGRST202" || code() == 404) -> "Falta ejecutar recommendations.sql en Supabase."
             pg == "PGRST202" || pg == "42P01" || code() == 404 -> "Falta ejecutar accounts.sql en Supabase."
@@ -281,6 +285,12 @@ interface SocialApi {
 
     @POST("rest/v1/rpc/set_welcome")
     suspend fun setWelcome(@Body body: Map<String, String>)
+
+    @POST("rest/v1/rpc/set_library")
+    suspend fun setLibrary(@Body body: Map<String, List<Int>>)
+
+    @POST("rest/v1/rpc/get_library")
+    suspend fun getLibrary(@Body body: Map<String, String>): List<LibraryRow>
 
     @POST("rest/v1/rpc/get_welcome")
     suspend fun getWelcome(@Body body: Map<String, String>): List<WelcomeRow>

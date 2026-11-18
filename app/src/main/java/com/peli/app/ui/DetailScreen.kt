@@ -214,9 +214,10 @@ fun DetailScreen(entry: Entry, mine: Entry?, vm: MainViewModel, onBack: () -> Un
                 Column(verticalArrangement = Arrangement.spacedBy(ItemSpacing)) {
                     val availableAll by vm.availability.all.collectAsState()
                     val serverIds by vm.server.ids.collectAsState()
+                    val sharedIds by vm.server.shared.collectAsState()
                     if (entry.movieId in availableAll) {
                         com.peli.app.ui.components.StatusChip(
-                            if (entry.movieId in serverIds) "Disponible en tu servidor" else "Disponible",
+                            if (entry.movieId in serverIds || entry.movieId in sharedIds) "Disponible en el servidor" else "Disponible",
                             accent = scheme.secondary,
                         )
                     }

@@ -415,6 +415,8 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
         mapOf("p_friend" to friendId, "p_movie" to e.movieId, "p_title" to e.title, "p_poster" to e.posterPath, "p_year" to e.year),
     )
     suspend fun setWelcome(friendId: String, text: String) = Social.api.setWelcome(mapOf("p_friend" to friendId, "p_body" to text))
+    suspend fun setLibrary(ids: List<Int>) = Social.api.setLibrary(mapOf("p_ids" to ids))
+    suspend fun library(friendId: String): LibraryRow? = Social.api.getLibrary(mapOf("p_friend" to friendId)).firstOrNull()
     suspend fun welcome(friendId: String): WelcomeRow? = Social.api.getWelcome(mapOf("p_friend" to friendId)).firstOrNull()
     suspend fun recommendations(): List<Recommendation> = Social.api.myRecommendations()
     suspend fun dismissRecommendation(id: Long) = Social.api.dismissRecommendation(mapOf("p_id" to id))

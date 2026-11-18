@@ -247,11 +247,19 @@ fun SettingsSheet(
             (serverStatus ?: if (serverIds.isNotEmpty()) "${serverIds.size} películas en tu servidor." else null)?.let {
                 Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+            val sharedStatus by vm.server.sharedStatus.collectAsState()
+            val sharedIds by vm.server.shared.collectAsState()
+            val sharedAt by vm.server.sharedAt.collectAsState()
+            (sharedStatus ?: if (sharedIds.isNotEmpty()) "Biblioteca compartida por tu amigo: ${sharedIds.size} películas." else null)?.let { line ->
+                val at = if (sharedAt > 0L) " Actualizada " + java.text.SimpleDateFormat("dd/MM HH:mm", java.util.Locale("es")).format(java.util.Date(sharedAt)) + "." else ""
+                Text(line + at, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             val lastSync by vm.server.lastSync.collectAsState()
             var nowMs by androidx.compose.runtime.remember { androidx.compose.runtime.mutableLongStateOf(System.currentTimeMillis()) }
             androidx.compose.runtime.LaunchedEffect(Unit) {
                 while (true) { kotlinx.coroutines.delay(30_000); nowMs = System.currentTimeMillis() }
             }
+            if (serverKey.isNotBlank()) {
             Text(
                 if (lastSync > 0L) {
                     val at = java.text.SimpleDateFormat("dd/MM HH:mm", java.util.Locale("es")).format(java.util.Date(lastSync))
@@ -262,6 +270,7 @@ fun SettingsSheet(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            }
             Text("Enlace de búsqueda", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
             val searchLink by vm.links.template.collectAsState()
             androidx.compose.material3.OutlinedTextField(
