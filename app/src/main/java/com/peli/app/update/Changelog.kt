@@ -419,6 +419,9 @@ object Changelog {
             "Ajustes: sin los párrafos de explicación, con botones más cortos y la hora de la última actualización con tu servidor Jellyfin.",
             "Por dentro: el código quedó ordenado en módulos (servidor, enlaces, mensaje de bienvenida, apodo, premios, detalle, película segura y actualizaciones) y la compilación revisa que se mantenga así.",
         ),
+        "2.2.0" to listOf(
+            "Ajustes ordenado por temas: Cuenta y pareja, Avisos, Películas, Mi servidor y enlaces, y La app.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

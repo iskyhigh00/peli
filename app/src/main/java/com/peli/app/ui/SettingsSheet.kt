@@ -59,6 +59,13 @@ private fun SettingRow(
     }
 }
 
+/** Título de un grupo de ajustes, con un divisor encima. */
+@Composable
+private fun SettingsSection(title: String) {
+    HorizontalDivider(Modifier.padding(top = SectionSpacing, bottom = ItemSpacing))
+    Text(title, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
+}
+
 /** Ajustes: de qué fuentes mostrar valoraciones y reseñas, versión y búsqueda de actualización. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -114,44 +121,11 @@ fun SettingsSheet(
                 .padding(bottom = SectionSpacing),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
+            SettingsSection("Cuenta y pareja")
             if (vm.googleAvailable) {
                 val syncError by vm.syncError.collectAsState()
-                Text("Cuenta y amigos", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = ItemSpacing))
+                Text("Cuenta y amigos", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = ItemSpacing))
                 com.peli.app.ui.components.GlassCard { AccountCardContent(vm, syncError) }
-                HorizontalDivider(Modifier.padding(vertical = ItemSpacing))
-            }
-            Text("Valoraciones y reseñas", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = ItemSpacing))
-            RatingSource.entries.forEach { source ->
-                val available = !source.needsOmdb || omdbAvailable
-                SettingRow(
-                    title = (if (source == com.peli.app.data.RatingSource.Partner) PartnerName.miCap else source.label) + if (available) "" else " (necesita clave de OMDb)",
-                    checked = available && source in sources,
-                    enabled = available,
-                    onChange = { onToggle(source) },
-                )
-            }
-            HorizontalDivider(Modifier.padding(vertical = ItemSpacing))
-            SettingRow(
-                title = "Avisos de estreno",
-                checked = remindersOn,
-                enabled = true,
-                onChange = onReminders,
-            )
-            SettingRow(
-                title = "Recomendaciones de amigos",
-                checked = recsOn,
-                enabled = true,
-                onChange = onRecs,
-            )
-            Text("Idioma de títulos y sinopsis", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
-            Row(Modifier.padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                com.peli.app.data.Lang.options.forEach { (tag, name) ->
-                    androidx.compose.material3.FilterChip(
-                        selected = tag == language,
-                        onClick = { onLanguage(tag) },
-                        label = { Text(name) },
-                    )
-                }
             }
             Text("Apodo de la pareja", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
             val nick by vm.partnerName.nickname.collectAsState()
@@ -181,6 +155,61 @@ fun SettingsSheet(
             if (welcomeText.isNotBlank()) {
                 TonalButton("Vista previa", { onDismiss(); vm.welcome.splashVisible.value = true }, Modifier.fillMaxWidth())
             }
+            SettingsSection("Avisos")
+            SettingRow(
+                title = "Avisos de estreno",
+                checked = remindersOn,
+                enabled = true,
+                onChange = onReminders,
+            )
+            SettingRow(
+                title = "Recomendaciones de amigos",
+                checked = recsOn,
+                enabled = true,
+                onChange = onRecs,
+            )
+            SettingRow(
+                title = "Chuba y Pepa recomiendan",
+                checked = petsOn,
+                enabled = true,
+                onChange = onPets,
+            )
+            SettingRow(
+                title = "Fin de semana",
+                checked = weekendOn,
+                enabled = true,
+                onChange = onWeekend,
+            )
+            SettingsSection("Películas")
+            Text("Idioma de títulos y sinopsis", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
+            Row(Modifier.padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                com.peli.app.data.Lang.options.forEach { (tag, name) ->
+                    androidx.compose.material3.FilterChip(
+                        selected = tag == language,
+                        onClick = { onLanguage(tag) },
+                        label = { Text(name) },
+                    )
+                }
+            }
+            TonalButton("Actualizar títulos", onRefreshTitles, Modifier.fillMaxWidth().padding(bottom = 8.dp))
+            Text("Valoraciones y reseñas", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = ItemSpacing))
+            RatingSource.entries.forEach { source ->
+                val available = !source.needsOmdb || omdbAvailable
+                SettingRow(
+                    title = (if (source == com.peli.app.data.RatingSource.Partner) PartnerName.miCap else source.label) + if (available) "" else " (necesita clave de OMDb)",
+                    checked = available && source in sources,
+                    enabled = available,
+                    onChange = { onToggle(source) },
+                )
+            }
+            val discoverVideo by vm.detail.discoverVideo.collectAsState()
+            SettingRow(
+                title = "Tráiler en Descubrir",
+                checked = discoverVideo,
+                enabled = true,
+                onChange = vm.detail::setDiscoverVideo,
+            )
+            SettingsSection("Mi servidor y enlaces")
             Text("Mi servidor Jellyfin", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
             val serverUrl by vm.server.url.collectAsState()
             val serverKey by vm.server.key.collectAsState()
@@ -289,27 +318,7 @@ fun SettingsSheet(
                     },
                 )
             }
-            TonalButton("Actualizar títulos", onRefreshTitles, Modifier.fillMaxWidth().padding(bottom = 8.dp))
-            SettingRow(
-                title = "Chuba y Pepa recomiendan",
-                checked = petsOn,
-                enabled = true,
-                onChange = onPets,
-            )
-            val discoverVideo by vm.detail.discoverVideo.collectAsState()
-            SettingRow(
-                title = "Tráiler en Descubrir",
-                checked = discoverVideo,
-                enabled = true,
-                onChange = vm.detail::setDiscoverVideo,
-            )
-            SettingRow(
-                title = "Fin de semana",
-                checked = weekendOn,
-                enabled = true,
-                onChange = onWeekend,
-            )
-            HorizontalDivider(Modifier.padding(vertical = ItemSpacing))
+            SettingsSection("La app")
             Text("Versión $APP_VERSION", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             when (update) {
                 is com.peli.app.ui.features.ManualUpdate.Available -> UpdateBanner(
