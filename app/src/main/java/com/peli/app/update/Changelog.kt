@@ -413,6 +413,12 @@ object Changelog {
         "2.1.8" to listOf(
             "Corrige la compilación de la versión 2.1.7: incluye el apodo de la pareja en los textos (Ajustes > Cómo le dices).",
         ),
+        "2.1.9" to listOf(
+            "Descubrir: el tráiler suena desde el inicio, con botón para silenciarlo.",
+            "Juntos: las listas se llaman «Las queremos ver los dos», «Las quiero ver yo» y «Las quiere ver…» (según el apodo).",
+            "Ajustes: sin los párrafos de explicación, con botones más cortos y la hora de la última actualización con tu servidor Jellyfin.",
+            "Por dentro: el código quedó ordenado en módulos (servidor, enlaces, mensaje de bienvenida, apodo, premios, detalle, película segura y actualizaciones) y la compilación revisa que se mantenga así.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"
