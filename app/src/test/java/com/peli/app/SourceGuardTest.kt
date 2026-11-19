@@ -24,6 +24,12 @@ class SourceGuardTest {
     }
 
     /** MainViewModel no vuelve a crecer sin límite: lo nuevo va en su propio módulo (ui/features). */
+    @Test fun `la API social no usa Map con listas (Retrofit rechaza el comodin)`() {
+        val src = java.io.File("src/main/java/com/peli/app/data/Account.kt").readText()
+        val bad = Regex("""@Body\s+\w+:\s*Map<String,\s*(List|Set)<""").containsMatchIn(src)
+        org.junit.Assert.assertFalse("Usa una clase de datos como cuerpo", bad)
+    }
+
     @Test fun `MainViewModel se mantiene acotado`() {
         val lines = files.first { it.name == "MainViewModel.kt" }.readLines().size
         assertTrue("MainViewModel tiene $lines líneas (máximo 1600): saca lo nuevo a ui/features", lines <= 1600)

@@ -44,6 +44,9 @@ data class Friend(val friend_id: String, val username: String, val status: Strin
 data class WelcomeRow(val body: String = "", val mine: Boolean = false)
 
 /** Lista de películas del servidor de un amigo (de `get_library`): solo ids de TMDB. */
+/** Cuerpo de set_library. Clase propia: Retrofit rechaza el comodín que Kotlin genera en Map<String, List<Int>>. */
+data class LibraryBody(val p_ids: List<Int>)
+
 data class LibraryRow(val tmdb_ids: List<Int> = emptyList(), val updated_at: String? = null)
 
 /** Una película que un amigo me recomendó (de `my_recommendations`). */
@@ -287,7 +290,7 @@ interface SocialApi {
     suspend fun setWelcome(@Body body: Map<String, String>)
 
     @POST("rest/v1/rpc/set_library")
-    suspend fun setLibrary(@Body body: Map<String, List<Int>>)
+    suspend fun setLibrary(@Body body: LibraryBody)
 
     @POST("rest/v1/rpc/get_library")
     suspend fun getLibrary(@Body body: Map<String, String>): List<LibraryRow>

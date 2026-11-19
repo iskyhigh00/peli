@@ -437,6 +437,9 @@ object Changelog {
         "2.2.5" to listOf(
             "Biblioteca compartida automática: el teléfono sin clave la baja solo al abrir la app, apenas llega la lista de amigos y en cada ronda (cada 2 minutos), sin buscar un servidor que no puede usar.",
         ),
+        "2.2.6" to listOf(
+            "Arreglo: ya se puede compartir tu lista del servidor con tus amigos (fallaba al subirla).",
+        ),
     )
 
     private const val PREFS = "peli_prefs"
