@@ -431,6 +431,9 @@ object Changelog {
         "2.2.3" to listOf(
             "Biblioteca compartida: en el teléfono con acceso al servidor ahora se ve si la lista se subió bien (y ya no dice que la pareja «todavía no comparte», que solo importa en el teléfono sin clave).",
         ),
+        "2.2.4" to listOf(
+            "Biblioteca compartida: el teléfono sin clave ahora baja la lista de todos sus amigos aceptados (ya no depende de cuál esté «activo») y, si no puede, dice por qué (sin sesión, sin amigos, o el amigo aún no la comparte).",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

@@ -15,9 +15,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 class ServerFeature(
     private val env: VmEnv,
     private val repo: Repository,
-    private val activeFriend: () -> String?,
     private val hasSession: () -> Boolean,
-    private val friendName: (String) -> String?,
+    /** Mis amigos aceptados: (id, nombre de usuario). */
+    private val friends: () -> List<Pair<String, String>>,
 ) {
     private val prefs get() = env.peli.jellyfinPrefs
 
@@ -52,23 +52,36 @@ class ServerFeature(
         }
     }
 
-    /** Baja la lista del servidor de mi amigo activo. */
+    /** Baja las listas de los servidores de mis amigos aceptados (no depende de cuál esté «activo»). */
     private suspend fun pullShared(quietIfEmpty: Boolean = false) {
-        val friend = activeFriend() ?: return
-        if (!hasSession()) return
+        if (!hasSession()) {
+            if (!quietIfEmpty) sharedStatus.value = "Inicia sesión (Cuenta y pareja) para recibir la biblioteca de tu amigo."
+            return
+        }
+        val mine = friends()
+        if (mine.isEmpty()) {
+            if (!quietIfEmpty) sharedStatus.value = "No hay amigos aceptados todavía: agrégalo en Cuenta y pareja."
+            return
+        }
         try {
-            val row = repo.library(friend)
-            val name = friendName(friend)?.let { "@$it" } ?: "tu amigo"
-            if (row != null && row.tmdb_ids.isNotEmpty()) {
-                val ids = row.tmdb_ids.toSet()
-                shared.value = ids
-                prefs.sharedIds = ids
+            val all = HashSet<Int>()
+            val names = ArrayList<String>()
+            for ((id, name) in mine) {
+                val row = repo.library(id)
+                if (row != null && row.tmdb_ids.isNotEmpty()) {
+                    all += row.tmdb_ids
+                    names += "@$name"
+                }
+            }
+            if (all.isNotEmpty()) {
+                shared.value = all
+                prefs.sharedIds = all
                 val now = System.currentTimeMillis()
                 sharedAt.value = now
                 prefs.sharedAt = now
-                sharedStatus.value = "Biblioteca de $name: ${ids.size} películas."
+                sharedStatus.value = "Biblioteca de ${names.joinToString(", ")}: ${all.size} películas."
             } else {
-                sharedStatus.value = if (quietIfEmpty) null else "$name todavía no comparte su biblioteca."
+                sharedStatus.value = if (quietIfEmpty) null else "${mine.joinToString(", ") { "@" + it.second }} todavía no comparte su biblioteca."
             }
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
@@ -111,12 +124,12 @@ class ServerFeature(
                 if (apiKey.isEmpty()) {
                     pullShared()
                     if (shared.value.isNotEmpty()) {
-                        status.value = "Sin clave de API: se usa la biblioteca que comparte tu amigo."
+                        status.value = "Sin clave de API: se usa la biblioteca de tu amigo."
                         if (manual) env.message.value = "Biblioteca compartida actualizada: ${shared.value.size} películas."
                         return@launch
                     }
-                    status.value = if (seen != null) "Servidor detectado: ${seen.name ?: "Jellyfin"} (${seen.address.substringAfter("://")}). Falta la clave de API." else "Falta la clave de API."
-                    if (manual) env.message.value = if (seen != null) "Encontré tu servidor. Falta la clave de API." else "Falta la clave de API."
+                    status.value = if (seen != null) "Servidor detectado: ${seen.name ?: "Jellyfin"} (${seen.address.substringAfter("://")}). Falta la clave de API." else "Sin clave de API."
+                    if (manual) env.message.value = sharedStatus.value ?: (if (seen != null) "Encontré tu servidor. Falta la clave de API." else "Sin clave de API.")
                     return@launch
                 }
                 val bases = (listOf(prefs.found).filter { it.isNotEmpty() } + typed).distinct()
