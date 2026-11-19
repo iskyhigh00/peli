@@ -247,6 +247,9 @@ fun PeliScreen(vm: MainViewModel = viewModel()) {
             LaunchedEffect(Unit) { vm.welcome.loadShared(); vm.server.watchNetwork() }
             val activeFriendForName by vm.activeFriend.collectAsState()
             LaunchedEffect(activeFriendForName) { vm.partnerName.apply() }
+            // La biblioteca que comparte mi amigo se baja apenas llega la lista de amigos.
+            val friendsForLibrary by vm.friends.collectAsState()
+            LaunchedEffect(friendsForLibrary.filter { it.accepted }.map { it.friend_id }) { vm.server.pullSharedAuto() }
             // Servidor Jellyfin: al abrir o volver a la app, y cada 2 minutos mientras se usa.
             val serverLifecycle = LocalLifecycleOwner.current
             LaunchedEffect(serverLifecycle) {

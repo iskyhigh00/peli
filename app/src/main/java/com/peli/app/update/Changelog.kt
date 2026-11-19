@@ -434,6 +434,9 @@ object Changelog {
         "2.2.4" to listOf(
             "Biblioteca compartida: el teléfono sin clave ahora baja la lista de todos sus amigos aceptados (ya no depende de cuál esté «activo») y, si no puede, dice por qué (sin sesión, sin amigos, o el amigo aún no la comparte).",
         ),
+        "2.2.5" to listOf(
+            "Biblioteca compartida automática: el teléfono sin clave la baja solo al abrir la app, apenas llega la lista de amigos y en cada ronda (cada 2 minutos), sin buscar un servidor que no puede usar.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"

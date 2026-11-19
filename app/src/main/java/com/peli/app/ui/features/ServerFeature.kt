@@ -91,6 +91,20 @@ class ServerFeature(
         }
     }
 
+    private var pulling = false
+
+    /**
+     * Baja ya la biblioteca de mis amigos, sin buscar el servidor: es lo único que necesita el teléfono sin clave.
+     * Se llama al abrir la app, cuando llega la lista de amigos y en cada ronda automática.
+     */
+    fun pullSharedAuto() {
+        if (pulling) return
+        pulling = true
+        env.launch(Dispatchers.IO) {
+            try { pullShared(quietIfEmpty = true) } finally { pulling = false }
+        }
+    }
+
     fun setUrl(v: String) { url.value = v; prefs.url = v }
     fun setKey(v: String) { key.value = v; prefs.key = v }
 
@@ -113,6 +127,12 @@ class ServerFeature(
         status.value = "Buscando en la red…"
         env.launch(Dispatchers.IO) {
             try {
+                // Sin clave no hay nada que buscar en la red: solo se baja lo que comparte mi amigo.
+                if (apiKey.isEmpty() && !manual) {
+                    status.value = null
+                    pullShared(quietIfEmpty = true)
+                    return@launch
+                }
                 // 1) ¿Está en esta red? Si el servidor cambió de IP, se actualiza sola.
                 val knownId = prefs.serverId
                 val seen = JellyfinDiscovery.find().firstOrNull { knownId.isEmpty() || it.id == null || it.id == knownId }
@@ -171,6 +191,7 @@ class ServerFeature(
 
     /** Intento automático (al abrir, al volver a la app, cada pocos minutos o al cambiar de red); no insiste si hubo uno hace poco. */
     fun refreshAuto(minGapMs: Long = 20_000) {
+        pullSharedAuto()
         if (System.currentTimeMillis() - lastTry < minGapMs) return
         refresh(false)
     }
