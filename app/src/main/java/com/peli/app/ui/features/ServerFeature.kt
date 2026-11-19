@@ -34,21 +34,26 @@ class ServerFeature(
     val sharedAt = MutableStateFlow(prefs.sharedAt)
     val sharedStatus = MutableStateFlow<String?>(null)
 
+    /** Resultado de subir mi lista (solo si tengo acceso al servidor). */
+    val uploadStatus = MutableStateFlow<String?>(null)
+
     /** Sube mi lista a mi amigo (solo ids de TMDB). */
     private suspend fun pushShared(mine: Set<Int>) {
         if (!hasSession()) return
         try {
             repo.setLibrary(mine.toList())
+            val hora = java.text.SimpleDateFormat("dd/MM HH:mm", java.util.Locale("es")).format(java.util.Date())
+            uploadStatus.value = "Tu lista (${mine.size} películas) está compartida con tus amigos. Subida $hora."
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
             AppLog.w("Jellyfin", "no se pudo compartir la lista", e)
-            sharedStatus.value = "No se pudo compartir tu lista: ${e.accountMessage()}"
+            uploadStatus.value = "No se pudo compartir tu lista: ${e.accountMessage()}"
         }
     }
 
     /** Baja la lista del servidor de mi amigo activo. */
-    private suspend fun pullShared() {
+    private suspend fun pullShared(quietIfEmpty: Boolean = false) {
         val friend = activeFriend() ?: return
         if (!hasSession()) return
         try {
@@ -63,7 +68,7 @@ class ServerFeature(
                 prefs.sharedAt = now
                 sharedStatus.value = "Biblioteca de $name: ${ids.size} películas."
             } else {
-                sharedStatus.value = "$name todavía no comparte su biblioteca."
+                sharedStatus.value = if (quietIfEmpty) null else "$name todavía no comparte su biblioteca."
             }
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
@@ -136,9 +141,9 @@ class ServerFeature(
                     status.value = "Conectado por ${base.substringAfter("://")}$via: ${found.size} películas con ID de TMDB."
                     if (manual) env.message.value = "Servidor conectado: ${found.size} películas."
                     pushShared(found)
-                    pullShared()
+                    pullShared(quietIfEmpty = true)
                 } else {
-                    pullShared()
+                    pullShared(quietIfEmpty = true)
                     AppLog.w("Jellyfin", "no se pudo consultar el servidor", r.exceptionOrNull())
                     val why = (r.exceptionOrNull() as? JellyfinException)?.details
                         ?.joinToString("\n") { (b, reason) -> "• ${b.substringAfter("://")}: $reason" }

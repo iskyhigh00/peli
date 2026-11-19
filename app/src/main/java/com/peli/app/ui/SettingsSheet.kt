@@ -247,6 +247,10 @@ fun SettingsSheet(
             (serverStatus ?: if (serverIds.isNotEmpty()) "${serverIds.size} películas en tu servidor." else null)?.let {
                 Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+            val uploadStatus by vm.server.uploadStatus.collectAsState()
+            if (serverKey.isNotBlank()) {
+                uploadStatus?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            }
             val sharedStatus by vm.server.sharedStatus.collectAsState()
             val sharedIds by vm.server.shared.collectAsState()
             val sharedAt by vm.server.sharedAt.collectAsState()

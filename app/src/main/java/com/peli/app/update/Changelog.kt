@@ -428,6 +428,9 @@ object Changelog {
         "2.2.2" to listOf(
             "La biblioteca de tu servidor Jellyfin se comparte con tu amigo o pareja: quien tiene la clave sube la lista (solo números de TMDB) y el otro la usa para marcar «Disponible» sin acceder al servidor. Requiere ejecutar library.sql en Supabase.",
         ),
+        "2.2.3" to listOf(
+            "Biblioteca compartida: en el teléfono con acceso al servidor ahora se ve si la lista se subió bien (y ya no dice que la pareja «todavía no comparte», que solo importa en el teléfono sin clave).",
+        ),
     )
 
     private const val PREFS = "peli_prefs"
