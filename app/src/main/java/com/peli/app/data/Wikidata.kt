@@ -25,7 +25,7 @@ object Wikidata {
             .addInterceptor { chain ->
                 chain.proceed(
                     chain.request().newBuilder()
-                        .header("User-Agent", "Peli/$APP_VERSION (app personal de películas)")
+                        .header("User-Agent", "Peli/$APP_VERSION (app personal de peliculas)")
                         .header("Accept", "application/sparql-results+json")
                         .build(),
                 )
