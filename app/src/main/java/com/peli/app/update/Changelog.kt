@@ -440,6 +440,9 @@ object Changelog {
         "2.2.6" to listOf(
             "Arreglo: ya se puede compartir tu lista del servidor con tus amigos (fallaba al subirla).",
         ),
+        "2.2.8" to listOf(
+            "Icono adaptativo para mejorar la compatibilidad con lanzadores de Android.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"
