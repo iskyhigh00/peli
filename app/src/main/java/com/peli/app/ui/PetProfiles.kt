@@ -24,7 +24,7 @@ private fun profileText(pet: Pet): Triple<String, String, String> = when (pet) {
         "Suele aprobar: acción, aventuras, comedia",
     )
     Pet.Pepa -> Triple(
-        "La que se lo piensa",
+        "La que va a su ritmo",
         "Se toma su tiempo con todo. Si algo le gusta, se queda a tu lado hasta el final.",
         "Suele aprobar: drama, romance, fantasía",
     )

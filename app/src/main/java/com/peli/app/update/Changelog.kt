@@ -449,6 +449,9 @@ object Changelog {
         "2.3.0" to listOf(
             "Chuba y Pepa suenan más a ellas: comentarios nuevos, más cortos y variados, que hablan de la película en vez de repetir sus manías en cada frase. También se renovó la descripción de su perfil.",
         ),
+        "2.3.1" to listOf(
+            "Perfil de Pepa con una frase más natural («La que va a su ritmo»).",
+        ),
     )
 
     private const val PREFS = "peli_prefs"
