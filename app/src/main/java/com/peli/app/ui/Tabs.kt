@@ -49,6 +49,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.ThumbDown
@@ -738,6 +739,7 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
     val availableIds by vm.availability.all.collectAsState()
     val byId = remember(mine) { mine.associateBy { it.movieId } }
     var sheet by rememberSaveable { mutableStateOf(TogetherSheet.None) }
+    var showMood by rememberSaveable { mutableStateOf(false) }
     var confirm by rememberSaveable { mutableStateOf(Confirm.None) }
     val context = LocalContext.current
     val refreshing by vm.refreshing.collectAsState()
@@ -881,6 +883,9 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
             }
             }
             if (section == TogetherSection.Us) {
+            item(key = "ver-una-peli") {
+                GradientButton("Ver una peli", { showMood = true }, Modifier.fillMaxWidth(), icon = Icons.Default.Movie)
+            }
             // La cuenta, el ID y los amigos viven en Ajustes; aquí solo se avisa dónde.
             if (vm.googleAvailable && !hasProfile) item {
                 Text(
@@ -1074,6 +1079,7 @@ fun TogetherTab(vm: MainViewModel, listState: LazyListState, onOpen: (Entry) -> 
         }
     }
 
+    if (showMood) MoodSheet(matches, availableIds, onOpen, onDismiss = { showMood = false })
     when (sheet) {
         TogetherSheet.Import -> CodeSheet(
             title = "Importar lista de ${PartnerName.tu}",

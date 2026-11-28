@@ -443,6 +443,9 @@ object Changelog {
         "2.2.8" to listOf(
             "Icono adaptativo para mejorar la compatibilidad con lanzadores de Android.",
         ),
+        "2.2.9" to listOf(
+            "Nuevo «Ver una peli» en Juntos: elige el mood (tranqui, reírnos, acción, terror…) y propone, de sus candidatas, las que ya tienes disponibles y encajan. También puede elegir una al azar, o ampliar a todas.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"
