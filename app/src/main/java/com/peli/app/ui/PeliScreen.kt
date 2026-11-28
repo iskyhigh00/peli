@@ -39,6 +39,7 @@ import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
@@ -102,6 +103,7 @@ private enum class Tab(val label: String, val icon: ImageVector, val title: Stri
     Discover("Descubrir", Icons.Default.Explore, "Descubrir"),
     Mine("Mis pelis", Icons.Default.Movie, "Mis pelis"),
     Together("Juntos", Icons.Default.Group, "Juntos"),
+    Series("Series", Icons.Default.Tv, "Series"),
 }
 
 /**
@@ -365,7 +367,7 @@ private fun Home(vm: MainViewModel, tab: Tab, onTabChange: (Tab) -> Unit, onOpen
         Tab.Search -> searchState
         Tab.Mine -> mineState
         Tab.Together -> togetherState
-        Tab.Discover -> null
+        Tab.Discover, Tab.Series -> null
     }
     val scrolled by remember(activeList) {
         derivedStateOf {
@@ -397,6 +399,7 @@ private fun Home(vm: MainViewModel, tab: Tab, onTabChange: (Tab) -> Unit, onOpen
         Tab.Discover -> "Cuéntanos qué te gusta"
         Tab.Mine -> "${mine.size} en tu lista"
         Tab.Together -> "${matches.size} para ver con ${PartnerName.tu}"
+        Tab.Series -> "Series (en desarrollo)"
     }
 
     Box(Modifier.fillMaxSize()) {
@@ -463,6 +466,7 @@ private fun Home(vm: MainViewModel, tab: Tab, onTabChange: (Tab) -> Unit, onOpen
                             Tab.Discover -> DiscoverTab(vm)
                             Tab.Mine -> MineTab(vm, mineState, onOpen, onGoSearch = { onTabChange(Tab.Search) })
                             Tab.Together -> TogetherTab(vm, togetherState, onOpen)
+                            Tab.Series -> SeriesTab(vm)
                         }
                     }
                 }

@@ -48,6 +48,20 @@ class Repository(private val db: AppDb, private val api: TmdbApi) {
         }
     }
 
+    // --- Series (solo locales por ahora) ---
+    private val seriesDao = db.series()
+    val series = seriesDao.observe()
+
+    suspend fun searchSeries(q: String): List<SeriesEntry> = api.searchTv(q).results.map { it.toSeries() }
+
+    suspend fun popularSeries(): List<SeriesEntry> = api.popularTv().results.map { it.toSeries() }
+
+    /** Guarda mi marca; si ya no tiene ninguna, se borra de la tabla. */
+    suspend fun saveSeries(s: SeriesEntry) {
+        val n = s.copy(updatedAt = System.currentTimeMillis())
+        if (n.isEmpty) seriesDao.delete(n.seriesId) else seriesDao.upsert(n)
+    }
+
     val mine = dao.observe(OWNER_ME)
     val partner = dao.observe(OWNER_PARTNER)
 

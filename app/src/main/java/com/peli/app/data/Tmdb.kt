@@ -127,6 +127,13 @@ interface TmdbApi {
         @Query("include_video_language") include: String = "es,en,null",
     ): TmdbVideosPage
 
+    // --- Series ---
+    @GET("tv/popular")
+    suspend fun popularTv(@Query("page") page: Int = 1): TmdbTvPage
+
+    @GET("search/tv")
+    suspend fun searchTv(@Query("query") query: String, @Query("page") page: Int = 1): TmdbTvPage
+
     @GET("movie/{id}/recommendations")
     suspend fun recommendations(@Path("id") id: Int, @Query("page") page: Int = 1): TmdbPage
 

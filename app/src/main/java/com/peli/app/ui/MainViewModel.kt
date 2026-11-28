@@ -282,6 +282,7 @@ class MainViewModel(app: Application, private val saved: SavedStateHandle) : And
     // ---- Módulos aparte (cada uno en su archivo, en ui/features) ----
     private val env = com.peli.app.ui.features.VmEnv(getApplication(), peli, viewModelScope, errorHandler, message)
     val awards = com.peli.app.ui.features.AwardsFeature(env)
+    val series = com.peli.app.ui.features.SeriesFeature(env, repo)
     val server = com.peli.app.ui.features.ServerFeature(
         env, repo, { account.session != null },
         { friends.value.filter { it.accepted }.map { it.friend_id to it.username } },

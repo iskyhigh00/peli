@@ -231,16 +231,44 @@ private val MIGRATION_7_8 = object : Migration(7, 8) {
     }
 }
 
-@Database(entities = [Entry::class, OutboxRow::class, FactsRow::class], version = 8, exportSchema = false)
+private val MIGRATION_8_9 = object : Migration(8, 9) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        AppLog.i("DB", "migración 8→9 (series)")
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `series` (`seriesId` INTEGER NOT NULL, `title` TEXT NOT NULL, `overview` TEXT NOT NULL, " +
+                "`posterPath` TEXT, `year` TEXT NOT NULL, `firstAirDate` TEXT, `liked` INTEGER NOT NULL, `seen` INTEGER NOT NULL, " +
+                "`disliked` INTEGER NOT NULL, `watchlist` INTEGER NOT NULL, `genres` TEXT, `rating` REAL, `myRating` INTEGER NOT NULL, " +
+                "`updatedAt` INTEGER NOT NULL, `originalTitle` TEXT, PRIMARY KEY(`seriesId`))",
+        )
+    }
+}
+
+@Dao
+abstract class SeriesDao {
+    @Query("SELECT * FROM series ORDER BY title")
+    abstract fun observe(): Flow<List<SeriesEntry>>
+
+    @Query("SELECT * FROM series WHERE seriesId = :id")
+    abstract suspend fun get(id: Int): SeriesEntry?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    abstract suspend fun upsert(s: SeriesEntry)
+
+    @Query("DELETE FROM series WHERE seriesId = :id")
+    abstract suspend fun delete(id: Int)
+}
+
+@Database(entities = [Entry::class, OutboxRow::class, FactsRow::class, SeriesEntry::class], version = 9, exportSchema = false)
 abstract class AppDb : RoomDatabase() {
     abstract fun entries(): EntryDao
     abstract fun outbox(): OutboxDao
     abstract fun facts(): FactsDao
+    abstract fun series(): SeriesDao
 
     companion object {
         fun create(context: Context) =
             Room.databaseBuilder(context, AppDb::class.java, "peli.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onOpen(db: SupportSQLiteDatabase) {
                         AppLog.i("DB", "base de datos abierta (versión ${db.version})")
