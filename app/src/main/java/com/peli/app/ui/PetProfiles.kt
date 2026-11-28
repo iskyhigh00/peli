@@ -19,14 +19,14 @@ import com.peli.app.ui.components.GlassCard
 /** Cómo es cada perrita, para su perfil. */
 private fun profileText(pet: Pet): Triple<String, String, String> = when (pet) {
     Pet.Chuba -> Triple(
-        "Inquieta, ávida y siempre con hambre",
-        "Persigue moscas y perros, ladra primero y corre como loca en la playa.",
-        "Le gusta: acción, aventuras, comedia",
+        "La que llega primero",
+        "Si algo se mueve, ya estaba ahí. Opina antes de que termine la escena.",
+        "Suele aprobar: acción, aventuras, comedia",
     )
     Pet.Pepa -> Triple(
-        "Tranquila y de su espacio",
-        "El ruido la molesta y, si hay peligro, arranca. Muy fiel con su gente.",
-        "Le gusta: drama, romance, fantasía",
+        "La que se lo piensa",
+        "Se toma su tiempo con todo. Si algo le gusta, se queda a tu lado hasta el final.",
+        "Suele aprobar: drama, romance, fantasía",
     )
 }
 

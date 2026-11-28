@@ -446,6 +446,9 @@ object Changelog {
         "2.2.9" to listOf(
             "Nuevo «Ver una peli» en Juntos: elige el mood (tranqui, reírnos, acción, terror…) y propone, de sus candidatas, las que ya tienes disponibles y encajan. También puede elegir una al azar, o ampliar a todas.",
         ),
+        "2.3.0" to listOf(
+            "Chuba y Pepa suenan más a ellas: comentarios nuevos, más cortos y variados, que hablan de la película en vez de repetir sus manías en cada frase. También se renovó la descripción de su perfil.",
+        ),
     )
 
     private const val PREFS = "peli_prefs"
